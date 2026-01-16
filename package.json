@@ -1,0 +1,31 @@
+{
+  "name": "vanguard",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "db:start": "docker compose up -d",
+    "db:stop": "docker compose down",
+    "db:logs": "docker compose logs -f pocketbase"
+  },
+  "dependencies": {
+    "next": "14.x",
+    "react": "18.x",
+    "react-dom": "18.x",
+    "next-auth": "4.x",
+    "pocketbase": "0.23.1",
+    "resend": "^4.0.0",
+    "uuid": "9.x"
+  },
+  "devDependencies": {
+    "@types/react": "18.x",
+    "@types/node": "20.x",
+    "@types/uuid": "^9.0.0",
+    "typescript": "5.x",
+    "eslint": "8.x",
+    "eslint-config-next": "14.x"
+  }
+}

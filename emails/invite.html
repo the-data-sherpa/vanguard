@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Welcome to Your New Tenant</title>
+  </head>
+  <body style="font-family: Arial, sans-serif; line-height: 1.5;">
+    <h2>Hello {{name}},</h2>
+    <p>
+      You have been invited to join the <strong>{{tenantName}}</strong> tenant on our platform.
+    </p>
+    <p>
+      Click the button below to activate your account:
+    </p>
+    <a
+      href="{{magicLink}}"
+      style="display: inline-block; padding: 10px 20px; background: #0066ff; color: #fff; text-decoration: none; border-radius: 4px;"
+      >Accept Invitation</a
+    >
+    <p>If you did not expect this email, you can ignore it.</p>
+    <hr />
+    <p>© {{year}} The Data Sherpa</p>
+  </body>
+</html>
