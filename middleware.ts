@@ -182,6 +182,7 @@ async function fetchTenant(
   slug: string
 ): Promise<TenantResponse | null> {
   const pbUrl = process.env.POCKETBASE_URL || 'http://localhost:8090';
+  const isDev = process.env.NODE_ENV === 'development';
 
   try {
     const response = await fetch(
@@ -196,6 +197,24 @@ async function fetchTenant(
     );
 
     if (!response.ok) {
+      // In development, if PocketBase returns 403/404, create a mock tenant
+      // This allows development without full DB setup
+      if (isDev && (response.status === 403 || response.status === 404)) {
+        console.warn(`[middleware] Dev mode: PocketBase returned ${response.status}, using mock tenant for "${slug}"`);
+        return {
+          id: `dev-${slug}`,
+          slug: slug,
+          name: `Dev Tenant (${slug})`,
+          status: 'active',
+          tier: 'professional',
+          features: {
+            weatherAlerts: true,
+            userSubmissions: true,
+          },
+          created: new Date().toISOString(),
+          updated: new Date().toISOString(),
+        };
+      }
       console.error('Failed to fetch tenant:', response.statusText);
       return null;
     }
@@ -203,12 +222,46 @@ async function fetchTenant(
     const data = await response.json();
 
     if (!data.items || data.items.length === 0) {
+      // In development, return mock tenant if no tenant found
+      if (isDev) {
+        console.warn(`[middleware] Dev mode: No tenant found for "${slug}", using mock tenant`);
+        return {
+          id: `dev-${slug}`,
+          slug: slug,
+          name: `Dev Tenant (${slug})`,
+          status: 'active',
+          tier: 'professional',
+          features: {
+            weatherAlerts: true,
+            userSubmissions: true,
+          },
+          created: new Date().toISOString(),
+          updated: new Date().toISOString(),
+        };
+      }
       return null;
     }
 
     return data.items[0] as TenantResponse;
   } catch (error) {
     console.error('Error fetching tenant:', error);
+    // In development, return mock tenant on error
+    if (isDev) {
+      console.warn(`[middleware] Dev mode: Error fetching tenant, using mock for "${slug}"`);
+      return {
+        id: `dev-${slug}`,
+        slug: slug,
+        name: `Dev Tenant (${slug})`,
+        status: 'active',
+        tier: 'professional',
+        features: {
+          weatherAlerts: true,
+          userSubmissions: true,
+        },
+        created: new Date().toISOString(),
+        updated: new Date().toISOString(),
+      };
+    }
     return null;
   }
 }

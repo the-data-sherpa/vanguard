@@ -1,6 +1,6 @@
 // services/pocketbaseAdapter.ts
 import PocketBase from "pocketbase";
-import type { Adapter, AdapterUser, AdapterAccount } from "next-auth/adapters";
+import type { Adapter, AdapterUser, AdapterAccount, AdapterSession } from "next-auth/adapters";
 
 const pb = new PocketBase(process.env.POCKETBASE_URL || "http://localhost:8090");
 
@@ -14,6 +14,7 @@ function pbToAdapterUser(record: any): AdapterUser {
     emailVerified: record.verified ? new Date(record.verified) : null,
     role: record.role, // custom field
     tenantId: record.tenantId, // custom field
+    tenantRole: record.tenantRole, // custom field
   };
 }
 
@@ -66,11 +67,11 @@ function adapterAccountToPb(account: AdapterAccount): any {
 
 export default function PocketBaseAdapter(): Adapter {
   return {
-    async createUser(user) {
-      const record = await pb.collection("users").create(adapterUserToPb(user));
+    async createUser(user: Omit<AdapterUser, "id">) {
+      const record = await pb.collection("users").create(adapterUserToPb(user as AdapterUser));
       return pbToAdapterUser(record);
     },
-    async getUser(id) {
+    async getUser(id: string) {
       try {
         const record = await pb.collection("users").getOne(id);
         return pbToAdapterUser(record);
@@ -78,7 +79,7 @@ export default function PocketBaseAdapter(): Adapter {
         return null;
       }
     },
-    async getUserByEmail(email) {
+    async getUserByEmail(email: string) {
       try {
         const record = await pb.collection("users").getFirstListItem(`email="${email}"`);
         return pbToAdapterUser(record);
@@ -86,7 +87,7 @@ export default function PocketBaseAdapter(): Adapter {
         return null;
       }
     },
-    async getUserByAccount({ providerAccountId, provider }) {
+    async getUserByAccount({ providerAccountId, provider }: { providerAccountId: string; provider: string }) {
       try {
         const account = await pb
           .collection("accounts")
@@ -97,7 +98,7 @@ export default function PocketBaseAdapter(): Adapter {
         return null;
       }
     },
-    async updateUser(user) {
+    async updateUser(user: Partial<AdapterUser> & Pick<AdapterUser, "id">) {
       const payload = {
         name: user.name ?? null,
         avatar: user.image ?? null,
@@ -108,14 +109,14 @@ export default function PocketBaseAdapter(): Adapter {
       const record = await pb.collection("users").update(user.id, payload);
       return pbToAdapterUser(record);
     },
-    async deleteUser(userId) {
+    async deleteUser(userId: string) {
       await pb.collection("users").delete(userId);
     },
-    async linkAccount(account) {
+    async linkAccount(account: AdapterAccount) {
       const payload = adapterAccountToPb(account);
       await pb.collection("accounts").create(payload);
     },
-    async unlinkAccount({ providerAccountId, provider }) {
+    async unlinkAccount({ providerAccountId, provider }: { providerAccountId: string; provider: string }) {
       try {
         const record = await pb
           .collection("accounts")
@@ -125,7 +126,7 @@ export default function PocketBaseAdapter(): Adapter {
         // No-op if not found
       }
     },
-    async createSession({ sessionToken, userId, expires }) {
+    async createSession({ sessionToken, userId, expires }: { sessionToken: string; userId: string; expires: Date }) {
       const record = await pb.collection("sessions").create({
         sessionToken,
         userId,
@@ -133,7 +134,7 @@ export default function PocketBaseAdapter(): Adapter {
       });
       return { sessionToken: record.sessionToken, userId, expires };
     },
-    async getSessionAndUser(sessionToken) {
+    async getSessionAndUser(sessionToken: string) {
       try {
         const sessionRecord = await pb
           .collection("sessions")
@@ -151,7 +152,7 @@ export default function PocketBaseAdapter(): Adapter {
         return null;
       }
     },
-    async updateSession({ sessionToken, expires }) {
+    async updateSession({ sessionToken, expires }: Partial<AdapterSession> & Pick<AdapterSession, "sessionToken">) {
       try {
         const record = await pb
           .collection("sessions")
@@ -166,7 +167,7 @@ export default function PocketBaseAdapter(): Adapter {
         return null;
       }
     },
-    async deleteSession(sessionToken) {
+    async deleteSession(sessionToken: string) {
       try {
         const record = await pb
           .collection("sessions")

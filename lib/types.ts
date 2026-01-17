@@ -76,6 +76,9 @@ export interface Tenant extends BaseRecord {
   deletionScheduledAt?: string;
   billingCustomerId?: string;
   billingSubscriptionId?: string;
+  unitLegend?: UnitLegend;
+  unitLegendUpdatedAt?: string;
+  unitLegendAvailable?: boolean; // null = unknown, true = has legend, false = no legend (404)
 }
 
 export interface PulsepointConfig {
@@ -105,6 +108,13 @@ export interface TenantLimits {
   maxStorageMb?: number;
   maxSocialAccounts?: number;
 }
+
+export interface UnitLegendEntry {
+  UnitKey: string;
+  Description: string;
+}
+
+export type UnitLegend = UnitLegendEntry[];
 
 // ===================
 // User
@@ -221,6 +231,22 @@ export interface RateCounter extends BaseRecord {
 }
 
 // ===================
+// Incident Group
+// ===================
+
+export type MergeReason = 'auto_address_time' | 'manual';
+
+export interface IncidentGroup extends BaseRecord {
+  tenantId: string;
+  mergeKey: string;
+  mergeReason: MergeReason;
+  callType?: string;
+  normalizedAddress?: string;
+  windowStart?: string;
+  windowEnd?: string;
+}
+
+// ===================
 // Incident
 // ===================
 
@@ -231,6 +257,7 @@ export type ModerationStatus = 'auto_approved' | 'pending' | 'approved' | 'rejec
 
 export interface Incident extends BaseRecord {
   tenantId: string;
+  groupId?: string;
   source: IncidentSource;
   externalId?: string;
   callType: string;

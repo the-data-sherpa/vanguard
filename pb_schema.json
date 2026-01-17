@@ -35,7 +35,10 @@
         { "name": "deactivatedReason", "type": "text", "required": false },
         { "name": "deletionScheduledAt", "type": "datetime", "required": false },
         { "name": "billingCustomerId", "type": "text", "required": false },
-        { "name": "billingSubscriptionId", "type": "text", "required": false }
+        { "name": "billingSubscriptionId", "type": "text", "required": false },
+        { "name": "unitLegend", "type": "json", "required": false },
+        { "name": "unitLegendUpdatedAt", "type": "datetime", "required": false },
+        { "name": "unitLegendAvailable", "type": "bool", "required": false }
       ],
       "indexes": [
         { "unique": true, "fields": ["slug"] },
@@ -169,11 +172,31 @@
       ]
     },
     {
+      "id": "incident_groups",
+      "type": "base",
+      "name": "Incident Groups",
+      "schema": [
+        { "name": "tenantId", "type": "relation", "required": true, "collectionId": "tenants" },
+        { "name": "mergeKey", "type": "text", "required": true },
+        { "name": "mergeReason", "type": "select", "required": true, "options": { "values": ["auto_address_time", "manual"] } },
+        { "name": "callType", "type": "text", "required": false },
+        { "name": "normalizedAddress", "type": "text", "required": false },
+        { "name": "windowStart", "type": "datetime", "required": false },
+        { "name": "windowEnd", "type": "datetime", "required": false }
+      ],
+      "indexes": [
+        { "fields": ["tenantId"] },
+        { "unique": true, "fields": ["tenantId", "mergeKey"] },
+        { "fields": ["tenantId", "normalizedAddress", "windowStart"] }
+      ]
+    },
+    {
       "id": "incidents",
       "type": "base",
       "name": "Incidents",
       "schema": [
         { "name": "tenantId", "type": "relation", "required": true, "collectionId": "tenants" },
+        { "name": "groupId", "type": "relation", "required": false, "collectionId": "incident_groups" },
         { "name": "source", "type": "select", "required": true, "options": { "values": ["pulsepoint", "user_submitted", "merged", "manual"] } },
         { "name": "externalId", "type": "text", "required": false },
         { "name": "callType", "type": "text", "required": true },
@@ -204,6 +227,7 @@
         { "fields": ["tenantId", "status"] },
         { "fields": ["tenantId", "callReceivedTime"] },
         { "fields": ["tenantId", "source"] },
+        { "fields": ["tenantId", "groupId"] },
         { "unique": true, "fields": ["tenantId", "externalId"] }
       ]
     },

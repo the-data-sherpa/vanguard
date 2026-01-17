@@ -35,7 +35,7 @@ export async function isFeatureEnabled(tenantId: string, flag: string): Promise<
  */
 export async function setTenantFeatures(
   tenantId: string,
-  patch: Partial<Record<string, boolean>>
+  patch: Record<string, boolean>
 ): Promise<Record<string, boolean>> {
   const tenant = await pb.collection("tenants").getOne(tenantId);
   const current = parseFeatures(tenant.features);

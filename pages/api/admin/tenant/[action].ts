@@ -1,4 +1,4 @@
-// pages/api/tenant/[action].ts
+// pages/api/admin/tenant/[action].ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSession } from 'next-auth/react';
 import {
@@ -7,8 +7,8 @@ import {
   deactivateTenant,
   restoreTenant,
   hardDeleteTenant,
-} from '../../../services/tenant';
-import { logAudit } from '../../../services/audit';
+} from '../../../../services/tenant';
+import { logAudit } from '../../../../services/audit';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const session = await getSession({ req });
@@ -23,7 +23,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     switch (action) {
       case 'list':
-        const records = await import('../../../services/tenant').then((m) => m.listTenants?.() ?? []);
+        const records = await import('../../../../services/tenant').then((m) => m.listTenants?.() ?? []);
         return res.status(200).json(records);
       case 'create':
         if (!slug || !name) {

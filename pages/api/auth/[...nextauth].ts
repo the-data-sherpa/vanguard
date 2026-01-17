@@ -1,5 +1,7 @@
 // pages/api/auth/[...nextauth].ts
 import NextAuth from "next-auth";
+import type { Session } from "next-auth";
+import type { JWT } from "next-auth/jwt";
 import EmailProvider from "next-auth/providers/email";
 import FacebookProvider from "next-auth/providers/facebook";
 import { getConfig } from "../../../services/config";
@@ -26,17 +28,19 @@ export const authOptions = async () => {
       }),
     ],
     adapter: PocketBaseAdapter(),
-    session: { strategy: "jwt" },
+    session: { strategy: "jwt" as const },
     callbacks: {
-      async session({ session, token }) {
-        if (token.role) session.user.role = token.role as string;
-        if (token.tenantId) session.tenantId = token.tenantId as string;
+      async session({ session, token }: { session: Session; token: JWT }) {
+        if (token.role) (session.user as any).role = token.role as string;
+        if (token.tenantId) (session as any).tenantId = token.tenantId as string;
+        if (token.tenantRole) (session as any).tenantRole = token.tenantRole as string;
         return session;
       },
-      async jwt({ token, user }) {
+      async jwt({ token, user }: { token: JWT; user?: any }) {
         if (user) {
-          token.role = (user as any).role;
-          token.tenantId = (user as any).tenantId;
+          token.role = user.role;
+          token.tenantId = user.tenantId;
+          token.tenantRole = user.tenantRole;
         }
         return token;
       },
