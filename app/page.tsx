@@ -83,7 +83,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
             <Link href="/" className="flex items-center gap-2">
-              <Image src="/logo.jpg" alt="Vanguard" width={32} height={32} className="rounded" />
+              <Image src="/logo.png" alt="Vanguard" width={32} height={32} className="rounded" />
               <span className="text-xl font-bold">Vanguard</span>
             </Link>
             <div className="hidden md:flex items-center gap-8">
@@ -376,7 +376,7 @@ export default function LandingPage() {
           <div className="grid grid-cols-2 md:grid-cols-3 gap-8">
             <div className="col-span-2 md:col-span-1">
               <Link href="/" className="flex items-center gap-2 mb-4 w-fit">
-                <Image src="/logo.jpg" alt="Vanguard" width={24} height={24} className="rounded" />
+                <Image src="/logo.png" alt="Vanguard" width={24} height={24} className="rounded" />
                 <span className="font-bold">Vanguard</span>
               </Link>
               <p className="text-sm text-muted-foreground">

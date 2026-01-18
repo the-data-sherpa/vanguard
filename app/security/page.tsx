@@ -43,7 +43,7 @@ export default function SecurityPage() {
       <header className="border-b">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <Link href="/" className="flex items-center gap-2 w-fit">
-            <Image src="/logo.jpg" alt="Vanguard" width={24} height={24} className="rounded" />
+            <Image src="/logo.png" alt="Vanguard" width={24} height={24} className="rounded" />
             <span className="font-bold">Vanguard</span>
           </Link>
         </div>
