@@ -1,5 +1,6 @@
-import { AlertTriangle, Shield, Lock, Server, Eye, RefreshCw } from 'lucide-react';
+import { Shield, Lock, Server, Eye, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export const metadata = {
@@ -42,7 +43,7 @@ export default function SecurityPage() {
       <header className="border-b">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <Link href="/" className="flex items-center gap-2 w-fit">
-            <AlertTriangle className="h-5 w-5 text-red-500" />
+            <Image src="/logo.jpg" alt="Vanguard" width={24} height={24} className="rounded" />
             <span className="font-bold">Vanguard</span>
           </Link>
         </div>

@@ -1,6 +1,6 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import {
-  AlertTriangle,
   Radio,
   CloudLightning,
   Shield,
@@ -82,10 +82,10 @@ export default function LandingPage() {
       <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-6 w-6 text-red-500" />
+            <Link href="/" className="flex items-center gap-2">
+              <Image src="/logo.jpg" alt="Vanguard" width={32} height={32} className="rounded" />
               <span className="text-xl font-bold">Vanguard</span>
-            </div>
+            </Link>
             <div className="hidden md:flex items-center gap-8">
               <Link href="#features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
                 Features
@@ -375,10 +375,10 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-2 md:grid-cols-3 gap-8">
             <div className="col-span-2 md:col-span-1">
-              <div className="flex items-center gap-2 mb-4">
-                <AlertTriangle className="h-5 w-5 text-red-500" />
+              <Link href="/" className="flex items-center gap-2 mb-4 w-fit">
+                <Image src="/logo.jpg" alt="Vanguard" width={24} height={24} className="rounded" />
                 <span className="font-bold">Vanguard</span>
-              </div>
+              </Link>
               <p className="text-sm text-muted-foreground">
                 Community incident awareness for neighborhoods and local areas.
               </p>
