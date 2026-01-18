@@ -4,7 +4,24 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, Clock, Info } from 'lucide-react';
 import type { WeatherAlert } from '@/lib/types';
-import { getSeverityColor } from '@/services/weather';
+
+/**
+ * Get Tailwind classes for severity badge styling
+ */
+function getSeverityColor(severity: string): string {
+  switch (severity.toLowerCase()) {
+    case 'extreme':
+      return 'bg-red-100 text-red-800 border-red-200';
+    case 'severe':
+      return 'bg-orange-100 text-orange-800 border-orange-200';
+    case 'moderate':
+      return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+    case 'minor':
+      return 'bg-blue-100 text-blue-800 border-blue-200';
+    default:
+      return 'bg-gray-100 text-gray-800 border-gray-200';
+  }
+}
 
 interface WeatherAlertCardProps {
   alert: WeatherAlert;

@@ -1,40 +1,22 @@
-import { getTenantBySlug } from '@/services/tenant';
-import { notFound } from 'next/navigation';
-import type { TenantContext } from '@/lib/types';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { SyncControls } from './SyncControls';
-import { PulsePointConfig } from './PulsePointConfig';
+"use client";
 
-interface SettingsPageProps {
-  params: Promise<{ slug: string }>;
-}
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
+import { useParams } from "next/navigation";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { SyncControls } from "./SyncControls";
+import { PulsePointConfig } from "./PulsePointConfig";
 
-export default async function SettingsPage({ params }: SettingsPageProps) {
-  const { slug } = await params;
-  const tenant = await getTenantBySlug(slug);
+export default function SettingsPage() {
+  const params = useParams();
+  const slug = params.slug as string;
+
+  const tenant = useQuery(api.tenants.getBySlug, { slug });
 
   if (!tenant) {
-    notFound();
+    return <SettingsPageSkeleton />;
   }
-
-  // Debug: Log unit legend status (only when DEBUG=true)
-  if (process.env.DEBUG === 'true') {
-    console.log('[settings] Tenant unit legend data:', {
-      id: tenant.id,
-      unitLegendAvailable: tenant.unitLegendAvailable,
-      unitLegendUpdatedAt: tenant.unitLegendUpdatedAt,
-      unitLegendCount: tenant.unitLegend?.length ?? 0,
-    });
-  }
-
-  // Build tenant context
-  const ctx: TenantContext = {
-    id: tenant.id,
-    slug: tenant.slug,
-    status: tenant.status,
-    tier: tenant.tier,
-    features: tenant.features ?? {},
-  };
 
   return (
     <div className="space-y-6">
@@ -57,9 +39,8 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
           </CardHeader>
           <CardContent>
             <SyncControls
-              tenantSlug={slug}
-              tenantId={tenant.id}
-              hasWeatherEnabled={ctx.features.weatherAlerts ?? false}
+              tenantId={tenant._id}
+              hasWeatherEnabled={tenant.features?.weatherAlerts ?? false}
               unitLegendStatus={{
                 available: tenant.unitLegendAvailable,
                 updatedAt: tenant.unitLegendUpdatedAt,
@@ -80,7 +61,7 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
           <CardContent className="space-y-3">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Name</span>
-              <span className="font-medium">{tenant.name}</span>
+              <span className="font-medium">{tenant.displayName || tenant.name}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Slug</span>
@@ -94,6 +75,22 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
               <span className="text-muted-foreground">Tier</span>
               <span className="font-medium capitalize">{tenant.tier}</span>
             </div>
+            {tenant.lastIncidentSync && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Last Incident Sync</span>
+                <span className="text-sm">
+                  {new Date(tenant.lastIncidentSync).toLocaleString()}
+                </span>
+              </div>
+            )}
+            {tenant.lastWeatherSync && (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Last Weather Sync</span>
+                <span className="text-sm">
+                  {new Date(tenant.lastWeatherSync).toLocaleString()}
+                </span>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -107,17 +104,55 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
           </CardHeader>
           <CardContent className="space-y-4">
             <PulsePointConfig
-              tenantSlug={slug}
-              initialAgencyId={tenant.pulsepointAgencyId}
+              tenantId={tenant._id}
+              initialConfig={tenant.pulsepointConfig}
             />
-            {tenant.pulsepointConfig?.agencyIds && tenant.pulsepointConfig.agencyIds.length > 0 && (
-              <div className="flex justify-between pt-3 border-t">
-                <span className="text-muted-foreground">Additional Agencies</span>
-                <span className="font-mono text-sm">
-                  {tenant.pulsepointConfig.agencyIds.length}
-                </span>
-              </div>
-            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function SettingsPageSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="space-y-2">
+        <Skeleton className="h-8 w-32" />
+        <Skeleton className="h-4 w-64" />
+      </div>
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card className="md:col-span-2">
+          <CardHeader>
+            <Skeleton className="h-6 w-48" />
+            <Skeleton className="h-4 w-96" />
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <Skeleton className="h-20 w-full" />
+              <Skeleton className="h-20 w-full" />
+              <Skeleton className="h-20 w-full" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-40" />
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-full" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-48" />
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-10 w-full" />
           </CardContent>
         </Card>
       </div>
