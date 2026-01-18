@@ -5,7 +5,7 @@ import { ThemeProvider } from "@/components/providers/ThemeProvider";
 
 export const metadata: Metadata = {
   metadataBase: new URL(
-    process.env.NEXT_PUBLIC_APP_URL || "https://vanguard.community"
+    process.env.NEXT_PUBLIC_APP_URL || "https://vanguardalerts.com"
   ),
   title: {
     default: "Vanguard - Community Incident Awareness Platform",
