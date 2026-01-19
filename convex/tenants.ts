@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation, internalMutation, QueryCtx, MutationCtx } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 
 // ===================
@@ -220,6 +221,12 @@ export const create = mutation({
 /**
  * Update tenant PulsePoint configuration
  * Requires admin or owner role
+ *
+ * When agency IDs change:
+ * - Requires deleteExistingIncidents=true to confirm deletion
+ * - Deletes all existing incidents, notes, and groups
+ * - Clears unit legend (will be re-synced)
+ * - Schedules immediate unit legend sync for new agency
  */
 export const updatePulsepointConfig = mutation({
   args: {
@@ -230,14 +237,59 @@ export const updatePulsepointConfig = mutation({
       syncInterval: v.number(),
       callTypes: v.optional(v.array(v.string())),
     }),
+    deleteExistingIncidents: v.optional(v.boolean()),
   },
-  handler: async (ctx, { tenantId, config }) => {
+  handler: async (ctx, { tenantId, config, deleteExistingIncidents }) => {
     // Verify user has admin access to this tenant
     await requireTenantAccess(ctx, tenantId, "admin");
 
+    // Get current tenant to check for agency change
+    const tenant = await ctx.db.get(tenantId);
+    if (!tenant) {
+      throw new Error("Tenant not found");
+    }
+
+    // Check if agency IDs are changing
+    const currentAgencyIds = tenant.pulsepointConfig?.agencyIds || [];
+    const newAgencyIds = config.agencyIds;
+    const agencyIdsChanged =
+      currentAgencyIds.length !== newAgencyIds.length ||
+      !currentAgencyIds.every((id, i) => id === newAgencyIds[i]);
+
+    // If agency is changing and there are existing incidents, require confirmation
+    if (agencyIdsChanged && currentAgencyIds.length > 0) {
+      if (!deleteExistingIncidents) {
+        // Throw special error that frontend can catch
+        throw new Error("AGENCY_CHANGE_REQUIRES_CONFIRMATION");
+      }
+
+      // Delete all existing incident data for this tenant
+      await ctx.runMutation(internal.incidents.deleteAllIncidentDataForTenant, {
+        tenantId,
+      });
+
+      // Clear unit legend since it's agency-specific
+      await ctx.db.patch(tenantId, {
+        unitLegend: undefined,
+        unitLegendUpdatedAt: undefined,
+        unitLegendAvailable: undefined,
+      });
+
+      console.log(`[Tenants] Agency changed for tenant ${tenantId}: cleared all incident data and unit legend`);
+    }
+
+    // Update the config
     await ctx.db.patch(tenantId, {
       pulsepointConfig: config,
     });
+
+    // If agency changed and new agencies are configured, schedule immediate unit legend sync
+    if (agencyIdsChanged && newAgencyIds.length > 0) {
+      await ctx.scheduler.runAfter(0, internal.sync.syncUnitLegendForTenant, {
+        tenantId,
+      });
+      console.log(`[Tenants] Scheduled unit legend sync for tenant ${tenantId}`);
+    }
   },
 });
 
@@ -285,6 +337,42 @@ export const updateSyncTimestamp = internalMutation({
         : { lastWeatherSync: Date.now() };
 
     await ctx.db.patch(tenantId, update);
+  },
+});
+
+/**
+ * Update unit legend from automated sync (internal use)
+ * Sets unitLegendAvailable to false if legend is null (404 from API)
+ */
+export const updateUnitLegendFromSync = internalMutation({
+  args: {
+    tenantId: v.id("tenants"),
+    legend: v.union(
+      v.null(),
+      v.array(
+        v.object({
+          UnitKey: v.string(),
+          Description: v.string(),
+        })
+      )
+    ),
+  },
+  handler: async (ctx, { tenantId, legend }) => {
+    if (legend === null) {
+      // API returned 404 or error - mark as unavailable
+      await ctx.db.patch(tenantId, {
+        unitLegendAvailable: false,
+      });
+      console.log(`[Tenants] Unit legend not available for tenant ${tenantId}`);
+    } else {
+      // Successfully fetched legend
+      await ctx.db.patch(tenantId, {
+        unitLegend: legend,
+        unitLegendUpdatedAt: Date.now(),
+        unitLegendAvailable: true,
+      });
+      console.log(`[Tenants] Updated unit legend for tenant ${tenantId}: ${legend.length} entries`);
+    }
   },
 });
 

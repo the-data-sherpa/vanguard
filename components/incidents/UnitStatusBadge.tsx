@@ -4,128 +4,71 @@ import { Badge } from '@/components/ui/badge';
 import type { UnitLegend, UnitStatusesField } from '@/lib/types';
 import { getUnitStatusByUnitId } from '@/lib/types';
 
-// Common unit type suffixes to strip when extracting department names
-const UNIT_TYPE_SUFFIXES = [
-  'AMBULANCE', 'EMS', 'MEDIC',
+// Fire/Rescue unit type suffixes - these get stripped to show department name
+const FIRE_UNIT_SUFFIXES = [
   'ENGINE', 'LADDER', 'TRUCK', 'TANKER', 'BRUSH', 'RESCUE',
   'BATTALION', 'CHIEF', 'CAPTAIN', 'UTILITY', 'SQUAD',
   'HAZMAT', 'SPECIAL', 'PUMPER', 'QUINT', 'TOWER',
 ];
 
-/**
- * Department mapping based on unit ID prefixes
- * This is used as a fallback when no legend is available
- */
-const DEPARTMENT_PREFIXES: Record<string, string> = {
-  // EMS
-  IMED: 'Iredell EMS',
-  MED: 'Medic',
-  EMS: 'EMS',
-  AMB: 'Ambulance',
+// EMS unit type suffixes - these keep "EMS" in the group name
+const EMS_UNIT_SUFFIXES = ['AMBULANCE', 'EMS', 'MEDIC'];
 
-  // Mooresville Fire
-  MF: 'Mooresville Fire',
-  ME: 'Mooresville Fire',
-  MFD: 'Mooresville Fire',
-
-  // Statesville Fire
-  SF: 'Statesville Fire',
-  SE: 'Statesville Fire',
-  SFD: 'Statesville Fire',
-
-  // Troutman Fire
-  TF: 'Troutman Fire',
-  TE: 'Troutman Fire',
-  TFD: 'Troutman Fire',
-
-  // Numbered Fire Departments
-  F11: 'Lake Norman Fire',
-  F12: 'South Iredell Fire',
-  F13: 'Ebenezer Fire',
-  F14: 'Monticello Fire',
-  F15: 'Union Grove Fire',
-  F16: 'Sheffield-Callahan Fire',
-  F18: 'County Line Fire',
-  F20: 'Cool Springs Fire',
-  F23: 'Wilkes-Iredell Fire',
-  F24: 'Lone Hickory Fire',
-  F30: 'West Iredell Fire',
-  F34: 'Stony Point Fire',
-  F44: 'Harmony Fire',
-  F50: 'Shepherds Fire',
-  F60: 'Wayside Fire',
-  F70: 'Mount Mourne Fire',
-  F80: 'Trinity Fire',
-  F90: 'Central Fire',
-
-  // Rescue Squads
-  ICRS: 'Iredell County Rescue',
-  R11: 'Iredell County Rescue',
-  NIRS: 'North Iredell Rescue',
-  NI: 'North Iredell Rescue',
-
-  // Other Services
-  FMO: 'Fire Marshal',
-  FM: 'Fire Marshal',
-  NCFS: 'NC Forestry Service',
-  NC: 'NC Forestry Service',
-  ACO: 'Animal Control',
-  AC: 'Animal Control',
-};
+// EMS-related prefixes for descriptions that start with EMS
+const EMS_PREFIXES = ['EMS ', 'MEDIC ', 'AMBULANCE '];
 
 /**
- * Extract department from unit ID using prefix patterns
- * e.g., "IMED13" → "Iredell EMS"
- *       "F30E1" → "West Iredell Fire"
- *       "MFE4" → "Mooresville Fire"
- */
-export function extractDepartmentFromUnitId(unitId: string): string | null {
-  // Try to match known prefixes using regex
-  // Matches: IMED13->IMED, F30E1->F30, SFE4->SF, ICRS1->ICRS
-  const match = unitId.match(
-    /^(IMED|ICRS|NIRS|FMO|NCFS|ACO|MED|EMS|AMB|SF|MF|TF|IC|NI|FM|NC|AC|F\d{2}|E\d{2}|R\d{2})/i
-  );
-
-  if (match) {
-    const deptCode = match[1].toUpperCase();
-    return DEPARTMENT_PREFIXES[deptCode] || null;
-  }
-
-  return null;
-}
-
-/**
- * Extract department name from unit description
- * e.g., "ALEXANDER AMBULANCE" → "Alexander"
- *       "BUCK SHOALS LADDER" → "Buck Shoals"
+ * Extract department/service name from unit description
+ *
+ * Fire units: "MOORESVILLE ENGINE" → "Mooresville"
+ * EMS units: "MOORESVILLE EMS" → "Mooresville EMS"
+ * Generic EMS: "EMS SUPERVISOR" → "EMS"
  */
 export function extractDepartment(description: string): string {
   const upper = description.toUpperCase().trim();
 
-  // Try to find and remove unit type suffix
-  for (const suffix of UNIT_TYPE_SUFFIXES) {
-    if (upper.endsWith(` ${suffix}`)) {
-      const dept = description.slice(0, -(suffix.length + 1)).trim();
-      // Title case the department name
-      return dept
-        .toLowerCase()
-        .split(' ')
-        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(' ');
-    }
-  }
-
-  // If no suffix found, return the whole description title-cased
-  return description
+  // Helper to title case a string
+  const titleCase = (str: string) => str
     .toLowerCase()
     .split(' ')
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
+
+  // Check if description starts with EMS-related prefix (e.g., "EMS SUPERVISOR", "EMS CONVALESCENT")
+  for (const prefix of EMS_PREFIXES) {
+    if (upper.startsWith(prefix) || upper === prefix.trim()) {
+      return 'EMS';
+    }
+  }
+
+  // Check for EMS suffixes - keep "EMS" in the group name
+  for (const suffix of EMS_UNIT_SUFFIXES) {
+    if (upper.endsWith(` ${suffix}`)) {
+      const dept = description.slice(0, -(suffix.length + 1)).trim();
+      if (dept) {
+        return `${titleCase(dept)} EMS`;
+      }
+      return 'EMS';
+    }
+  }
+
+  // Check for fire/rescue suffixes - strip suffix, return department name
+  for (const suffix of FIRE_UNIT_SUFFIXES) {
+    if (upper.endsWith(` ${suffix}`)) {
+      const dept = description.slice(0, -(suffix.length + 1)).trim();
+      if (dept) {
+        return titleCase(dept);
+      }
+    }
+  }
+
+  // If no suffix found, return the whole description title-cased
+  return titleCase(description);
 }
 
 /**
  * Group units by their department
- * Uses legend descriptions if available, falls back to unit ID prefix extraction
+ * Uses legend descriptions if available, otherwise groups under "Other"
  */
 export function groupUnitsByDepartment(
   units: string[],
@@ -139,19 +82,11 @@ export function groupUnitsByDepartment(
 
     let department: string = 'Other';
 
-    // First try to get department from legend
+    // Try to get department from legend
     if (unitLegend && unitLegend.length > 0) {
       const entry = unitLegend.find((u) => u.UnitKey === unit);
       if (entry?.Description) {
         department = extractDepartment(entry.Description);
-      }
-    }
-
-    // If no legend match, try extracting from unit ID prefix
-    if (department === 'Other') {
-      const deptFromId = extractDepartmentFromUnitId(unit);
-      if (deptFromId) {
-        department = deptFromId;
       }
     }
 
@@ -286,7 +221,9 @@ export function UnitStatusDetail({ units, unitStatuses, unitLegend }: UnitStatus
     const desc = getDescription(unitKey);
     if (!desc) return null;
     const upper = desc.toUpperCase();
-    for (const suffix of UNIT_TYPE_SUFFIXES) {
+    // Check both fire and EMS suffixes
+    const allSuffixes = [...FIRE_UNIT_SUFFIXES, ...EMS_UNIT_SUFFIXES];
+    for (const suffix of allSuffixes) {
       if (upper.endsWith(` ${suffix}`)) {
         return suffix.charAt(0) + suffix.slice(1).toLowerCase();
       }

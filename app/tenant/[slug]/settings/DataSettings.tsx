@@ -308,11 +308,11 @@ export function DataSettings({ tenant }: DataSettingsProps) {
           <div className="space-y-3 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Incident Data</span>
-              <span>Retained indefinitely</span>
+              <span>Retained for 30 days</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Weather Alerts</span>
-              <span>Retained for 90 days after expiration</span>
+              <span>Retained for 30 days after expiration</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Audit Logs</span>

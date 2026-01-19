@@ -796,3 +796,202 @@ export const triggerWeatherSync = action({
     });
   },
 });
+
+// ===================
+// Unit Legend Sync
+// ===================
+
+interface UnitLegendEntry {
+  UnitKey: string;
+  Description: string;
+}
+
+interface PulsePointUnitLegendResponse {
+  ct: string;
+  iv: string;
+  s: string;
+}
+
+/**
+ * Fetch unit legend from PulsePoint API
+ * Returns null if not available (404) or on error
+ */
+async function fetchUnitLegend(agencyId: string): Promise<UnitLegendEntry[] | null> {
+  const headers = {
+    "Accept": "application/json, text/plain, */*",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    "Referer": "https://web.pulsepoint.org/",
+    "Cache-Control": "no-cache",
+    "Pragma": "no-cache",
+  };
+
+  try {
+    const url = new URL(PULSEPOINT_PRIMARY_URL);
+    url.searchParams.set("resource", "unitlegend");
+    url.searchParams.set("agencyid", agencyId);
+
+    console.log(`[UnitLegend] Fetching from: ${url.toString()}`);
+    const response = await fetchWithTimeout(url.toString(), { headers }, FETCH_TIMEOUT_MS);
+
+    console.log(`[UnitLegend] Response status: ${response.status}`);
+
+    if (response.status === 404) {
+      console.log(`[UnitLegend] Not available for agency ${agencyId} (404)`);
+      return null;
+    }
+
+    if (!response.ok) {
+      console.error(`[UnitLegend] API error for agency ${agencyId}: ${response.status}`);
+      return null;
+    }
+
+    const encryptedData: PulsePointUnitLegendResponse = await response.json();
+    console.log(`[UnitLegend] Got encrypted response, has ct: ${!!encryptedData.ct}, has iv: ${!!encryptedData.iv}, has s: ${!!encryptedData.s}`);
+
+    const decryptedData = decryptPulsePointData(encryptedData);
+    console.log(`[UnitLegend] Decrypted data type: ${typeof decryptedData}, isArray: ${Array.isArray(decryptedData)}`);
+
+    if (decryptedData) {
+      console.log(`[UnitLegend] Decrypted data keys: ${Object.keys(decryptedData).join(', ')}`);
+      if (Array.isArray(decryptedData) && decryptedData.length > 0) {
+        console.log(`[UnitLegend] First item keys: ${Object.keys(decryptedData[0]).join(', ')}`);
+      }
+    }
+
+    // The decrypted data should be an array of { UnitKey, Description }
+    if (Array.isArray(decryptedData)) {
+      console.log(`[UnitLegend] Found ${decryptedData.length} units as array`);
+      return decryptedData as UnitLegendEntry[];
+    }
+
+    // Sometimes the response might have a different structure
+    if (decryptedData?.units && Array.isArray(decryptedData.units)) {
+      console.log(`[UnitLegend] Found ${decryptedData.units.length} units in .units property`);
+      return decryptedData.units as UnitLegendEntry[];
+    }
+
+    // Check for UnitLegend property (PulsePoint uses capital L)
+    if (decryptedData?.UnitLegend && Array.isArray(decryptedData.UnitLegend)) {
+      console.log(`[UnitLegend] Found ${decryptedData.UnitLegend.length} units in .UnitLegend property`);
+      return decryptedData.UnitLegend as UnitLegendEntry[];
+    }
+
+    console.log(`[UnitLegend] Unexpected response format for agency ${agencyId}:`, JSON.stringify(decryptedData).substring(0, 500));
+    return null;
+  } catch (error) {
+    console.error(`[UnitLegend] Error fetching for agency ${agencyId}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Sync unit legend for a single tenant
+ */
+export const syncUnitLegendForTenant = internalAction({
+  args: {
+    tenantId: v.id("tenants"),
+  },
+  handler: async (ctx, { tenantId }) => {
+    const tenant = await ctx.runQuery(api.tenants.get, { id: tenantId });
+
+    if (!tenant) {
+      console.error(`[UnitLegend] Tenant ${tenantId} not found`);
+      return { success: false, error: "Tenant not found" };
+    }
+
+    if (!tenant.pulsepointConfig?.enabled || !tenant.pulsepointConfig?.agencyIds?.length) {
+      console.log(`[UnitLegend] Skipping tenant ${tenantId}: PulsePoint not configured`);
+      return { success: true, skipped: true };
+    }
+
+    // Use the first agency ID for the legend
+    const agencyId = tenant.pulsepointConfig.agencyIds[0];
+    const legend = await fetchUnitLegend(agencyId);
+
+    // Update the tenant with the result
+    await ctx.runMutation(internal.tenants.updateUnitLegendFromSync, {
+      tenantId,
+      legend,
+    });
+
+    return {
+      success: true,
+      available: legend !== null,
+      entries: legend?.length ?? 0,
+    };
+  },
+});
+
+/**
+ * Sync unit legends for all active tenants with PulsePoint enabled
+ * Called by daily cleanup cron
+ */
+export const syncAllTenantUnitLegends = internalAction({
+  args: {},
+  handler: async (ctx) => {
+    const tenants = await ctx.runQuery(api.tenants.listActive, {});
+
+    let synced = 0;
+    let skipped = 0;
+    let failed = 0;
+
+    for (const tenant of tenants) {
+      if (!tenant.pulsepointConfig?.enabled || !tenant.pulsepointConfig?.agencyIds?.length) {
+        skipped++;
+        continue;
+      }
+
+      try {
+        const result = await ctx.runAction(internal.sync.syncUnitLegendForTenant, {
+          tenantId: tenant._id,
+        });
+
+        if (result.success && !result.skipped) {
+          synced++;
+        } else if (result.skipped) {
+          skipped++;
+        }
+      } catch (error) {
+        console.error(`[UnitLegend] Failed to sync for tenant ${tenant.slug}:`, error);
+        failed++;
+      }
+    }
+
+    console.log(`[UnitLegend] Daily sync complete: ${synced} synced, ${skipped} skipped, ${failed} failed`);
+
+    return { synced, skipped, failed };
+  },
+});
+
+/**
+ * Manually trigger unit legend sync for a tenant
+ */
+export const triggerUnitLegendSync = action({
+  args: { tenantId: v.id("tenants") },
+  handler: async (ctx, { tenantId }): Promise<SyncResult> => {
+    const tenant = await ctx.runQuery(api.tenants.get, { id: tenantId });
+
+    if (!tenant) {
+      throw new Error("Tenant not found");
+    }
+
+    if (!tenant.pulsepointConfig?.enabled || !tenant.pulsepointConfig?.agencyIds?.length) {
+      return { success: false, error: "PulsePoint not configured" };
+    }
+
+    const result = await ctx.runAction(internal.sync.syncUnitLegendForTenant, {
+      tenantId,
+    });
+
+    if (result.success) {
+      return {
+        success: true,
+        fetched: result.entries || 0,
+        created: result.available ? result.entries || 0 : 0,
+        updated: 0,
+      };
+    }
+
+    return { success: false, error: result.error || "Sync failed" };
+  },
+});

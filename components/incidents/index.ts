@@ -4,7 +4,6 @@ export {
   UnitStatusList,
   UnitStatusDetail,
   extractDepartment,
-  extractDepartmentFromUnitId,
   groupUnitsByDepartment,
 } from './UnitStatusBadge';
 export { IncidentCard } from './IncidentCard';

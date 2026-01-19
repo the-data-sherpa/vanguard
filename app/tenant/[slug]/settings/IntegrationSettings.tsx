@@ -106,6 +106,7 @@ export function IntegrationSettings({ tenant }: IntegrationSettingsProps) {
           <SyncControls
             tenantId={tenant._id}
             hasWeatherEnabled={tenant.features?.weatherAlerts ?? false}
+            hasPulsepointEnabled={tenant.pulsepointConfig?.enabled ?? false}
             unitLegendStatus={{
               available: tenant.unitLegendAvailable,
               updatedAt: tenant.unitLegendUpdatedAt,

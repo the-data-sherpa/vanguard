@@ -646,6 +646,56 @@ export const deleteAllForTenant = internalMutation({
 });
 
 /**
+ * Delete ALL incident-related data for a tenant (incidents, notes, and groups)
+ * Used when switching agencies to ensure clean slate
+ */
+export const deleteAllIncidentDataForTenant = internalMutation({
+  args: { tenantId: v.id("tenants") },
+  handler: async (ctx, { tenantId }) => {
+    let incidentsDeleted = 0;
+    let notesDeleted = 0;
+    let groupsDeleted = 0;
+
+    // Delete all incident notes for tenant
+    const notes = await ctx.db
+      .query("incidentNotes")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId))
+      .collect();
+
+    for (const note of notes) {
+      await ctx.db.delete(note._id);
+      notesDeleted++;
+    }
+
+    // Delete all incident groups for tenant
+    const groups = await ctx.db
+      .query("incidentGroups")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId))
+      .collect();
+
+    for (const group of groups) {
+      await ctx.db.delete(group._id);
+      groupsDeleted++;
+    }
+
+    // Delete all incidents for tenant
+    const incidents = await ctx.db
+      .query("incidents")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId))
+      .collect();
+
+    for (const incident of incidents) {
+      await ctx.db.delete(incident._id);
+      incidentsDeleted++;
+    }
+
+    console.log(`[Incidents] Deleted all data for tenant ${tenantId}: ${incidentsDeleted} incidents, ${notesDeleted} notes, ${groupsDeleted} groups`);
+
+    return { incidentsDeleted, notesDeleted, groupsDeleted };
+  },
+});
+
+/**
  * Create a manual incident (for non-PulsePoint events)
  */
 export const createManual = mutation({
