@@ -52,7 +52,11 @@
 | PulsePoint Sync | ✅ Done | Real-time, rate-limited |
 | Weather Alerts | ✅ Done | NWS integration, zone-based |
 | Dashboard | ✅ Done | Real-time stats, incidents, weather |
-| Settings Pages | ✅ Done | PulsePoint, weather, unit legend |
+| Settings Pages | ✅ Done | Tabbed layout with all config options |
+| Tenant Branding | ✅ Done | Logo upload, colors, display name |
+| Feature Toggles | ✅ Done | Enable/disable features with tier gating |
+| User Preferences | ✅ Done | Timezone, email/push notifications |
+| Data Export | ✅ Done | CSV/JSON export for incidents, weather, audit |
 | Social Media | ⬜ Needed | Schema ready, logic missing |
 | User Submissions | ⬜ Needed | Schema ready, UI missing |
 | Interactive Map | ⬜ Needed | Not started |
@@ -92,21 +96,31 @@
 
 **Security note:** Platform admins do NOT have automatic tenant access - they must be explicitly invited to each tenant like any other user.
 
-### Block 1B: Tenant Settings Completion
+### Block 1B: Tenant Settings Completion ✅ COMPLETE
 
-| Task | Priority | Complexity |
-|------|----------|------------|
-| Tenant branding (logo upload, colors, display name) | 🟠 Medium | Medium |
-| Feature toggles UI (enable/disable weather, submissions) | 🟡 Low | Low |
-| Notification preferences | 🟡 Low | Low |
-| Timezone configuration | 🟡 Low | Low |
-| Data export (CSV/JSON download) | 🟠 Medium | Medium |
+| Task | Status | Notes |
+|------|--------|-------|
+| Tenant branding (logo upload, colors, display name) | ✅ Done | Convex file storage, color picker |
+| Feature toggles UI (enable/disable weather, submissions) | ✅ Done | Switch components with tier gating |
+| Notification preferences | ✅ Done | Email/push toggles on profile page |
+| Timezone configuration | ✅ Done | Full IANA timezone selector |
+| Data export (CSV/JSON download) | ✅ Done | Incidents, weather, audit logs |
 
-**Files to create/modify:**
-- `app/tenant/[slug]/settings/branding/page.tsx`
-- `app/tenant/[slug]/settings/features/page.tsx`
-- `app/tenant/[slug]/settings/export/page.tsx`
-- `convex/tenants.ts` (add branding mutations)
+**Files created:**
+- `app/tenant/[slug]/settings/GeneralSettings.tsx` - Branding & tenant info tab
+- `app/tenant/[slug]/settings/IntegrationSettings.tsx` - PulsePoint, weather zones, sync
+- `app/tenant/[slug]/settings/FeatureSettings.tsx` - Feature toggles
+- `app/tenant/[slug]/settings/DataSettings.tsx` - Data export (CSV/JSON)
+- `convex/files.ts` - File storage for logo uploads
+- `convex/exports.ts` - Export queries for incidents, weather, audit logs
+- `convex/seed.ts` - Development seeding utilities
+- `components/ui/switch.tsx` - Toggle switch component
+- `components/ui/textarea.tsx` - Textarea component
+
+**Files modified:**
+- `app/tenant/[slug]/settings/page.tsx` - Restructured with tabbed layout
+- `app/tenant/[slug]/profile/page.tsx` - Added timezone & notification preferences
+- `convex/tenants.ts` - Added `updateBranding`, `updateFeatures` mutations
 
 ### Block 1C: Incident Enhancements
 
@@ -369,6 +383,7 @@ Block 2A (Submissions)
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0.0 | January 2025 | Initial building block plan based on codebase assessment |
+| 1.1.0 | January 2025 | Block 1B complete - tenant settings, branding, feature toggles, preferences, export |
 
 ---
 

@@ -313,3 +313,78 @@ export const updateUnitLegend = mutation({
     });
   },
 });
+
+/**
+ * Update tenant branding settings
+ * Requires admin or owner role
+ */
+export const updateBranding = mutation({
+  args: {
+    tenantId: v.id("tenants"),
+    displayName: v.optional(v.string()),
+    description: v.optional(v.string()),
+    logoUrl: v.optional(v.string()),
+    primaryColor: v.optional(v.string()),
+  },
+  handler: async (ctx, { tenantId, displayName, description, logoUrl, primaryColor }) => {
+    // Verify user has admin access to this tenant
+    await requireTenantAccess(ctx, tenantId, "admin");
+
+    // Validate primary color format if provided
+    if (primaryColor && !/^#[0-9A-Fa-f]{6}$/.test(primaryColor)) {
+      throw new Error("Invalid color format. Use hex format like #3b82f6");
+    }
+
+    const updates: Record<string, string | undefined> = {};
+    if (displayName !== undefined) updates.displayName = displayName || undefined;
+    if (description !== undefined) updates.description = description || undefined;
+    if (logoUrl !== undefined) updates.logoUrl = logoUrl || undefined;
+    if (primaryColor !== undefined) updates.primaryColor = primaryColor || undefined;
+
+    if (Object.keys(updates).length > 0) {
+      await ctx.db.patch(tenantId, updates);
+    }
+  },
+});
+
+/**
+ * Update tenant feature toggles
+ * Requires admin or owner role
+ */
+export const updateFeatures = mutation({
+  args: {
+    tenantId: v.id("tenants"),
+    features: v.object({
+      facebook: v.optional(v.boolean()),
+      twitter: v.optional(v.boolean()),
+      instagram: v.optional(v.boolean()),
+      discord: v.optional(v.boolean()),
+      weatherAlerts: v.optional(v.boolean()),
+      userSubmissions: v.optional(v.boolean()),
+      forum: v.optional(v.boolean()),
+      customBranding: v.optional(v.boolean()),
+      apiAccess: v.optional(v.boolean()),
+      advancedAnalytics: v.optional(v.boolean()),
+    }),
+  },
+  handler: async (ctx, { tenantId, features }) => {
+    // Verify user has admin access to this tenant
+    await requireTenantAccess(ctx, tenantId, "admin");
+
+    // Get current tenant to merge features
+    const tenant = await ctx.db.get(tenantId);
+    if (!tenant) {
+      throw new Error("Tenant not found");
+    }
+
+    // Merge new features with existing
+    const updatedFeatures = {
+      ...tenant.features,
+      ...features,
+    };
+
+    await ctx.db.patch(tenantId, {
+      features: updatedFeatures,
+    });
+  },
+});

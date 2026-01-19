@@ -10,10 +10,13 @@
 
 import type * as cacheHelpers from "../cacheHelpers.js";
 import type * as crons from "../crons.js";
+import type * as exports from "../exports.js";
+import type * as files from "../files.js";
 import type * as http from "../http.js";
 import type * as incidents from "../incidents.js";
 import type * as maintenance from "../maintenance.js";
 import type * as scheduler from "../scheduler.js";
+import type * as seed from "../seed.js";
 import type * as sync from "../sync.js";
 import type * as tenants from "../tenants.js";
 import type * as users from "../users.js";
@@ -28,10 +31,13 @@ import type {
 declare const fullApi: ApiFromModules<{
   cacheHelpers: typeof cacheHelpers;
   crons: typeof crons;
+  exports: typeof exports;
+  files: typeof files;
   http: typeof http;
   incidents: typeof incidents;
   maintenance: typeof maintenance;
   scheduler: typeof scheduler;
+  seed: typeof seed;
   sync: typeof sync;
   tenants: typeof tenants;
   users: typeof users;

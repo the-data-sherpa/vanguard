@@ -3,7 +3,7 @@
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useUser } from "@clerk/nextjs";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Loader2, Save, User, Settings, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,20 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+// Common timezones for easy selection
+const COMMON_TIMEZONES = [
+  { value: "America/New_York", label: "Eastern Time (ET)" },
+  { value: "America/Chicago", label: "Central Time (CT)" },
+  { value: "America/Denver", label: "Mountain Time (MT)" },
+  { value: "America/Los_Angeles", label: "Pacific Time (PT)" },
+  { value: "America/Anchorage", label: "Alaska Time (AKT)" },
+  { value: "Pacific/Honolulu", label: "Hawaii Time (HT)" },
+  { value: "America/Phoenix", label: "Arizona (no DST)" },
+  { value: "UTC", label: "UTC" },
+];
 
 export default function ProfilePage() {
   const { user: clerkUser } = useUser();
@@ -23,12 +37,40 @@ export default function ProfilePage() {
   const [isSaving, setIsSaving] = useState(false);
   const [initialized, setInitialized] = useState(false);
 
+  // Preferences state
+  const [timezone, setTimezone] = useState("");
+  const [emailNotifications, setEmailNotifications] = useState(true);
+  const [pushNotifications, setPushNotifications] = useState(false);
+  const [isSavingPreferences, setIsSavingPreferences] = useState(false);
+  const [preferencesInitialized, setPreferencesInitialized] = useState(false);
+
+  const [profileMessage, setProfileMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [preferencesMessage, setPreferencesMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Get all available timezones from the browser
+  const allTimezones = useMemo(() => {
+    try {
+      return Intl.supportedValuesOf("timeZone");
+    } catch {
+      // Fallback for older browsers
+      return COMMON_TIMEZONES.map((tz) => tz.value);
+    }
+  }, []);
+
   // Initialize form with user data
   if (user && !initialized) {
     setName(user.name || "");
     setUsername(user.username || "");
     setBio(user.bio || "");
     setInitialized(true);
+  }
+
+  // Initialize preferences
+  if (user && !preferencesInitialized) {
+    setTimezone(user.preferences?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone);
+    setEmailNotifications(user.preferences?.emailNotifications ?? true);
+    setPushNotifications(user.preferences?.pushNotifications ?? false);
+    setPreferencesInitialized(true);
   }
 
   if (user === undefined) {
@@ -49,14 +91,43 @@ export default function ProfilePage() {
 
   const handleSaveProfile = async () => {
     setIsSaving(true);
+    setProfileMessage(null);
     try {
       await updateProfile({
         name: name || undefined,
         username: username || undefined,
         bio: bio || undefined,
       });
+      setProfileMessage({ type: "success", text: "Profile saved successfully" });
+    } catch (error) {
+      setProfileMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "Failed to save profile",
+      });
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleSavePreferences = async () => {
+    setIsSavingPreferences(true);
+    setPreferencesMessage(null);
+    try {
+      await updateProfile({
+        preferences: {
+          timezone,
+          emailNotifications,
+          pushNotifications,
+        },
+      });
+      setPreferencesMessage({ type: "success", text: "Preferences saved successfully" });
+    } catch (error) {
+      setPreferencesMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "Failed to save preferences",
+      });
+    } finally {
+      setIsSavingPreferences(false);
     }
   };
 
@@ -72,6 +143,9 @@ export default function ProfilePage() {
         return "outline";
     }
   };
+
+  // Find if current timezone is in common list
+  const isCommonTimezone = COMMON_TIMEZONES.some((tz) => tz.value === timezone);
 
   return (
     <div className="space-y-6">
@@ -137,7 +211,10 @@ export default function ProfilePage() {
                   <Input
                     id="name"
                     value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    onChange={(e) => {
+                      setName(e.target.value);
+                      setProfileMessage(null);
+                    }}
                     placeholder="Your display name"
                   />
                 </div>
@@ -146,7 +223,10 @@ export default function ProfilePage() {
                   <Input
                     id="username"
                     value={username}
-                    onChange={(e) => setUsername(e.target.value)}
+                    onChange={(e) => {
+                      setUsername(e.target.value);
+                      setProfileMessage(null);
+                    }}
                     placeholder="your-username"
                   />
                 </div>
@@ -168,19 +248,33 @@ export default function ProfilePage() {
                 <textarea
                   id="bio"
                   value={bio}
-                  onChange={(e) => setBio(e.target.value)}
+                  onChange={(e) => {
+                    setBio(e.target.value);
+                    setProfileMessage(null);
+                  }}
                   placeholder="Tell us about yourself..."
                   className="w-full min-h-[100px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 />
               </div>
-              <Button onClick={handleSaveProfile} disabled={isSaving}>
-                {isSaving ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Save className="mr-2 h-4 w-4" />
+              <div className="flex items-center gap-4">
+                <Button onClick={handleSaveProfile} disabled={isSaving}>
+                  {isSaving ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="mr-2 h-4 w-4" />
+                  )}
+                  Save Changes
+                </Button>
+                {profileMessage && (
+                  <p
+                    className={`text-sm ${
+                      profileMessage.type === "success" ? "text-green-600" : "text-red-600"
+                    }`}
+                  >
+                    {profileMessage.text}
+                  </p>
                 )}
-                Save Changes
-              </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -190,13 +284,72 @@ export default function ProfilePage() {
             <CardHeader>
               <CardTitle>Preferences</CardTitle>
               <CardDescription>
-                Customize your experience
+                Customize your experience and regional settings
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">
-                Preference settings coming soon. Theme preferences are available in the header.
-              </p>
+            <CardContent className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="timezone">Timezone</Label>
+                <Select value={timezone} onValueChange={(value) => {
+                  setTimezone(value);
+                  setPreferencesMessage(null);
+                }}>
+                  <SelectTrigger id="timezone" className="w-full sm:w-80">
+                    <SelectValue placeholder="Select timezone" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
+                      Common
+                    </div>
+                    {COMMON_TIMEZONES.map((tz) => (
+                      <SelectItem key={tz.value} value={tz.value}>
+                        {tz.label}
+                      </SelectItem>
+                    ))}
+                    {!isCommonTimezone && timezone && (
+                      <>
+                        <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground border-t mt-1 pt-2">
+                          Current
+                        </div>
+                        <SelectItem value={timezone}>{timezone}</SelectItem>
+                      </>
+                    )}
+                    <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground border-t mt-1 pt-2">
+                      All Timezones
+                    </div>
+                    {allTimezones
+                      .filter((tz) => !COMMON_TIMEZONES.some((c) => c.value === tz))
+                      .map((tz) => (
+                        <SelectItem key={tz} value={tz}>
+                          {tz}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Times throughout the application will be displayed in this timezone
+                </p>
+              </div>
+
+              <div className="flex items-center gap-4 pt-4 border-t">
+                <Button onClick={handleSavePreferences} disabled={isSavingPreferences}>
+                  {isSavingPreferences ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="mr-2 h-4 w-4" />
+                  )}
+                  Save Preferences
+                </Button>
+                {preferencesMessage && (
+                  <p
+                    className={`text-sm ${
+                      preferencesMessage.type === "success" ? "text-green-600" : "text-red-600"
+                    }`}
+                  >
+                    {preferencesMessage.text}
+                  </p>
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -206,13 +359,70 @@ export default function ProfilePage() {
             <CardHeader>
               <CardTitle>Notification Settings</CardTitle>
               <CardDescription>
-                Configure how you receive notifications
+                Configure how you receive notifications about incidents and alerts
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">
-                Notification settings coming soon.
-              </p>
+            <CardContent className="space-y-6">
+              <div className="flex items-center justify-between p-4 rounded-lg border">
+                <div className="space-y-1">
+                  <Label htmlFor="emailNotifications" className="font-medium cursor-pointer">
+                    Email Notifications
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Receive email notifications for important alerts and updates
+                  </p>
+                </div>
+                <Switch
+                  id="emailNotifications"
+                  checked={emailNotifications}
+                  onCheckedChange={(checked) => {
+                    setEmailNotifications(checked);
+                    setPreferencesMessage(null);
+                  }}
+                />
+              </div>
+
+              <div className="flex items-center justify-between p-4 rounded-lg border">
+                <div className="space-y-1">
+                  <Label htmlFor="pushNotifications" className="font-medium cursor-pointer">
+                    Push Notifications
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Receive browser push notifications for real-time alerts
+                  </p>
+                  <p className="text-xs text-amber-600">
+                    Push notifications require browser permission
+                  </p>
+                </div>
+                <Switch
+                  id="pushNotifications"
+                  checked={pushNotifications}
+                  onCheckedChange={(checked) => {
+                    setPushNotifications(checked);
+                    setPreferencesMessage(null);
+                  }}
+                />
+              </div>
+
+              <div className="flex items-center gap-4 pt-4 border-t">
+                <Button onClick={handleSavePreferences} disabled={isSavingPreferences}>
+                  {isSavingPreferences ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="mr-2 h-4 w-4" />
+                  )}
+                  Save Notification Settings
+                </Button>
+                {preferencesMessage && (
+                  <p
+                    className={`text-sm ${
+                      preferencesMessage.type === "success" ? "text-green-600" : "text-red-600"
+                    }`}
+                  >
+                    {preferencesMessage.text}
+                  </p>
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
