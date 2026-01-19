@@ -440,16 +440,16 @@ export const syncWeatherForTenant = internalAction({
 
     try {
       // NWS API allows fetching alerts for multiple zones
-      const zoneParam = zones.join(",");
-      const response = await fetch(
-        `https://api.weather.gov/alerts/active?zone=${zoneParam}`,
-        {
-          headers: {
-            "User-Agent": "Vanguard Emergency Platform (contact@example.com)",
-            Accept: "application/geo+json",
-          },
-        }
-      );
+      // Use URL constructor for safe URL building (prevents parameter injection)
+      const nwsUrl = new URL("https://api.weather.gov/alerts/active");
+      nwsUrl.searchParams.set("zone", zones.join(","));
+
+      const response = await fetch(nwsUrl.toString(), {
+        headers: {
+          "User-Agent": "Vanguard Emergency Platform (contact@example.com)",
+          Accept: "application/geo+json",
+        },
+      });
 
       if (!response.ok) {
         console.error(`NWS API error: ${response.status}`);

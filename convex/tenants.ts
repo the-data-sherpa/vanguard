@@ -1,6 +1,82 @@
 import { v } from "convex/values";
-import { query, mutation, internalMutation } from "./_generated/server";
+import { query, mutation, internalMutation, QueryCtx, MutationCtx } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
+
+// ===================
+// Authorization Helpers
+// ===================
+
+/**
+ * Verify that the current user is authenticated and has access to the specified tenant
+ * with at least the required role level.
+ *
+ * Role hierarchy: owner > admin > moderator > member
+ */
+async function requireTenantAccess(
+  ctx: MutationCtx,
+  tenantId: Id<"tenants">,
+  requiredRole: "member" | "moderator" | "admin" | "owner" = "admin"
+): Promise<{ userId: Id<"users">; tenantRole: string }> {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) {
+    throw new Error("Authentication required");
+  }
+
+  // Look up user by email (most reliable identifier from auth providers)
+  const email = identity.email;
+  if (!email) {
+    throw new Error("User email not available");
+  }
+
+  const user = await ctx.db
+    .query("users")
+    .withIndex("by_email", (q) => q.eq("email", email))
+    .unique();
+
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  if (user.isBanned) {
+    throw new Error("User is banned");
+  }
+
+  // Platform admins can access any tenant
+  if (user.role === "platform_admin") {
+    return { userId: user._id, tenantRole: "platform_admin" };
+  }
+
+  // Verify user belongs to the requested tenant
+  if (user.tenantId !== tenantId) {
+    throw new Error("Access denied: user does not belong to this tenant");
+  }
+
+  // Check role hierarchy
+  const roleHierarchy: Record<string, number> = {
+    member: 1,
+    moderator: 2,
+    admin: 3,
+    owner: 4,
+  };
+
+  const userRoleLevel = roleHierarchy[user.tenantRole || "member"] || 0;
+  const requiredRoleLevel = roleHierarchy[requiredRole] || 0;
+
+  if (userRoleLevel < requiredRoleLevel) {
+    throw new Error(`Access denied: requires ${requiredRole} role or higher`);
+  }
+
+  return { userId: user._id, tenantRole: user.tenantRole || "member" };
+}
+
+// NWS zone format validation
+// Valid formats: state code (2 letters) + zone type (C or Z) + zone number (3 digits)
+// Examples: NCZ036, ALZ001, NYC001, CAC006
+const NWS_ZONE_PATTERN = /^[A-Z]{2}[CZ]\d{3}$/;
+
+function isValidNWSZone(zone: string): boolean {
+  return NWS_ZONE_PATTERN.test(zone);
+}
 
 // ===================
 // Queries
@@ -147,6 +223,7 @@ export const create = mutation({
 
 /**
  * Update tenant PulsePoint configuration
+ * Requires admin or owner role
  */
 export const updatePulsepointConfig = mutation({
   args: {
@@ -159,6 +236,9 @@ export const updatePulsepointConfig = mutation({
     }),
   },
   handler: async (ctx, { tenantId, config }) => {
+    // Verify user has admin access to this tenant
+    await requireTenantAccess(ctx, tenantId, "admin");
+
     await ctx.db.patch(tenantId, {
       pulsepointConfig: config,
     });
@@ -167,6 +247,8 @@ export const updatePulsepointConfig = mutation({
 
 /**
  * Update tenant weather zones
+ * Requires admin or owner role
+ * Validates that zones match NWS zone format (e.g., NCZ036, ALZ001)
  */
 export const updateWeatherZones = mutation({
   args: {
@@ -174,6 +256,18 @@ export const updateWeatherZones = mutation({
     zones: v.array(v.string()),
   },
   handler: async (ctx, { tenantId, zones }) => {
+    // Verify user has admin access to this tenant
+    await requireTenantAccess(ctx, tenantId, "admin");
+
+    // Validate zone format
+    const invalidZones = zones.filter((zone) => !isValidNWSZone(zone));
+    if (invalidZones.length > 0) {
+      throw new Error(
+        `Invalid NWS zone format: ${invalidZones.join(", ")}. ` +
+          `Zones must match format like NCZ036 or ALZ001 (2-letter state + C/Z + 3 digits)`
+      );
+    }
+
     await ctx.db.patch(tenantId, {
       weatherZones: zones,
     });
@@ -200,6 +294,7 @@ export const updateSyncTimestamp = internalMutation({
 
 /**
  * Update unit legend
+ * Requires admin or owner role
  */
 export const updateUnitLegend = mutation({
   args: {
@@ -212,6 +307,9 @@ export const updateUnitLegend = mutation({
     ),
   },
   handler: async (ctx, { tenantId, legend }) => {
+    // Verify user has admin access to this tenant
+    await requireTenantAccess(ctx, tenantId, "admin");
+
     await ctx.db.patch(tenantId, {
       unitLegend: legend,
       unitLegendUpdatedAt: Date.now(),
