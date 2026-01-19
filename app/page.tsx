@@ -13,13 +13,12 @@ import {
   Building2,
   Clock,
   Check,
-  ArrowRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { SignedIn, SignedOut, UserButton } from '@clerk/nextjs';
+import { AuthButtons, HeroTagline } from '@/components/auth/AuthButtons';
 
 const features = [
   {
@@ -101,20 +100,7 @@ export default function LandingPage() {
             </div>
             <div className="flex items-center gap-4">
               <ThemeToggle />
-              <SignedOut>
-                <Button variant="ghost" asChild>
-                  <Link href="/login">Sign In</Link>
-                </Button>
-                <Button asChild>
-                  <Link href="/signup">Get Started</Link>
-                </Button>
-              </SignedOut>
-              <SignedIn>
-                <Button variant="ghost" asChild>
-                  <Link href="/tenant">Dashboard</Link>
-                </Button>
-                <UserButton afterSignOutUrl="/" />
-              </SignedIn>
+              <AuthButtons variant="nav" />
             </div>
           </div>
         </div>
@@ -138,31 +124,9 @@ export default function LandingPage() {
               Real-time tracking, weather alerts, and social updates — all in one place.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <SignedOut>
-                <Button size="lg" asChild>
-                  <Link href="/signup">
-                    Get Started Free
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Link>
-                </Button>
-                <Button size="lg" variant="outline" asChild>
-                  <Link href="/login">Sign In</Link>
-                </Button>
-              </SignedOut>
-              <SignedIn>
-                <Button size="lg" asChild>
-                  <Link href="/tenant">
-                    Go to Dashboard
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Link>
-                </Button>
-              </SignedIn>
+              <AuthButtons variant="hero" />
             </div>
-            <SignedOut>
-              <p className="text-sm text-muted-foreground">
-                Free to start. No credit card required.
-              </p>
-            </SignedOut>
+            <HeroTagline />
           </div>
         </div>
       </section>
@@ -379,25 +343,7 @@ export default function LandingPage() {
             Join Vanguard today and help shape the future of community incident awareness.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <SignedOut>
-              <Button size="lg" variant="secondary" asChild>
-                <Link href="/signup">
-                  Get Started Free
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
-              <Button size="lg" variant="outline" className="bg-transparent border-primary-foreground/30 hover:bg-primary-foreground/10" asChild>
-                <Link href="/login">Sign In</Link>
-              </Button>
-            </SignedOut>
-            <SignedIn>
-              <Button size="lg" variant="secondary" asChild>
-                <Link href="/tenant">
-                  Go to Dashboard
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
-            </SignedIn>
+            <AuthButtons variant="cta" />
           </div>
         </div>
       </section>
