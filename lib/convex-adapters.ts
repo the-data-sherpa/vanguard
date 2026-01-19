@@ -3,7 +3,52 @@
  */
 
 import { Doc, Id } from "@/convex/_generated/dataModel";
-import type { Incident, WeatherAlert, Tenant, UnitLegend, CallTypeCategory, IncidentStatus } from "./types";
+import type {
+  Incident,
+  WeatherAlert,
+  Tenant,
+  UnitLegend,
+  CallTypeCategory,
+  IncidentStatus,
+  IncidentNote,
+  UnitStatusesField,
+  LegacyUnitStatus,
+  UnitStatus,
+} from "./types";
+
+/**
+ * Convert Convex unitStatuses to component-compatible format
+ * Handles both legacy Record format and new Array format
+ */
+function adaptUnitStatuses(
+  raw: Doc<"incidents">["unitStatuses"]
+): UnitStatusesField | undefined {
+  if (!raw) return undefined;
+
+  // Check if it's the new Array format
+  if (Array.isArray(raw)) {
+    return raw.map((u) => ({
+      unitId: u.unitId,
+      status: u.status,
+      timeDispatched: u.timeDispatched ? new Date(u.timeDispatched).toISOString() : undefined,
+      timeAcknowledged: u.timeAcknowledged ? new Date(u.timeAcknowledged).toISOString() : undefined,
+      timeEnroute: u.timeEnroute ? new Date(u.timeEnroute).toISOString() : undefined,
+      timeOnScene: u.timeOnScene ? new Date(u.timeOnScene).toISOString() : undefined,
+      timeCleared: u.timeCleared ? new Date(u.timeCleared).toISOString() : undefined,
+    })) as UnitStatus[];
+  }
+
+  // Legacy Record format
+  const result: Record<string, LegacyUnitStatus> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    result[key] = {
+      unit: value.unit,
+      status: value.status,
+      timestamp: new Date(value.timestamp).toISOString(),
+    };
+  }
+  return result;
+}
 
 /**
  * Convert Convex incident to component-compatible format
@@ -24,7 +69,7 @@ export function adaptIncident(doc: Doc<"incidents">): Incident {
     latitude: doc.latitude,
     longitude: doc.longitude,
     units: doc.units,
-    unitStatuses: doc.unitStatuses as Incident["unitStatuses"],
+    unitStatuses: adaptUnitStatuses(doc.unitStatuses),
     description: doc.description,
     status: doc.status as IncidentStatus,
     callReceivedTime: new Date(doc.callReceivedTime).toISOString(),
@@ -110,4 +155,29 @@ export function adaptTenant(doc: Doc<"tenants">): Partial<Tenant> & { id: string
     unitLegendUpdatedAt: doc.unitLegendUpdatedAt ? new Date(doc.unitLegendUpdatedAt).toISOString() : undefined,
     unitLegendAvailable: doc.unitLegendAvailable,
   };
+}
+
+/**
+ * Convert Convex incident note to component-compatible format
+ */
+export function adaptIncidentNote(doc: Doc<"incidentNotes">): IncidentNote {
+  return {
+    id: doc._id,
+    created: new Date(doc._creationTime).toISOString(),
+    updated: doc.editedAt ? new Date(doc.editedAt).toISOString() : new Date(doc._creationTime).toISOString(),
+    tenantId: doc.tenantId,
+    incidentId: doc.incidentId,
+    content: doc.content,
+    authorId: doc.authorId,
+    authorName: doc.authorName,
+    isEdited: doc.isEdited,
+    editedAt: doc.editedAt ? new Date(doc.editedAt).toISOString() : undefined,
+  };
+}
+
+/**
+ * Convert array of Convex incident notes
+ */
+export function adaptIncidentNotes(docs: Doc<"incidentNotes">[]): IncidentNote[] {
+  return docs.map(adaptIncidentNote);
 }

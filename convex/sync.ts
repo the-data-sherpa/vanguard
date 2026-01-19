@@ -1,7 +1,17 @@
+"use node";
+
 import { v } from "convex/values";
 import { action, internalAction } from "./_generated/server";
 import { internal, api } from "./_generated/api";
 import { Id, Doc } from "./_generated/dataModel";
+import { createHash, createDecipheriv } from "crypto";
+import {
+  normalizeAddress,
+  filterAndLimitIncidents,
+  transformUnitStatuses,
+  mapCallTypeToCategory,
+  UnitStatus,
+} from "./syncHelpers";
 
 // ===================
 // Rate Limiting & Locks
@@ -53,31 +63,129 @@ function releaseLock(locks: Map<string, { inProgress: boolean; lastFetchTime: nu
 }
 
 // ===================
+// PulsePoint Decryption
+// ===================
+
+const PULSEPOINT_HASH_PASSWORD = "tombrady5rings";
+
+interface PulsePointEncryptedResponse {
+  ct: string; // Cipher text (base64)
+  iv: string; // Initialization vector (hex)
+  s: string;  // Salt (hex)
+}
+
+/**
+ * Decrypt PulsePoint API response
+ */
+function decryptPulsePointData(data: PulsePointEncryptedResponse): any {
+  const cipherText = Buffer.from(data.ct, "base64");
+  const initVector = Buffer.from(data.iv, "hex");
+  const salt = Buffer.from(data.s, "hex");
+
+  let hash = createHash("md5");
+  let intermediateHash: Buffer | null = null;
+  let key = Buffer.alloc(0);
+
+  while (key.length < 32) {
+    if (intermediateHash) hash.update(intermediateHash);
+    hash.update(PULSEPOINT_HASH_PASSWORD);
+    hash.update(salt);
+    intermediateHash = hash.digest();
+    hash = createHash("md5");
+    key = Buffer.concat([key, intermediateHash]);
+  }
+
+  const decipher = createDecipheriv("aes-256-cbc", key, initVector);
+  let output = decipher.update(cipherText);
+  output = Buffer.concat([output, decipher.final()]);
+  let result = output.toString().slice(1, -1);
+  result = result.replace(/\\"/g, '"').replace(/\n/g, "");
+
+  return JSON.parse(result);
+}
+
+// ===================
 // PulsePoint Types
 // ===================
 
-interface PulsePointIncident {
-  ID: string;
-  Call: string;
-  CallType?: string;
-  FullAddress: string;
-  Latitude?: string;
-  Longitude?: string;
-  Unit?: string[];
-  UnitStatus?: Array<{
-    Unit: string;
-    Status: string;
-    Timestamp: string;
-  }>;
-  CallReceivedTime: string;
-  ClosedTime?: string;
-  Status?: string;
+interface PulsePointUnit {
+  UnitID: string;
+  PulsePointDispatchStatus: string;
+  TimeDispatched?: string;
+  TimeAcknowledged?: string;
+  TimeEnroute?: string;
+  TimeOnScene?: string;
+  TimeCleared?: string;
+  UnitClearedDateTime?: string; // Alternate field name for cleared time
 }
 
-interface PulsePointResponse {
+// API endpoints for PulsePoint
+const PULSEPOINT_PRIMARY_URL = "https://api.pulsepoint.org/v1/webapp";
+const PULSEPOINT_FALLBACK_URL = "https://web.pulsepoint.org/DB/giba.php";
+const FETCH_TIMEOUT_MS = 10_000; // 10 second timeout
+
+/**
+ * Fetch with timeout
+ */
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit,
+  timeoutMs: number
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    return response;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+// PulsePoint incident format varies by agency, so we use a flexible type
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+interface PulsePointIncident {
+  // Standard fields (some agencies use these)
+  PulsePointIncidentID?: string;
+  PulsePointIncidentCallType?: string;
+  FullDisplayAddress?: string;
+  CrossStreet1?: string;
+  CrossStreet2?: string;
+  Latitude?: number | string;
+  Longitude?: number | string;
+  TimeCallOpened?: string;
+  TimeCallClosed?: string;
+  Unit?: PulsePointUnit[];
+  AgencyID?: string;
+  CallNumber?: string;
+  Priority?: string;
+  Description?: string;
+  // Alternative field names used by some agencies
+  ID?: string;
+  id?: string;
+  IncidentID?: string;
+  CallType?: string;
+  CallTypeDescription?: string;
+  Address?: string;
+  DisplayAddress?: string;
+  CallTime?: string;
+  CallReceivedDateTime?: string;
+  IncidentTime?: string;
+  CloseTime?: string;
+  ClosedDateTime?: string;
+  // Allow additional fields
+  [key: string]: unknown;
+}
+
+interface PulsePointDecryptedResponse {
   incidents?: {
     active?: PulsePointIncident[];
     recent?: PulsePointIncident[];
+    closed?: PulsePointIncident[];
   };
 }
 
@@ -106,34 +214,6 @@ interface NWSAlert {
 
 interface NWSResponse {
   features?: NWSAlert[];
-}
-
-// ===================
-// Call Type Mapping
-// ===================
-
-function mapCallTypeToCategory(
-  callType: string
-): "fire" | "medical" | "rescue" | "traffic" | "hazmat" | "other" {
-  const lower = callType.toLowerCase();
-
-  if (lower.includes("fire") || lower.includes("smoke") || lower.includes("alarm")) {
-    return "fire";
-  }
-  if (lower.includes("medical") || lower.includes("ems") || lower.includes("cardiac") || lower.includes("breathing")) {
-    return "medical";
-  }
-  if (lower.includes("rescue") || lower.includes("water") || lower.includes("rope")) {
-    return "rescue";
-  }
-  if (lower.includes("traffic") || lower.includes("accident") || lower.includes("mvc") || lower.includes("vehicle")) {
-    return "traffic";
-  }
-  if (lower.includes("hazmat") || lower.includes("chemical") || lower.includes("gas leak")) {
-    return "hazmat";
-  }
-
-  return "other";
 }
 
 function mapNWSSeverity(
@@ -203,18 +283,20 @@ export const syncPulsePointForTenant = internalAction({
     fetched: v.number(),
     created: v.number(),
     updated: v.number(),
+    skipped: v.number(),
   }),
   handler: async (ctx, { tenantId, agencyIds }): Promise<{
     success: boolean;
     fetched: number;
     created: number;
     updated: number;
+    skipped: number;
   }> => {
     // Check if we can fetch (not locked or rate limited)
     const canFetchResult = canFetch(pulsepointLocks, tenantId);
     if (!canFetchResult.allowed) {
       console.log(`[PulsePoint] Skipping fetch for tenant ${tenantId}: ${canFetchResult.reason}`);
-      return { success: true, fetched: 0, created: 0, updated: 0 };
+      return { success: true, fetched: 0, created: 0, updated: 0, skipped: 0 };
     }
 
     // Acquire lock
@@ -227,85 +309,173 @@ export const syncPulsePointForTenant = internalAction({
         callType: string;
         callTypeCategory: "fire" | "medical" | "rescue" | "traffic" | "hazmat" | "other";
         fullAddress: string;
+        normalizedAddress: string;
         latitude?: number;
         longitude?: number;
         units?: string[];
-        unitStatuses?: Record<string, { unit: string; status: string; timestamp: number }>;
+        unitStatuses?: UnitStatus[];
         status: "active" | "closed";
         callReceivedTime: number;
         callClosedTime?: number;
       }> = [];
 
-      // Fetch from all agencies in parallel
-    const fetchPromises = agencyIds.map(async (agencyId) => {
-      try {
-        // Note: Replace with actual PulsePoint API endpoint
-        // This is a placeholder - you'll need to add your PulsePoint credentials
-        const response = await fetch(
-          `https://api.pulsepoint.org/v1/agencies/${agencyId}/incidents`,
-          {
-            headers: {
-              // Add your PulsePoint API key here
-              // "Authorization": `Bearer ${process.env.PULSEPOINT_API_KEY}`,
-              "Content-Type": "application/json",
-            },
-          }
-        );
+      // Fetch from all agencies in parallel using PulsePoint API with fallback
+      const fetchPromises = agencyIds.map(async (agencyId) => {
+        const headers = {
+          "Accept": "application/json, text/plain, */*",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          "Referer": "https://web.pulsepoint.org/",
+          "Cache-Control": "no-cache",
+          "Pragma": "no-cache",
+        };
 
-        if (!response.ok) {
-          console.error(`PulsePoint API error for agency ${agencyId}: ${response.status}`);
-          return [];
+        // Try primary endpoint first, then fallback
+        let response: Response | null = null;
+        let usedEndpoint = "primary";
+
+        try {
+          // Try primary endpoint with timeout
+          const primaryUrl = new URL(PULSEPOINT_PRIMARY_URL);
+          primaryUrl.searchParams.set("resource", "incidents");
+          primaryUrl.searchParams.set("agencyid", agencyId);
+
+          response = await fetchWithTimeout(primaryUrl.toString(), { headers }, FETCH_TIMEOUT_MS);
+
+          if (!response.ok) {
+            throw new Error(`Primary endpoint returned ${response.status}`);
+          }
+        } catch (primaryError) {
+          // Primary failed, try fallback
+          console.log(`[PulsePoint] Primary endpoint failed for agency ${agencyId}, trying fallback: ${primaryError instanceof Error ? primaryError.message : "Unknown error"}`);
+
+          try {
+            const fallbackUrl = new URL(PULSEPOINT_FALLBACK_URL);
+            fallbackUrl.searchParams.set("resource", "incidents");
+            fallbackUrl.searchParams.set("agencyid", agencyId);
+
+            response = await fetchWithTimeout(fallbackUrl.toString(), { headers }, FETCH_TIMEOUT_MS);
+            usedEndpoint = "fallback";
+
+            if (!response.ok) {
+              console.error(`[PulsePoint] Both endpoints failed for agency ${agencyId}: fallback returned ${response.status}`);
+              return [];
+            }
+          } catch (fallbackError) {
+            console.error(`[PulsePoint] Both endpoints failed for agency ${agencyId}:`, fallbackError);
+            return [];
+          }
         }
 
-        const data: PulsePointResponse = await response.json();
-        const incidents: PulsePointIncident[] = [
-          ...(data.incidents?.active || []),
-          ...(data.incidents?.recent || []),
-        ];
+        try {
+          // Response is encrypted, need to decrypt it
+          const encryptedData: PulsePointEncryptedResponse = await response.json();
+          const decryptedData: PulsePointDecryptedResponse = decryptPulsePointData(encryptedData);
 
-        return incidents;
-      } catch (error) {
-        console.error(`Error fetching from PulsePoint agency ${agencyId}:`, error);
-        return [];
+          // Collect active and recent incidents
+          const activeIncidents = decryptedData?.incidents?.active || [];
+          const recentIncidents = decryptedData?.incidents?.recent || [];
+          const closedIncidents = decryptedData?.incidents?.closed || [];
+
+          const incidents: PulsePointIncident[] = [
+            ...activeIncidents,
+            ...recentIncidents,
+            ...closedIncidents,
+          ];
+
+          console.log(`[PulsePoint] Fetched ${incidents.length} incidents from agency ${agencyId} using ${usedEndpoint} endpoint (${activeIncidents.length} active, ${recentIncidents.length} recent, ${closedIncidents.length} closed)`);
+          return incidents;
+        } catch (error) {
+          console.error(`[PulsePoint] Error decrypting data from agency ${agencyId}:`, error);
+          return [];
+        }
+      });
+
+      const results = await Promise.all(fetchPromises);
+      const rawIncidents = results.flat();
+
+      console.log(`[PulsePoint] Total raw incidents fetched: ${rawIncidents.length}`);
+      if (rawIncidents.length > 0) {
+        // Log the first incident's keys to help debug API response format
+        console.log(`[PulsePoint] Sample incident keys: ${Object.keys(rawIncidents[0]).join(", ")}`);
       }
-    });
 
-    const results = await Promise.all(fetchPromises);
-    const rawIncidents = results.flat();
+      // Transform PulsePoint incidents to our format
+      for (const incident of rawIncidents) {
+        // Handle different API response formats - some agencies use different property names
+        const incidentId = incident.PulsePointIncidentID || incident.ID || incident.id || incident.IncidentID;
+        const callType = incident.PulsePointIncidentCallType || incident.CallType || incident.CallTypeDescription || "Unknown";
+        const address = incident.FullDisplayAddress || incident.Address || incident.DisplayAddress || "Unknown Address";
+        // ICAW uses CallReceivedDateTime as primary (most accurate), TimeCallOpened as fallback
+        const timeOpened = incident.CallReceivedDateTime || incident.TimeCallOpened || incident.CallTime || incident.IncidentTime;
+        const timeClosed = incident.TimeCallClosed || incident.CloseTime || incident.ClosedDateTime;
 
-    // Transform PulsePoint incidents to our format
-    for (const incident of rawIncidents) {
-      const callType = incident.Call || incident.CallType || "Unknown";
-      const isActive = !incident.ClosedTime && incident.Status !== "closed";
+        // Skip incidents without a valid ID
+        if (!incidentId) {
+          console.log(`[PulsePoint] Skipping incident without ID: ${JSON.stringify(incident).substring(0, 200)}`);
+          continue;
+        }
 
-      const transformed = {
-        externalId: incident.ID,
-        callType,
-        callTypeCategory: mapCallTypeToCategory(callType),
-        fullAddress: incident.FullAddress,
-        latitude: incident.Latitude ? parseFloat(incident.Latitude) : undefined,
-        longitude: incident.Longitude ? parseFloat(incident.Longitude) : undefined,
-        units: incident.Unit,
-        unitStatuses: incident.UnitStatus?.reduce(
-          (acc, us) => ({
-            ...acc,
-            [us.Unit]: {
-              unit: us.Unit,
-              status: us.Status,
-              timestamp: new Date(us.Timestamp).getTime(),
-            },
-          }),
-          {} as Record<string, { unit: string; status: string; timestamp: number }>
-        ),
-        status: isActive ? ("active" as const) : ("closed" as const),
-        callReceivedTime: new Date(incident.CallReceivedTime).getTime(),
-        callClosedTime: incident.ClosedTime
-          ? new Date(incident.ClosedTime).getTime()
-          : undefined,
-      };
+        const isActive = !timeClosed;
 
-      allIncidents.push(transformed);
-    }
+        // Parse latitude/longitude (might be strings)
+        let lat = incident.Latitude;
+        let lng = incident.Longitude;
+        if (typeof lat === "string") lat = parseFloat(lat);
+        if (typeof lng === "string") lng = parseFloat(lng);
+        // Treat 0,0 as unknown location
+        if (lat === 0 && lng === 0) {
+          lat = undefined;
+          lng = undefined;
+        }
+
+        // Transform unit data using helper function (filters VTAC, extracts all timestamps)
+        const units = incident.Unit
+          ?.filter((u: PulsePointUnit) => !u.UnitID.toUpperCase().includes("VTAC"))
+          .map((u: PulsePointUnit) => u.UnitID) || [];
+        const unitStatuses = transformUnitStatuses(incident.Unit);
+
+        // Parse timestamp
+        let callReceivedTime: number;
+        if (timeOpened) {
+          const parsed = new Date(timeOpened).getTime();
+          callReceivedTime = isNaN(parsed) ? Date.now() : parsed;
+        } else {
+          // If no timestamp, use current time
+          callReceivedTime = Date.now();
+        }
+
+        const transformed = {
+          externalId: String(incidentId),
+          callType,
+          callTypeCategory: mapCallTypeToCategory(callType),
+          fullAddress: address,
+          normalizedAddress: normalizeAddress(address),
+          latitude: lat,
+          longitude: lng,
+          units,
+          unitStatuses,
+          status: isActive ? ("active" as const) : ("closed" as const),
+          callReceivedTime,
+          callClosedTime: timeClosed
+            ? new Date(timeClosed).getTime()
+            : undefined,
+        };
+
+        allIncidents.push(transformed);
+      }
+
+      console.log(`[PulsePoint] Transformed ${allIncidents.length} incidents`);
+      if (allIncidents.length > 0) {
+        const sample = allIncidents[0];
+        console.log(`[PulsePoint] Sample transformed: callReceivedTime=${sample.callReceivedTime}, status=${sample.status}`);
+      }
+
+      // Apply incident limit and 6-hour filter to minimize conflicts
+      const filteredIncidents = filterAndLimitIncidents(allIncidents, 200, 6 * 60 * 60 * 1000);
+      console.log(`[PulsePoint] After filter: ${filteredIncidents.length} incidents (6hr window, max 200)`);
+      // Replace allIncidents with filtered list
+      allIncidents.length = 0;
+      allIncidents.push(...filteredIncidents);
 
       // Batch upsert to database
       if (allIncidents.length > 0) {
@@ -320,16 +490,17 @@ export const syncPulsePointForTenant = internalAction({
           type: "incident",
         });
 
-        console.log(`[PulsePoint] Sync complete for tenant ${tenantId}: ${result.created} created, ${result.updated} updated`);
+        console.log(`[PulsePoint] Sync complete for tenant ${tenantId}: ${result.created} created, ${result.updated} updated, ${result.skipped} skipped`);
         return {
           success: true,
           fetched: allIncidents.length,
           created: result.created,
           updated: result.updated,
+          skipped: result.skipped,
         };
       }
 
-      return { success: true, fetched: 0, created: 0, updated: 0 };
+      return { success: true, fetched: 0, created: 0, updated: 0, skipped: 0 };
     } catch (error) {
       console.error(`[PulsePoint] Error syncing for tenant ${tenantId}:`, error);
       throw error;

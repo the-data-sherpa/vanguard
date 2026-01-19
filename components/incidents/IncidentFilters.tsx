@@ -3,7 +3,9 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Search, X, Filter } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Search, X, Filter, Calendar, Truck } from 'lucide-react';
 import type { IncidentStatus, CallTypeCategory } from '@/lib/types';
 import { getCategoryLabel, getCategoryBadgeClasses } from '@/lib/callTypeMapping';
 
@@ -16,6 +18,9 @@ export interface FilterState {
   search: string;
   status: IncidentStatus[];
   categories: CallTypeCategory[];
+  startDate?: string;
+  endDate?: string;
+  unitSearch?: string;
 }
 
 const ALL_STATUSES: IncidentStatus[] = ['active', 'closed', 'archived'];
@@ -27,6 +32,9 @@ export function IncidentFilters({ onFilterChange, initialFilters }: IncidentFilt
       search: '',
       status: ['active'],
       categories: [],
+      startDate: undefined,
+      endDate: undefined,
+      unitSearch: '',
     }
   );
 
@@ -53,7 +61,14 @@ export function IncidentFilters({ onFilterChange, initialFilters }: IncidentFilt
   };
 
   const clearFilters = () => {
-    const cleared: FilterState = { search: '', status: ['active'], categories: [] };
+    const cleared: FilterState = {
+      search: '',
+      status: ['active'],
+      categories: [],
+      startDate: undefined,
+      endDate: undefined,
+      unitSearch: '',
+    };
     setFilters(cleared);
     onFilterChange(cleared);
   };
@@ -61,7 +76,9 @@ export function IncidentFilters({ onFilterChange, initialFilters }: IncidentFilt
   const activeFilterCount =
     (filters.search ? 1 : 0) +
     (filters.status.length !== 1 || filters.status[0] !== 'active' ? 1 : 0) +
-    (filters.categories.length > 0 ? 1 : 0);
+    (filters.categories.length > 0 ? 1 : 0) +
+    (filters.startDate || filters.endDate ? 1 : 0) +
+    (filters.unitSearch ? 1 : 0);
 
   return (
     <div className="space-y-4">
@@ -109,6 +126,63 @@ export function IncidentFilters({ onFilterChange, initialFilters }: IncidentFilt
 
       {showFilters && (
         <div className="space-y-4 rounded-lg border bg-card p-4">
+          {/* Date Range */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <Label className="text-sm font-medium">Date Range</Label>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                type="date"
+                value={filters.startDate || ''}
+                onChange={(e) => updateFilters({ startDate: e.target.value || undefined })}
+                className="w-auto"
+              />
+              <span className="text-muted-foreground">to</span>
+              <Input
+                type="date"
+                value={filters.endDate || ''}
+                onChange={(e) => updateFilters({ endDate: e.target.value || undefined })}
+                className="w-auto"
+              />
+              {(filters.startDate || filters.endDate) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => updateFilters({ startDate: undefined, endDate: undefined })}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Unit Search */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <Truck className="h-4 w-4 text-muted-foreground" />
+              <Label className="text-sm font-medium">Unit Search</Label>
+            </div>
+            <div className="relative max-w-xs">
+              <Input
+                type="text"
+                placeholder="Search by unit (e.g., E1, M3)"
+                value={filters.unitSearch || ''}
+                onChange={(e) => updateFilters({ unitSearch: e.target.value })}
+              />
+              {filters.unitSearch && (
+                <button
+                  onClick={() => updateFilters({ unitSearch: '' })}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Status */}
           <div>
             <p className="mb-2 text-sm font-medium">Status</p>
             <div className="flex flex-wrap gap-2">
@@ -125,6 +199,7 @@ export function IncidentFilters({ onFilterChange, initialFilters }: IncidentFilt
             </div>
           </div>
 
+          {/* Category */}
           <div>
             <p className="mb-2 text-sm font-medium">Category</p>
             <div className="flex flex-wrap gap-2">

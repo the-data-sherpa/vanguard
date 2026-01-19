@@ -180,14 +180,30 @@ export default defineSchema({
 
     // Units
     units: v.optional(v.array(v.string())),
+    // UnitStatuses: supports both legacy Record format and new Array format during migration
     unitStatuses: v.optional(
-      v.record(
-        v.string(),
-        v.object({
-          unit: v.string(),
-          status: v.string(),
-          timestamp: v.number(),
-        })
+      v.union(
+        // Legacy Record format (for backwards compatibility)
+        v.record(
+          v.string(),
+          v.object({
+            unit: v.string(),
+            status: v.string(),
+            timestamp: v.number(),
+          })
+        ),
+        // New Array format with richer timestamps
+        v.array(
+          v.object({
+            unitId: v.string(),
+            status: v.string(),
+            timeDispatched: v.optional(v.number()),
+            timeAcknowledged: v.optional(v.number()),
+            timeEnroute: v.optional(v.number()),
+            timeOnScene: v.optional(v.number()),
+            timeCleared: v.optional(v.number()),
+          })
+        )
       )
     ),
 
@@ -305,6 +321,21 @@ export default defineSchema({
   })
     .index("by_clerk_id", ["clerkId"])
     .index("by_email", ["email"])
+    .index("by_tenant", ["tenantId"]),
+
+  // ===================
+  // Incident Notes
+  // ===================
+  incidentNotes: defineTable({
+    tenantId: v.id("tenants"),
+    incidentId: v.id("incidents"),
+    content: v.string(),
+    authorId: v.id("users"),
+    authorName: v.string(),
+    isEdited: v.optional(v.boolean()),
+    editedAt: v.optional(v.number()),
+  })
+    .index("by_incident", ["incidentId"])
     .index("by_tenant", ["tenantId"]),
 
   // ===================

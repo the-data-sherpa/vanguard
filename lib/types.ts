@@ -247,6 +247,96 @@ export interface IncidentGroup extends BaseRecord {
 }
 
 // ===================
+// Unit Status Types
+// ===================
+
+/**
+ * Legacy unit status format (for backwards compatibility)
+ */
+export interface LegacyUnitStatus {
+  unit: string;
+  status: string;
+  timestamp: string;
+}
+
+/**
+ * Rich unit status with all dispatch timestamps
+ * Used to track the progression of unit dispatch
+ */
+export interface UnitStatus {
+  unitId: string;
+  status: string;
+  timeDispatched?: string;
+  timeAcknowledged?: string;
+  timeEnroute?: string;
+  timeOnScene?: string;
+  timeCleared?: string;
+}
+
+/**
+ * Union type for unitStatuses field during migration period
+ * Can be either legacy Record format or new Array format
+ */
+export type UnitStatusesField = Record<string, LegacyUnitStatus> | UnitStatus[];
+
+/**
+ * Check if unitStatuses is in the new array format
+ */
+export function isArrayUnitStatuses(unitStatuses: UnitStatusesField | undefined): unitStatuses is UnitStatus[] {
+  return Array.isArray(unitStatuses);
+}
+
+/**
+ * Get unit status by unit ID, handling both legacy and new formats
+ */
+export function getUnitStatusByUnitId(
+  unitStatuses: UnitStatusesField | undefined,
+  unitId: string
+): { status: string; timestamp?: string } | undefined {
+  if (!unitStatuses) return undefined;
+
+  if (Array.isArray(unitStatuses)) {
+    // New array format
+    const unit = unitStatuses.find(u => u.unitId === unitId);
+    if (!unit) return undefined;
+    // Return the most recent timestamp available
+    const timestamp = unit.timeOnScene || unit.timeEnroute || unit.timeAcknowledged || unit.timeDispatched;
+    return { status: unit.status, timestamp };
+  } else {
+    // Legacy Record format
+    const unit = unitStatuses[unitId];
+    if (!unit) return undefined;
+    return { status: unit.status, timestamp: unit.timestamp };
+  }
+}
+
+/**
+ * Get all unit statuses as a flat array of {unitId, status, timestamp}
+ * Works with both formats
+ */
+export function getAllUnitStatuses(
+  unitStatuses: UnitStatusesField | undefined
+): Array<{ unitId: string; status: string; timestamp?: string }> {
+  if (!unitStatuses) return [];
+
+  if (Array.isArray(unitStatuses)) {
+    // New array format
+    return unitStatuses.map(u => ({
+      unitId: u.unitId,
+      status: u.status,
+      timestamp: u.timeOnScene || u.timeEnroute || u.timeAcknowledged || u.timeDispatched,
+    }));
+  } else {
+    // Legacy Record format
+    return Object.values(unitStatuses).map(u => ({
+      unitId: u.unit,
+      status: u.status,
+      timestamp: u.timestamp,
+    }));
+  }
+}
+
+// ===================
 // Incident
 // ===================
 
@@ -267,7 +357,8 @@ export interface Incident extends BaseRecord {
   latitude?: number;
   longitude?: number;
   units?: string[];
-  unitStatuses?: Record<string, UnitStatus>;
+  // Supports both legacy Record format and new Array format during migration
+  unitStatuses?: UnitStatusesField;
   description?: string;
   status: IncidentStatus;
   callReceivedTime: string;
@@ -282,12 +373,6 @@ export interface Incident extends BaseRecord {
   needsFacebookUpdate?: boolean;
   lastSyncAttempt?: string;
   syncError?: string;
-}
-
-export interface UnitStatus {
-  unit: string;
-  status: string;
-  timestamp: string;
 }
 
 // ===================
@@ -336,6 +421,20 @@ export interface WeatherAlert extends BaseRecord {
   isSyncedToFacebook?: boolean;
   facebookPostId?: string;
   lastFacebookPostTime?: string;
+}
+
+// ===================
+// Incident Note
+// ===================
+
+export interface IncidentNote extends BaseRecord {
+  tenantId: string;
+  incidentId: string;
+  content: string;
+  authorId: string;
+  authorName: string;
+  isEdited?: boolean;
+  editedAt?: string;
 }
 
 // ===================

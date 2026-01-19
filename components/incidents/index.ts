@@ -13,3 +13,6 @@ export { IncidentTable } from './IncidentTable';
 export { IncidentFilters, type FilterState } from './IncidentFilters';
 export { IncidentTimeline } from './IncidentTimeline';
 export { UnitLegend, getUnitDescription, useUnitDescription } from './UnitLegend';
+export { IncidentDetail, IncidentDetailSkeleton } from './IncidentDetail';
+export { IncidentNotes } from './IncidentNotes';
+export { CreateIncidentDialog } from './CreateIncidentDialog';

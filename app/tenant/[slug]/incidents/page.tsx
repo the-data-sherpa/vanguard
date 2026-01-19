@@ -1,11 +1,13 @@
 "use client";
 
+import { useState, useMemo } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { adaptIncidents } from "@/lib/convex-adapters";
-import type { IncidentStatus } from "@/lib/types";
-import { IncidentTable } from "@/components/incidents";
+import type { IncidentStatus, CallTypeCategory, Incident } from "@/lib/types";
+import { IncidentTable, IncidentFilters, CreateIncidentDialog } from "@/components/incidents";
+import type { FilterState } from "@/components/incidents";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -21,22 +23,112 @@ export default function IncidentsPage() {
   const status: IncidentStatus =
     statusParam === "closed" || statusParam === "archived" ? statusParam : "active";
 
+  // Get current user for permission check
+  const currentUser = useQuery(api.users.getCurrentUser);
+
+  // Check if user can create incidents (admin/moderator)
+  const canCreateIncident =
+    currentUser?.tenantRole === "admin" ||
+    currentUser?.tenantRole === "owner" ||
+    currentUser?.tenantRole === "moderator";
+
+  // Filter state
+  const [filters, setFilters] = useState<FilterState>({
+    search: "",
+    status: [status],
+    categories: [],
+    startDate: undefined,
+    endDate: undefined,
+    unitSearch: "",
+  });
+
   // Get tenant
   const tenant = useQuery(api.tenants.getBySlug, { slug });
   const tenantId = tenant?._id;
 
-  // Get incidents - REACTIVE, auto-updates
-  const incidentsRaw = useQuery(
-    api.incidents.list,
-    tenantId ? { tenantId, status, limit: 100 } : "skip"
+  // Build query args based on filters
+  const hasDateFilter = filters.startDate || filters.endDate;
+
+  // Get incidents - use listWithDateRange if date filters are set
+  const incidentsWithDateRange = useQuery(
+    api.incidents.listWithDateRange,
+    tenantId && hasDateFilter
+      ? {
+          tenantId,
+          status: filters.status.length === 1 ? filters.status[0] : undefined,
+          startTime: filters.startDate
+            ? new Date(filters.startDate).setHours(0, 0, 0, 0)
+            : undefined,
+          endTime: filters.endDate
+            ? new Date(filters.endDate).setHours(23, 59, 59, 999)
+            : undefined,
+          limit: 500,
+        }
+      : "skip"
   );
 
-  // Loading state
+  const incidentsBasic = useQuery(
+    api.incidents.list,
+    tenantId && !hasDateFilter ? { tenantId, status, limit: 500 } : "skip"
+  );
+
+  const incidentsRaw = hasDateFilter ? incidentsWithDateRange : incidentsBasic;
+
+  // Apply client-side filters (categories, search, unit search)
+  // This must be called before any conditional returns to maintain hook order
+  const filteredIncidents = useMemo(() => {
+    if (!incidentsRaw) return [];
+
+    const allIncidents = adaptIncidents(incidentsRaw);
+    let result = allIncidents;
+
+    // Filter by status (client-side when multiple statuses selected)
+    if (filters.status.length > 0 && filters.status.length < 3) {
+      result = result.filter((i) => filters.status.includes(i.status));
+    }
+
+    // Filter by categories
+    if (filters.categories.length > 0) {
+      result = result.filter((i) =>
+        filters.categories.includes((i.callTypeCategory || "other") as CallTypeCategory)
+      );
+    }
+
+    // Filter by search term (address, call type)
+    if (filters.search) {
+      const searchLower = filters.search.toLowerCase();
+      result = result.filter(
+        (i) =>
+          i.fullAddress.toLowerCase().includes(searchLower) ||
+          i.callType.toLowerCase().includes(searchLower) ||
+          i.description?.toLowerCase().includes(searchLower)
+      );
+    }
+
+    // Filter by unit search
+    if (filters.unitSearch) {
+      const unitSearchLower = filters.unitSearch.toLowerCase();
+      result = result.filter(
+        (i) =>
+          i.units?.some((u) => u.toLowerCase().includes(unitSearchLower))
+      );
+    }
+
+    return result;
+  }, [incidentsRaw, filters]);
+
+  // Also compute allIncidents for the count display
+  const allIncidents = useMemo(() => {
+    if (!incidentsRaw) return [];
+    return adaptIncidents(incidentsRaw);
+  }, [incidentsRaw]);
+
+  // Loading state - now after all hooks
   if (!tenant || incidentsRaw === undefined) {
     return <IncidentsPageSkeleton />;
   }
 
-  const incidents = adaptIncidents(incidentsRaw);
+  const incidents = filteredIncidents;
 
   // Build URL for status tabs
   const buildTabUrl = (newStatus: IncidentStatus) => {
@@ -61,14 +153,28 @@ export default function IncidentsPage() {
             View and manage all incident reports
           </p>
         </div>
-        <Badge variant="outline" className="text-xs">
-          <span className="relative flex h-2 w-2 mr-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
-          </span>
-          Real-time
-        </Badge>
+        <div className="flex items-center gap-3">
+          <Badge variant="outline" className="text-xs">
+            <span className="relative flex h-2 w-2 mr-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+            </span>
+            Real-time
+          </Badge>
+          {canCreateIncident && tenantId && (
+            <CreateIncidentDialog
+              tenantId={tenantId}
+              onCreated={(id) => router.push(`/tenant/${slug}/incidents/${id}`)}
+            />
+          )}
+        </div>
       </div>
+
+      {/* Filters */}
+      <IncidentFilters
+        onFilterChange={setFilters}
+        initialFilters={filters}
+      />
 
       {/* Status Tabs */}
       <div className="border-b">
@@ -76,10 +182,13 @@ export default function IncidentsPage() {
           {tabs.map((tab) => (
             <button
               key={tab.value}
-              onClick={() => router.push(buildTabUrl(tab.value))}
+              onClick={() => {
+                router.push(buildTabUrl(tab.value));
+                setFilters((prev) => ({ ...prev, status: [tab.value] }));
+              }}
               className={cn(
                 "pb-2 text-sm font-medium transition-colors border-b-2 -mb-px",
-                status === tab.value
+                filters.status.includes(tab.value) && filters.status.length === 1
                   ? "border-primary text-primary"
                   : "border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground"
               )}
@@ -91,12 +200,18 @@ export default function IncidentsPage() {
       </div>
 
       {/* Incidents Table */}
-      <IncidentTable incidents={incidents} />
+      <IncidentTable
+        incidents={incidents}
+        onRowClick={(incident) => router.push(`/tenant/${slug}/incidents/${incident.id}`)}
+      />
 
       {/* Count Info */}
       <div className="text-sm text-muted-foreground">
         <p>
-          Showing {incidents.length} {status} incidents
+          Showing {incidents.length} incident{incidents.length !== 1 ? "s" : ""}
+          {allIncidents.length !== incidents.length && (
+            <span> (filtered from {allIncidents.length})</span>
+          )}
         </p>
       </div>
     </div>

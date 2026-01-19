@@ -1,11 +1,12 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import type { UnitStatus } from '@/lib/types';
+import type { UnitStatusesField } from '@/lib/types';
+import { getAllUnitStatuses } from '@/lib/types';
 
 interface IncidentTimelineProps {
   status: 'active' | 'closed' | 'archived';
-  unitStatuses?: Record<string, UnitStatus>;
+  unitStatuses?: UnitStatusesField;
 }
 
 type TimelineStage = 'received' | 'dispatched' | 'enroute' | 'on_scene' | 'transporting' | 'cleared';
@@ -17,8 +18,8 @@ export function IncidentTimeline({ status, unitStatuses }: IncidentTimelineProps
 
     if (!unitStatuses) return 'received';
 
-    // Check unit statuses
-    const statuses = Object.values(unitStatuses).map((u) => u.status?.toUpperCase() || '');
+    // Check unit statuses (handles both formats)
+    const statuses = getAllUnitStatuses(unitStatuses).map((u) => u.status?.toUpperCase() || '');
 
     if (statuses.some((s) => s.includes('TRANSPORT') || s === 'TR' || s === 'TA')) return 'transporting';
     if (statuses.some((s) => s.includes('SCENE') || s === 'OS' || s === 'AE' || s === 'ONSCENE' || s === 'ON SCENE')) return 'on_scene';

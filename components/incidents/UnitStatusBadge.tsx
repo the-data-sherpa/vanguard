@@ -1,7 +1,8 @@
 'use client';
 
 import { Badge } from '@/components/ui/badge';
-import type { UnitLegend } from '@/lib/types';
+import type { UnitLegend, UnitStatusesField } from '@/lib/types';
+import { getUnitStatusByUnitId } from '@/lib/types';
 
 // Common unit type suffixes to strip when extracting department names
 const UNIT_TYPE_SUFFIXES = [
@@ -229,7 +230,7 @@ export function UnitStatusBadge({ unit, status, description }: UnitStatusBadgePr
 
 interface UnitStatusListProps {
   units: string[];
-  unitStatuses?: Record<string, { unit: string; status: string; timestamp: string }>;
+  unitStatuses?: UnitStatusesField;
   unitLegend?: UnitLegend;
 }
 
@@ -247,7 +248,8 @@ export function UnitStatusList({ units, unitStatuses, unitLegend }: UnitStatusLi
   return (
     <div className="flex flex-wrap gap-1">
       {units.map((unit) => {
-        const status = unitStatuses?.[unit]?.status || 'Unknown';
+        const unitData = getUnitStatusByUnitId(unitStatuses, unit);
+        const status = unitData?.status || 'Unknown';
         const description = getDescription(unit);
         return (
           <UnitStatusBadge
@@ -264,7 +266,7 @@ export function UnitStatusList({ units, unitStatuses, unitLegend }: UnitStatusLi
 
 interface UnitStatusDetailProps {
   units: string[];
-  unitStatuses?: Record<string, { unit: string; status: string; timestamp: string }>;
+  unitStatuses?: UnitStatusesField;
   unitLegend?: UnitLegend;
 }
 
@@ -299,7 +301,7 @@ export function UnitStatusDetail({ units, unitStatuses, unitLegend }: UnitStatus
 
   // Render a single unit row
   const renderUnit = (unit: string, showDescription = true) => {
-    const unitData = unitStatuses?.[unit];
+    const unitData = getUnitStatusByUnitId(unitStatuses, unit);
     const status = unitData?.status || 'Unknown';
     const timestamp = unitData?.timestamp;
     const colorClass = statusColors[status] || 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200';
