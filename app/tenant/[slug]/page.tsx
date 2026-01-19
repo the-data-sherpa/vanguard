@@ -31,7 +31,7 @@ export default function TenantDashboard() {
   );
 
   const activeIncidentsRaw = useQuery(
-    api.incidents.listActive,
+    api.incidents.listActiveGrouped,
     tenantId ? { tenantId } : "skip"
   );
 

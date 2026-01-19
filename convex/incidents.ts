@@ -61,6 +61,95 @@ export const listActive = query({
 });
 
 /**
+ * List active incidents with grouping - consolidates auto-grouped incidents
+ * Returns one representative incident per group with combined units
+ */
+export const listActiveGrouped = query({
+  args: { tenantId: v.id("tenants") },
+  handler: async (ctx, { tenantId }) => {
+    const incidents = await ctx.db
+      .query("incidents")
+      .withIndex("by_tenant_status", (q) =>
+        q.eq("tenantId", tenantId).eq("status", "active")
+      )
+      .order("desc")
+      .collect();
+
+    // Group incidents by groupId
+    const groupedMap = new Map<string | null, typeof incidents>();
+
+    for (const incident of incidents) {
+      const key = incident.groupId ?? null;
+      const existing = groupedMap.get(key as string | null);
+      if (existing) {
+        existing.push(incident);
+      } else {
+        groupedMap.set(key as string | null, [incident]);
+      }
+    }
+
+    // Consolidate each group into a single representative incident
+    const result: typeof incidents = [];
+
+    for (const [groupId, groupIncidents] of groupedMap) {
+      if (groupId === null || groupIncidents.length === 1) {
+        // No group or single incident - return as-is
+        result.push(...groupIncidents);
+      } else {
+        // Multiple incidents in group - consolidate
+        // Sort by callReceivedTime to pick the earliest as primary
+        groupIncidents.sort((a, b) => a.callReceivedTime - b.callReceivedTime);
+        const primary = groupIncidents[0];
+
+        // Combine units from all incidents in the group
+        const allUnits = new Set<string>();
+        const allUnitStatuses: Array<{
+          unitId: string;
+          status: string;
+          timeDispatched?: number;
+          timeAcknowledged?: number;
+          timeEnroute?: number;
+          timeOnScene?: number;
+          timeCleared?: number;
+        }> = [];
+        const seenUnitIds = new Set<string>();
+
+        for (const inc of groupIncidents) {
+          if (inc.units) {
+            for (const unit of inc.units) {
+              allUnits.add(unit);
+            }
+          }
+          if (inc.unitStatuses && Array.isArray(inc.unitStatuses)) {
+            for (const us of inc.unitStatuses) {
+              // Avoid duplicates - keep the first occurrence of each unitId
+              if (!seenUnitIds.has(us.unitId)) {
+                seenUnitIds.add(us.unitId);
+                allUnitStatuses.push(us);
+              }
+            }
+          }
+        }
+
+        // Create consolidated incident
+        result.push({
+          ...primary,
+          units: Array.from(allUnits),
+          unitStatuses: allUnitStatuses.length > 0 ? allUnitStatuses : primary.unitStatuses,
+          // Add metadata about the group
+          _groupedCount: groupIncidents.length,
+        } as typeof primary & { _groupedCount: number });
+      }
+    }
+
+    // Sort by callReceivedTime descending (most recent first)
+    result.sort((a, b) => b.callReceivedTime - a.callReceivedTime);
+
+    return result;
+  },
+});
+
+/**
  * Get a single incident by ID
  */
 export const get = query({
