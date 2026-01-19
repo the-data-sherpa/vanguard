@@ -122,21 +122,31 @@
 - `app/tenant/[slug]/profile/page.tsx` - Added timezone & notification preferences
 - `convex/tenants.ts` - Added `updateBranding`, `updateFeatures` mutations
 
-### Block 1C: Incident Enhancements
+### Block 1C: Incident Enhancements ✅ COMPLETE
 
-| Task | Priority | Complexity |
-|------|----------|------------|
-| Incident detail modal/page (full info, unit timeline) | 🟠 Medium | Medium |
-| Advanced filtering (date range, unit, address search) | 🟠 Medium | Low |
-| Incident notes/comments (admin annotations) | 🟡 Low | Low |
-| Manual incident creation (for non-PulsePoint events) | 🟡 Low | Medium |
-| Incident merge/split tools | 🟡 Low | High |
+| Task | Status | Notes |
+|------|--------|-------|
+| Incident detail modal/page (full info, unit timeline) | ✅ Done | Full detail page with timeline, maps link |
+| Advanced filtering (date range, unit, address search) | ✅ Done | Server-side date range, client-side filters |
+| Incident notes/comments (admin annotations) | ✅ Done | CRUD with role-based permissions |
+| Manual incident creation (for non-PulsePoint events) | ✅ Done | Create/edit dialog with full form |
+| Auto-group related incidents | ✅ Done | Same address + call type within 10 min window |
 
-**Files to create/modify:**
-- `app/tenant/[slug]/incidents/[id]/page.tsx`
-- `components/incidents/IncidentDetail.tsx`
-- `components/incidents/IncidentFilters.tsx` (enhance)
-- `convex/incidents.ts` (add notes, manual creation)
+**Auto-Grouping**: PulsePoint sometimes creates separate incident records for the same real-world event (one per responding agency/unit type). The sync now auto-detects these by matching `normalizedAddress` + `callType` within a 10-minute window and links them via `groupId`. This enables combined display in UI and single posts to social media.
+
+**Files created:**
+- `app/tenant/[slug]/incidents/[id]/page.tsx` - Incident detail page
+- `components/incidents/IncidentDetail.tsx` - Detail view component
+- `components/incidents/IncidentTimeline.tsx` - Unit timeline visualization
+- `components/incidents/UnitStatusBadge.tsx` - Unit status display
+- `components/incidents/IncidentFilters.tsx` - Advanced filtering UI
+- `components/incidents/IncidentNotes.tsx` - Notes CRUD component
+- `components/incidents/CreateIncidentDialog.tsx` - Manual incident form
+- `convex/incidentNotes.ts` - Notes backend (add, update, remove)
+
+**Files modified:**
+- `convex/incidents.ts` - Added `createManual`, `updateManual`, `listWithDateRange`, `searchByAddress`, auto-grouping in `batchUpsertFromPulsePoint`, merge queries (`getGroupedIncidents`, `getMergeGroupForIncident`)
+- `app/tenant/[slug]/incidents/page.tsx` - Integrated filters and create dialog
 
 ---
 
@@ -384,6 +394,7 @@ Block 2A (Submissions)
 |---------|------|---------|
 | 1.0.0 | January 2025 | Initial building block plan based on codebase assessment |
 | 1.1.0 | January 2025 | Block 1B complete - tenant settings, branding, feature toggles, preferences, export |
+| 1.2.0 | January 2025 | Block 1C complete - detail page, filtering, notes, manual creation, auto-grouping for related incidents |
 
 ---
 

@@ -303,10 +303,15 @@ export const updateUnits = mutation({
   },
 });
 
+// Time window for auto-grouping incidents (10 minutes)
+const AUTO_GROUP_WINDOW_MS = 10 * 60 * 1000;
+
 /**
  * Batch upsert incidents from PulsePoint sync
  * This is the KEY function for efficient syncing
- * Now includes conflict detection to reduce unnecessary DB writes
+ * Now includes:
+ * - Conflict detection to reduce unnecessary DB writes
+ * - Auto-grouping of incidents at same address within time window
  */
 export const batchUpsertFromPulsePoint = internalMutation({
   args: {
@@ -352,6 +357,7 @@ export const batchUpsertFromPulsePoint = internalMutation({
     let created = 0;
     let updated = 0;
     let skipped = 0;
+    let grouped = 0;
 
     for (const incident of incidents) {
       // Check if incident exists
@@ -424,7 +430,56 @@ export const batchUpsertFromPulsePoint = internalMutation({
         });
         updated++;
       } else {
-        // Create new incident
+        // NEW INCIDENT - Check for auto-grouping
+        // Look for existing incidents at same address within time window
+        const timeWindowStart = incident.callReceivedTime - AUTO_GROUP_WINDOW_MS;
+        const timeWindowEnd = incident.callReceivedTime + AUTO_GROUP_WINDOW_MS;
+
+        const relatedIncidents = await ctx.db
+          .query("incidents")
+          .withIndex("by_tenant_address_type", (q) =>
+            q
+              .eq("tenantId", tenantId)
+              .eq("normalizedAddress", incident.normalizedAddress)
+              .eq("callType", incident.callType)
+          )
+          .filter((q) =>
+            q.and(
+              q.gte(q.field("callReceivedTime"), timeWindowStart),
+              q.lte(q.field("callReceivedTime"), timeWindowEnd)
+            )
+          )
+          .collect();
+
+        let groupId: Id<"incidentGroups"> | undefined;
+
+        if (relatedIncidents.length > 0) {
+          // Found related incidents - check if any already have a group
+          const existingGroup = relatedIncidents.find((i) => i.groupId);
+
+          if (existingGroup?.groupId) {
+            // Use existing group
+            groupId = existingGroup.groupId;
+          } else {
+            // Create new group and link the first related incident to it
+            const mergeKey = `auto_${incident.normalizedAddress}_${timeWindowStart}`;
+            groupId = await ctx.db.insert("incidentGroups", {
+              tenantId,
+              mergeKey,
+              mergeReason: "auto_address_time",
+              callType: incident.callType,
+              normalizedAddress: incident.normalizedAddress,
+              windowStart: timeWindowStart,
+              windowEnd: timeWindowEnd,
+            });
+
+            // Link the first related incident to the new group
+            await ctx.db.patch(relatedIncidents[0]._id, { groupId });
+          }
+          grouped++;
+        }
+
+        // Create new incident (with groupId if auto-grouped)
         await ctx.db.insert("incidents", {
           tenantId,
           source: "pulsepoint",
@@ -440,12 +495,13 @@ export const batchUpsertFromPulsePoint = internalMutation({
           status: incident.status,
           callReceivedTime: incident.callReceivedTime,
           callClosedTime: incident.callClosedTime,
+          groupId,
         });
         created++;
       }
     }
 
-    return { created, updated, skipped };
+    return { created, updated, skipped, grouped };
   },
 });
 
@@ -598,5 +654,274 @@ export const updateManual = mutation({
 
     await ctx.db.patch(id, patchData);
     return id;
+  },
+});
+
+// ===================
+// Merge Operations
+// ===================
+
+/**
+ * Merge multiple incidents into a primary incident
+ * - Primary incident absorbs units from all merged incidents
+ * - Other incidents are archived and linked via groupId
+ * - Notes are preserved on their original incidents (accessible via group)
+ */
+export const mergeIncidents = mutation({
+  args: {
+    tenantId: v.id("tenants"),
+    primaryIncidentId: v.id("incidents"),
+    incidentIdsToMerge: v.array(v.id("incidents")),
+  },
+  handler: async (ctx, { tenantId, primaryIncidentId, incidentIdsToMerge }) => {
+    // Validate we have at least one incident to merge
+    if (incidentIdsToMerge.length === 0) {
+      throw new Error("Must provide at least one incident to merge");
+    }
+
+    // Get primary incident
+    const primaryIncident = await ctx.db.get(primaryIncidentId);
+    if (!primaryIncident) {
+      throw new Error("Primary incident not found");
+    }
+    if (primaryIncident.tenantId !== tenantId) {
+      throw new Error("Primary incident does not belong to this tenant");
+    }
+
+    // Get all incidents to merge and validate them
+    const incidentsToMerge: Doc<"incidents">[] = [];
+    for (const id of incidentIdsToMerge) {
+      if (id === primaryIncidentId) {
+        continue; // Skip if primary is in the list
+      }
+      const incident = await ctx.db.get(id);
+      if (!incident) {
+        throw new Error(`Incident ${id} not found`);
+      }
+      if (incident.tenantId !== tenantId) {
+        throw new Error(`Incident ${id} does not belong to this tenant`);
+      }
+      incidentsToMerge.push(incident);
+    }
+
+    if (incidentsToMerge.length === 0) {
+      throw new Error("No valid incidents to merge after filtering");
+    }
+
+    // Create or get existing merge group
+    let groupId = primaryIncident.groupId;
+    if (!groupId) {
+      // Create new group
+      const mergeKey = `manual_${Date.now()}_${primaryIncidentId}`;
+      groupId = await ctx.db.insert("incidentGroups", {
+        tenantId,
+        mergeKey,
+        mergeReason: "manual",
+        callType: primaryIncident.callType,
+        normalizedAddress: primaryIncident.normalizedAddress,
+        windowStart: primaryIncident.callReceivedTime,
+        windowEnd: primaryIncident.callClosedTime || Date.now(),
+      });
+    }
+
+    // Combine units from all incidents
+    const allUnits = new Set<string>(primaryIncident.units || []);
+    for (const incident of incidentsToMerge) {
+      if (incident.units) {
+        for (const unit of incident.units) {
+          allUnits.add(unit);
+        }
+      }
+    }
+
+    // Update primary incident with combined units and group link
+    await ctx.db.patch(primaryIncidentId, {
+      groupId,
+      units: Array.from(allUnits),
+    });
+
+    // Archive merged incidents and link to group
+    for (const incident of incidentsToMerge) {
+      await ctx.db.patch(incident._id, {
+        groupId,
+        status: "archived",
+      });
+    }
+
+    return {
+      groupId,
+      primaryIncidentId,
+      mergedCount: incidentsToMerge.length,
+      totalUnits: allUnits.size,
+    };
+  },
+});
+
+/**
+ * Get all incidents in a merge group
+ */
+export const getGroupedIncidents = query({
+  args: {
+    tenantId: v.id("tenants"),
+    groupId: v.id("incidentGroups"),
+  },
+  handler: async (ctx, { tenantId, groupId }) => {
+    // Verify the group belongs to this tenant
+    const group = await ctx.db.get(groupId);
+    if (!group || group.tenantId !== tenantId) {
+      return null;
+    }
+
+    // Get all incidents in this group
+    const incidents = await ctx.db
+      .query("incidents")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId))
+      .filter((q) => q.eq(q.field("groupId"), groupId))
+      .collect();
+
+    // Separate primary (non-archived) from merged (archived)
+    const primary = incidents.find((i) => i.status !== "archived");
+    const merged = incidents.filter((i) => i.status === "archived");
+
+    return {
+      group,
+      primary,
+      merged,
+      totalCount: incidents.length,
+    };
+  },
+});
+
+/**
+ * Get merge group info for an incident (if it belongs to one)
+ */
+export const getMergeGroupForIncident = query({
+  args: {
+    incidentId: v.id("incidents"),
+  },
+  handler: async (ctx, { incidentId }) => {
+    const incident = await ctx.db.get(incidentId);
+    if (!incident || !incident.groupId) {
+      return null;
+    }
+
+    const group = await ctx.db.get(incident.groupId);
+    if (!group) {
+      return null;
+    }
+
+    // Count incidents in this group
+    const groupIncidents = await ctx.db
+      .query("incidents")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", incident.tenantId))
+      .filter((q) => q.eq(q.field("groupId"), incident.groupId))
+      .collect();
+
+    return {
+      group,
+      incidentCount: groupIncidents.length,
+      isPrimary: incident.status !== "archived",
+    };
+  },
+});
+
+/**
+ * List recent incidents that can be merged with a given incident
+ * Returns incidents from the same tenant that are:
+ * - Not already archived
+ * - Not the same incident
+ * - Within a configurable time window (default 24 hours)
+ */
+export const listMergeableCandidates = query({
+  args: {
+    tenantId: v.id("tenants"),
+    excludeIncidentId: v.optional(v.id("incidents")),
+    hoursWindow: v.optional(v.number()), // Default 24 hours
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, { tenantId, excludeIncidentId, hoursWindow = 24, limit = 50 }) => {
+    const windowMs = hoursWindow * 60 * 60 * 1000;
+    const cutoffTime = Date.now() - windowMs;
+
+    // Get recent non-archived incidents
+    const incidents = await ctx.db
+      .query("incidents")
+      .withIndex("by_tenant_time", (q) => q.eq("tenantId", tenantId))
+      .order("desc")
+      .filter((q) =>
+        q.and(
+          q.neq(q.field("status"), "archived"),
+          q.gte(q.field("callReceivedTime"), cutoffTime)
+        )
+      )
+      .take(limit + 1); // +1 in case we need to filter one out
+
+    // Filter out the excluded incident if provided
+    const filtered = excludeIncidentId
+      ? incidents.filter((i) => i._id !== excludeIncidentId)
+      : incidents;
+
+    return filtered.slice(0, limit);
+  },
+});
+
+/**
+ * Remove an incident from its merge group (unlink)
+ * - If it's the primary, promote another incident or dissolve group
+ * - If it's a merged incident, just unlink and optionally restore status
+ */
+export const unlinkFromGroup = mutation({
+  args: {
+    tenantId: v.id("tenants"),
+    incidentId: v.id("incidents"),
+    restoreStatus: v.optional(v.union(v.literal("active"), v.literal("closed"))),
+  },
+  handler: async (ctx, { tenantId, incidentId, restoreStatus }) => {
+    const incident = await ctx.db.get(incidentId);
+    if (!incident) {
+      throw new Error("Incident not found");
+    }
+    if (incident.tenantId !== tenantId) {
+      throw new Error("Incident does not belong to this tenant");
+    }
+    if (!incident.groupId) {
+      throw new Error("Incident is not part of a merge group");
+    }
+
+    const groupId = incident.groupId;
+
+    // Get all incidents in this group
+    const groupIncidents = await ctx.db
+      .query("incidents")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId))
+      .filter((q) => q.eq(q.field("groupId"), groupId))
+      .collect();
+
+    const otherIncidents = groupIncidents.filter((i) => i._id !== incidentId);
+
+    // Unlink this incident
+    await ctx.db.patch(incidentId, {
+      groupId: undefined,
+      status: restoreStatus || (incident.status === "archived" ? "closed" : incident.status),
+    });
+
+    // If only one incident remains, dissolve the group
+    if (otherIncidents.length === 1) {
+      const remaining = otherIncidents[0];
+      await ctx.db.patch(remaining._id, {
+        groupId: undefined,
+      });
+      // Delete the empty group
+      await ctx.db.delete(groupId);
+      return { dissolved: true, remainingIncidentId: remaining._id };
+    }
+
+    // If no incidents remain, delete the group
+    if (otherIncidents.length === 0) {
+      await ctx.db.delete(groupId);
+      return { dissolved: true };
+    }
+
+    return { dissolved: false, remainingCount: otherIncidents.length };
   },
 });
