@@ -13,17 +13,17 @@
 ```typescript
 // Good
 interface Tenant {
-  id: string;
+  _id: Id<"tenants">;
   slug: string;
   name: string;
 }
 
-export async function getTenant(id: string): Promise<Tenant | null> {
+export async function getTenant(slug: string): Promise<Tenant | null> {
   // ...
 }
 
 // Avoid
-export async function getTenant(id) {
+export async function getTenant(slug) {
   // ...
 }
 ```
@@ -35,9 +35,9 @@ export async function getTenant(id) {
 | `/app` | Next.js App Router pages and layouts |
 | `/components` | Reusable UI components (shadcn/ui + custom) |
 | `/components/ui` | shadcn/ui primitives |
+| `/convex` | Convex backend (queries, mutations, actions) |
 | `/hooks` | Custom React hooks |
 | `/lib` | Utility functions, helpers |
-| `/services` | Business logic, API integrations, data access |
 | `/types` | Shared TypeScript interfaces and types |
 
 ### DRY (Don't Repeat Yourself)
@@ -66,22 +66,27 @@ export function TenantCard({ tenant, onSelect }: TenantCardProps) {
 }
 ```
 
-### Services Layer
+### Convex Backend
 
-- Services handle all business logic and data access
-- Keep API routes thin - delegate to services
-- Services should be testable in isolation
-- Use dependency injection where practical
+- **Queries** for reading data (automatically real-time)
+- **Mutations** for writing data (transactional)
+- **Actions** for external API calls (PulsePoint, NWS)
+- Always scope queries by `tenantId` using indexes
+- Use `requireTenantAccess()` for authorization on mutations
 
 ```typescript
-// services/tenant.ts
-export async function createTenant(slug: string, name: string): Promise<Tenant> {
-  // All tenant creation logic here
-}
-
-// pages/api/tenant/[action].ts
-// Thin handler that calls the service
-const tenant = await createTenant(slug, name);
+// convex/incidents.ts
+export const listActive = query({
+  args: { tenantId: v.id("tenants") },
+  handler: async (ctx, { tenantId }) => {
+    return await ctx.db
+      .query("incidents")
+      .withIndex("by_tenant_status", (q) =>
+        q.eq("tenantId", tenantId).eq("status", "active")
+      )
+      .collect();
+  },
+});
 ```
 
 ### Error Handling
@@ -117,6 +122,7 @@ const tenant = await createTenant(slug, name);
 - **Framework**: Next.js 16 (App Router)
 - **Language**: TypeScript 5.x (strict mode)
 - **Styling**: Tailwind CSS v4 + shadcn/ui
-- **Database**: PocketBase
-- **Auth**: NextAuth.js v4
+- **Backend**: Convex (real-time BaaS)
+- **Database**: Convex (managed)
+- **Auth**: Clerk + Convex Auth
 - **Linting**: ESLint 9 (flat config)

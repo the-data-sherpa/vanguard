@@ -41,12 +41,8 @@ async function requireTenantAccess(
     throw new Error("User is banned");
   }
 
-  // Platform admins can access any tenant
-  if (user.role === "platform_admin") {
-    return { userId: user._id, tenantRole: "platform_admin" };
-  }
-
   // Verify user belongs to the requested tenant
+  // Note: Platform admins do NOT have automatic tenant access - they must be explicitly added
   if (user.tenantId !== tenantId) {
     throw new Error("Access denied: user does not belong to this tenant");
   }

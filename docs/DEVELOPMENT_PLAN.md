@@ -13,7 +13,7 @@
 | Frontend | Next.js 16 (App Router) | Production-ready |
 | Backend | Convex (real-time BaaS) | Production-ready |
 | Database | Convex managed DB | Production-ready |
-| Auth | Convex Auth (ready for provider) | Needs configuration |
+| Auth | Clerk + Convex Auth | Production-ready |
 | Styling | Tailwind CSS v4 + shadcn/ui | Production-ready |
 | Hosting | Vercel + Convex Cloud | Configured |
 
@@ -47,7 +47,8 @@
 |---------|--------|-------|
 | Tenant Management | ✅ Done | CRUD, settings, slug routing |
 | User Auth Framework | ✅ Done | Role hierarchy, authorization helpers |
-| Auth Provider Config | ⬜ Needed | Clerk/Auth0/custom not configured |
+| Auth Provider Config | ✅ Done | Clerk configured with webhooks |
+| User Management UI | ✅ Done | Profile, invite, roles, ban |
 | PulsePoint Sync | ✅ Done | Real-time, rate-limited |
 | Weather Alerts | ✅ Done | NWS integration, zone-based |
 | Dashboard | ✅ Done | Real-time stats, incidents, weather |
@@ -64,22 +65,32 @@
 
 **Goal**: Make each tenant's experience production-ready
 
-### Block 1A: Auth & User Management
+### Block 1A: Auth & User Management ✅ COMPLETE
 
-| Task | Priority | Complexity |
-|------|----------|------------|
-| Configure Convex auth provider (Clerk, Auth0, or custom) | 🔴 High | Medium |
-| Build login/signup pages | 🔴 High | Low |
-| User profile page (view/edit) | 🟠 Medium | Low |
-| Tenant user management UI (invite, remove, change roles) | 🔴 High | Medium |
-| Password reset / email verification flows | 🟠 Medium | Medium |
+| Task | Status | Notes |
+|------|--------|-------|
+| Configure Convex auth provider (Clerk) | ✅ Done | Clerk + Convex Auth with webhooks |
+| Build login/signup pages | ✅ Done | `/login`, `/signup` with Clerk components |
+| User profile page (view/edit) | ✅ Done | `/tenant/[slug]/profile` with tabs |
+| Tenant user management UI | ✅ Done | Invite, roles, ban, remove |
+| Password reset / email verification | ✅ Done | Handled by Clerk |
+| Route protection middleware | ✅ Done | Clerk middleware + AuthGuard |
 
-**Files to create/modify:**
-- `app/login/page.tsx`
-- `app/signup/page.tsx`
-- `app/tenant/[slug]/users/page.tsx`
-- `app/tenant/[slug]/profile/page.tsx`
-- `convex/users.ts` (enhance with invite/management mutations)
+**Files created:**
+- `convex/auth.config.ts` - Clerk provider config
+- `convex/http.ts` - Webhook handler for user sync
+- `convex/users.ts` - User management mutations/queries
+- `middleware.ts` - Route protection
+- `components/auth/AuthGuard.tsx` - Role-based access guard
+- `app/login/[[...login]]/page.tsx` - Clerk SignIn
+- `app/signup/[[...signup]]/page.tsx` - Clerk SignUp
+- `app/tenant/[slug]/profile/page.tsx` - User profile
+- `app/tenant/[slug]/users/page.tsx` - User management (admin)
+- `components/users/UserTable.tsx` - User list with actions
+- `components/users/RoleSelector.tsx` - Role picker
+- `components/users/InviteUserDialog.tsx` - Invite modal
+
+**Security note:** Platform admins do NOT have automatic tenant access - they must be explicitly invited to each tenant like any other user.
 
 ### Block 1B: Tenant Settings Completion
 

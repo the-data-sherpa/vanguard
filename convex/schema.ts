@@ -271,6 +271,7 @@ export default defineSchema({
   // Users
   // ===================
   users: defineTable({
+    clerkId: v.optional(v.string()),
     tenantId: v.optional(v.id("tenants")),
     email: v.string(),
     emailVisibility: v.boolean(),
@@ -302,6 +303,7 @@ export default defineSchema({
     ),
     lastLoginAt: v.optional(v.number()),
   })
+    .index("by_clerk_id", ["clerkId"])
     .index("by_email", ["email"])
     .index("by_tenant", ["tenantId"]),
 

@@ -13,11 +13,13 @@ import {
   Building2,
   Clock,
   Check,
+  ArrowRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { SignedIn, SignedOut, UserButton } from '@clerk/nextjs';
 
 const features = [
   {
@@ -99,14 +101,20 @@ export default function LandingPage() {
             </div>
             <div className="flex items-center gap-4">
               <ThemeToggle />
-              <Button variant="ghost" disabled className="opacity-60">
-                Sign In
-                <Badge variant="secondary" className="ml-2 text-xs">Soon</Badge>
-              </Button>
-              <Button disabled className="opacity-60">
-                Get Started
-                <Badge variant="secondary" className="ml-2 text-xs">Soon</Badge>
-              </Button>
+              <SignedOut>
+                <Button variant="ghost" asChild>
+                  <Link href="/login">Sign In</Link>
+                </Button>
+                <Button asChild>
+                  <Link href="/signup">Get Started</Link>
+                </Button>
+              </SignedOut>
+              <SignedIn>
+                <Button variant="ghost" asChild>
+                  <Link href="/tenant">Dashboard</Link>
+                </Button>
+                <UserButton afterSignOutUrl="/" />
+              </SignedIn>
             </div>
           </div>
         </div>
@@ -130,18 +138,31 @@ export default function LandingPage() {
               Real-time tracking, weather alerts, and social updates — all in one place.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button size="lg" disabled className="opacity-60">
-                <Clock className="mr-2 h-4 w-4" />
-                Coming Soon
-              </Button>
-              <Button size="lg" variant="outline" disabled className="opacity-60">
-                <Clock className="mr-2 h-4 w-4" />
-                View Demo
-              </Button>
+              <SignedOut>
+                <Button size="lg" asChild>
+                  <Link href="/signup">
+                    Get Started Free
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+                <Button size="lg" variant="outline" asChild>
+                  <Link href="/login">Sign In</Link>
+                </Button>
+              </SignedOut>
+              <SignedIn>
+                <Button size="lg" asChild>
+                  <Link href="/tenant">
+                    Go to Dashboard
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+              </SignedIn>
             </div>
-            <p className="text-sm text-muted-foreground">
-              Sign up for updates to be notified when we launch.
-            </p>
+            <SignedOut>
+              <p className="text-sm text-muted-foreground">
+                Free to start. No credit card required.
+              </p>
+            </SignedOut>
           </div>
         </div>
       </section>
@@ -355,17 +376,28 @@ export default function LandingPage() {
             Stay Connected to Your Community
           </h2>
           <p className="text-xl opacity-90">
-            Vanguard is coming soon. Be the first to know when we launch and help
-            shape the future of community incident awareness.
+            Join Vanguard today and help shape the future of community incident awareness.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" variant="secondary" disabled className="opacity-80">
-              <Clock className="mr-2 h-4 w-4" />
-              Coming Soon
-            </Button>
-            <Button size="lg" variant="outline" className="bg-transparent border-primary-foreground/30 hover:bg-primary-foreground/10" disabled>
-              Contact Us
-            </Button>
+            <SignedOut>
+              <Button size="lg" variant="secondary" asChild>
+                <Link href="/signup">
+                  Get Started Free
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+              <Button size="lg" variant="outline" className="bg-transparent border-primary-foreground/30 hover:bg-primary-foreground/10" asChild>
+                <Link href="/login">Sign In</Link>
+              </Button>
+            </SignedOut>
+            <SignedIn>
+              <Button size="lg" variant="secondary" asChild>
+                <Link href="/tenant">
+                  Go to Dashboard
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+            </SignedIn>
           </div>
         </div>
       </section>
