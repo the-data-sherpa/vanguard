@@ -344,6 +344,46 @@ export const permanentlyDeleteTenant = internalMutation({
 });
 
 /**
+ * Check for and expire trials that have passed their end date
+ * Called by daily cron job
+ */
+export const expireTrials = internalAction({
+  args: {},
+  handler: async (ctx): Promise<{ expiredCount: number }> => {
+    const now = Date.now();
+    let expiredCount = 0;
+
+    // Get all tenants
+    const allTenants: Doc<"tenants">[] = await ctx.runQuery(api.tenants.listAll);
+
+    // Find tenants with expired trials
+    const expiredTrials = allTenants.filter(
+      (t) =>
+        t.subscriptionStatus === "trialing" &&
+        t.trialEndsAt &&
+        t.trialEndsAt <= now
+    );
+
+    console.log(`[Maintenance] Found ${expiredTrials.length} tenants with expired trials`);
+
+    for (const tenant of expiredTrials) {
+      try {
+        await ctx.runMutation(internal.billing.expireTrial, {
+          tenantId: tenant._id,
+        });
+        expiredCount++;
+      } catch (error) {
+        console.error(`[Maintenance] Failed to expire trial for tenant ${tenant._id}:`, error);
+      }
+    }
+
+    console.log(`[Maintenance] Trial expiration complete: ${expiredCount} trials expired`);
+
+    return { expiredCount };
+  },
+});
+
+/**
  * Process all tenants scheduled for deletion
  * Called by daily cron job
  */

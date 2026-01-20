@@ -20,6 +20,15 @@ const tenantTier = v.union(
   v.literal("enterprise")
 );
 
+// Subscription status for billing
+const subscriptionStatus = v.union(
+  v.literal("trialing"),    // 14-day trial active
+  v.literal("active"),      // Paid subscription
+  v.literal("past_due"),    // Payment failed
+  v.literal("canceled"),    // Subscription canceled
+  v.literal("expired")      // Trial ended, no subscription
+);
+
 const incidentSource = v.union(
   v.literal("pulsepoint"),
   v.literal("user_submitted"),
@@ -128,7 +137,10 @@ export default defineSchema({
     ),
 
     // Billing & Trial
+    subscriptionStatus: v.optional(subscriptionStatus),
     trialEndsAt: v.optional(v.number()),
+    currentPeriodEnd: v.optional(v.number()),
+    cancelAtPeriodEnd: v.optional(v.boolean()),
     billingCustomerId: v.optional(v.string()),
     billingSubscriptionId: v.optional(v.string()),
 
@@ -154,7 +166,8 @@ export default defineSchema({
     lastWeatherSync: v.optional(v.number()),
   })
     .index("by_slug", ["slug"])
-    .index("by_status", ["status"]),
+    .index("by_status", ["status"])
+    .index("by_subscription_status", ["subscriptionStatus"]),
 
   // ===================
   // Incidents

@@ -63,6 +63,8 @@
 | Interactive Map | ⬜ Needed | Not started |
 | Analytics | ⬜ Needed | Not started |
 | Platform Admin | ✅ Done | Dashboard, tenant overview, health monitoring |
+| Tenant Lifecycle | ✅ Done | Create, suspend, delete, tier management |
+| Billing & Subscriptions | ✅ Done | Stripe, trials, billing portal, demo tenant |
 
 ---
 
@@ -179,37 +181,67 @@
 
 **Deferred to Block 2B:** User impersonation, full tenant details page, tenant creation wizard
 
-### Block 2B: Tenant Lifecycle Management
+### Block 2B: Tenant Lifecycle Management ✅ COMPLETE
 
-| Task | Priority | Complexity |
-|------|----------|------------|
-| Tenant creation wizard | 🟠 Medium | Medium |
-| Tenant suspension/reactivation | 🟠 Medium | Low |
-| Tenant deletion (soft delete → scheduled purge) | 🟠 Medium | Medium |
-| Tier upgrades/downgrades | 🟡 Low | Low |
-| Feature flag overrides | 🟡 Low | Low |
+| Task | Status | Notes |
+|------|--------|-------|
+| Tenant creation wizard | ✅ Done | Admin can create tenants with full config |
+| Tenant suspension/reactivation | ✅ Done | Integrated in admin actions |
+| Tenant deletion (soft delete → scheduled purge) | ✅ Done | Status-based deletion flow |
+| Tier upgrades/downgrades | ✅ Done | Admin can change tenant tiers |
+| Feature flag overrides | ✅ Done | Feature toggles in tenant settings |
 
-**Files to create/modify:**
-- `app/admin/tenants/page.tsx`
-- `app/admin/tenants/new/page.tsx`
-- `app/admin/tenants/[id]/page.tsx`
-- `convex/tenants.ts` (add lifecycle mutations)
+**Files created:**
+- `app/admin/tenants/page.tsx` - Tenant list and management
+- `app/admin/tenants/new/page.tsx` - Tenant creation wizard
+- `app/admin/tenants/[id]/page.tsx` - Tenant details and actions
 
-### Block 2C: Billing & Subscriptions
+**Files modified:**
+- `convex/tenants.ts` - Added lifecycle mutations (create, suspend, delete)
 
-| Task | Priority | Complexity |
-|------|----------|------------|
-| Stripe integration | 🟡 Low | High |
-| Subscription plans (free, starter, pro, enterprise) | 🟡 Low | Medium |
-| Usage tracking against limits | 🟡 Low | Medium |
-| Invoice history | 🟡 Low | Low |
-| Upgrade prompts when hitting limits | 🟡 Low | Low |
+### Block 2C: Billing & Subscriptions ✅ COMPLETE
 
-**Files to create/modify:**
-- `app/tenant/[slug]/billing/page.tsx`
-- `app/admin/billing/page.tsx`
-- `convex/billing.ts`
-- `convex/stripe.ts`
+| Task | Status | Notes |
+|------|--------|-------|
+| Stripe integration | ✅ Done | Checkout, webhooks, billing portal |
+| Subscription model ($29.99/mo + 14-day trial) | ✅ Done | Single tier, no free plan |
+| Trial management | ✅ Done | Auto-start on tenant creation, expiration cron |
+| Invoice history | ✅ Done | Fetched from Stripe API |
+| Trial/subscription enforcement | ✅ Done | SubscriptionGuard blocks expired trials |
+| Public demo tenant | ✅ Done | `/demo` with mock data |
+| Admin billing dashboard | ✅ Done | MRR, subscriber count, conversion metrics |
+
+**Files created:**
+- `convex/stripe.ts` - Stripe API actions (customer, checkout, portal, subscriptions)
+- `convex/billing.ts` - Billing queries/mutations, subscription status
+- `convex/demo.ts` - Demo tenant with mock incidents and weather
+- `lib/stripe.ts` - Client-side Stripe utilities and pricing constants
+- `lib/demo-types.ts` - TypeScript types for demo data
+- `app/tenant/[slug]/billing/page.tsx` - Tenant billing portal
+- `app/admin/billing/page.tsx` - Admin billing dashboard with MRR metrics
+- `app/demo/page.tsx` - Public demo dashboard
+- `app/demo/layout.tsx` - Demo layout with banner
+- `app/demo/incidents/page.tsx` - Demo incidents list
+- `app/demo/weather/page.tsx` - Demo weather alerts
+- `components/billing/TrialBanner.tsx` - Trial countdown/warning banner
+- `components/billing/SubscribeButton.tsx` - Checkout trigger
+- `components/billing/SubscriptionGuard.tsx` - Access enforcement for expired trials
+- `components/ui/alert.tsx` - Alert component for billing UI
+
+**Files modified:**
+- `convex/http.ts` - Added Stripe webhook handler (`/stripe-webhook`)
+- `convex/schema.ts` - Added subscriptionStatus, currentPeriodEnd, cancelAtPeriodEnd
+- `convex/tenants.ts` - Auto-start 14-day trial on tenant creation
+- `convex/maintenance.ts` - Added `expireTrials` action
+- `convex/scheduler.ts` - Added trial expiration to daily cron
+- `components/layout/TenantLayout.tsx` - Integrated TrialBanner and SubscriptionGuard
+- `middleware.ts` - Added `/demo` to public routes
+
+**Environment variables required:**
+- `STRIPE_SECRET_KEY` - Stripe API key
+- `STRIPE_WEBHOOK_SECRET` - Webhook signature verification
+- `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` - Client-side Stripe key
+- `STRIPE_PRICE_ID` - Monthly subscription price ID
 
 ---
 
@@ -315,17 +347,17 @@
 
 ## Recommended Execution Order
 
-| Priority | Block | Rationale |
-|----------|-------|-----------|
-| 🔴 1 | **1A: Auth & Users** | Can't go live without login |
-| 🔴 2 | **1B: Tenant Settings** | Completes the admin experience |
-| 🔴 3 | **1C: Incident Enhancements** | Quality of life improvements |
-| 🟠 4 | **2A: Platform Admin Dashboard** | Needed for tenant management |
-| 🟠 5 | **2B: Tenant Lifecycle** | Create/suspend/delete tenants |
-| 🟠 6 | **3A: Social Media** | High value for existing ICAW users |
-| 🟡 7 | **4A: Map** | Visual appeal, differentiation |
-| 🟡 8 | **4B: Analytics** | Nice-to-have for launch |
-| 🟢 9 | **2C: Billing** | Can invoice manually initially |
+| Priority | Block | Rationale | Status |
+|----------|-------|-----------|--------|
+| 🔴 1 | **1A: Auth & Users** | Can't go live without login | ✅ Done |
+| 🔴 2 | **1B: Tenant Settings** | Completes the admin experience | ✅ Done |
+| 🔴 3 | **1C: Incident Enhancements** | Quality of life improvements | ✅ Done |
+| 🟠 4 | **2A: Platform Admin Dashboard** | Needed for tenant management | ✅ Done |
+| 🟠 5 | **2B: Tenant Lifecycle** | Create/suspend/delete tenants | ✅ Done |
+| 🟠 6 | **2C: Billing** | Revenue and trial management | ✅ Done |
+| 🟡 7 | **3A: Social Media** | High value for existing ICAW users | ⬜ Next |
+| 🟡 8 | **4A: Map** | Visual appeal, differentiation | ⬜ Pending |
+| 🟡 9 | **4B: Analytics** | Nice-to-have for launch | ⬜ Pending |
 
 ---
 
@@ -377,25 +409,26 @@ Block 1C (Incidents)
 
 ## Milestones
 
-### MVP Launch (Blocks 1A + 1B + 1C)
+### MVP Launch (Blocks 1A + 1B + 1C) ✅ COMPLETE
 - Users can log in
 - Admins can configure their tenant
 - Real-time incident and weather display works
 - Advanced incident filtering and detail views
 
-### Platform Admin Launch (+ Blocks 2A + 2B)
+### Platform Admin Launch (+ Blocks 2A + 2B + 2C) ✅ COMPLETE
 - Platform admin dashboard
 - Tenant creation/suspension/deletion
 - Full tenant lifecycle management
+- Billing with Stripe ($29.99/mo + 14-day trial)
+- Demo tenant for prospects
 
-### Social Launch (+ Block 3A)
+### Social Launch (+ Block 3A) ⬜ NEXT
 - Social media auto-posting
 - Full tenant self-service
 
-### Full Platform (+ Blocks 4A, 4B, 2C)
+### Full Platform (+ Blocks 4A, 4B) ⬜ FUTURE
 - Interactive maps
 - Analytics dashboards
-- Billing and subscriptions
 
 ---
 
@@ -409,6 +442,8 @@ Block 1C (Incidents)
 | 1.3.0 | January 2025 | Deferred User Submissions and Moderation Queue to Far Future section |
 | 1.4.0 | January 2025 | Prioritized Platform Administration to Phase 2; Social Media now Phase 3; Visualization now Phase 4 |
 | 1.5.0 | January 2025 | Block 2A complete - Platform Admin Dashboard with tenant overview, stats, health monitoring, suspend/reactivate actions |
+| 1.6.0 | January 2025 | Block 2B complete - Tenant Lifecycle Management with creation wizard, suspension, deletion, tier upgrades |
+| 1.7.0 | January 2025 | Block 2C complete - Billing & Subscriptions with Stripe integration, 14-day trials, demo tenant, billing portal |
 
 ---
 

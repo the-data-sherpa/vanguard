@@ -189,8 +189,13 @@ export const getStats = query({
 // Mutations
 // ===================
 
+// Trial duration constant
+const TRIAL_DURATION_DAYS = 14;
+const TRIAL_DURATION_MS = TRIAL_DURATION_DAYS * 24 * 60 * 60 * 1000;
+
 /**
  * Create a new tenant
+ * Automatically starts a 14-day trial
  */
 export const create = mutation({
   args: {
@@ -215,16 +220,35 @@ export const create = mutation({
       throw new Error(`Tenant with slug "${args.slug}" already exists`);
     }
 
-    return await ctx.db.insert("tenants", {
+    // Calculate trial end date (14 days from now)
+    const trialEndsAt = Date.now() + TRIAL_DURATION_MS;
+
+    const tenantId = await ctx.db.insert("tenants", {
       slug: args.slug,
       name: args.name,
       displayName: args.displayName,
       status: "active",
       tier: args.tier,
+      subscriptionStatus: "trialing",
+      trialEndsAt,
       features: {
         weatherAlerts: true,
       },
     });
+
+    // Log trial started
+    await ctx.db.insert("auditLogs", {
+      tenantId,
+      actorId: "system",
+      actorType: "system",
+      action: "billing.trial_started",
+      targetType: "tenant",
+      targetId: tenantId,
+      details: { trialEndsAt, trialDays: TRIAL_DURATION_DAYS },
+      result: "success",
+    });
+
+    return tenantId;
   },
 });
 

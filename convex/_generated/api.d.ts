@@ -9,8 +9,10 @@
  */
 
 import type * as admin from "../admin.js";
+import type * as billing from "../billing.js";
 import type * as cacheHelpers from "../cacheHelpers.js";
 import type * as crons from "../crons.js";
+import type * as demo from "../demo.js";
 import type * as exports from "../exports.js";
 import type * as files from "../files.js";
 import type * as http from "../http.js";
@@ -19,6 +21,7 @@ import type * as incidents from "../incidents.js";
 import type * as maintenance from "../maintenance.js";
 import type * as scheduler from "../scheduler.js";
 import type * as seed from "../seed.js";
+import type * as stripe from "../stripe.js";
 import type * as sync from "../sync.js";
 import type * as syncHelpers from "../syncHelpers.js";
 import type * as tenants from "../tenants.js";
@@ -33,8 +36,10 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
+  billing: typeof billing;
   cacheHelpers: typeof cacheHelpers;
   crons: typeof crons;
+  demo: typeof demo;
   exports: typeof exports;
   files: typeof files;
   http: typeof http;
@@ -43,6 +48,7 @@ declare const fullApi: ApiFromModules<{
   maintenance: typeof maintenance;
   scheduler: typeof scheduler;
   seed: typeof seed;
+  stripe: typeof stripe;
   sync: typeof sync;
   syncHelpers: typeof syncHelpers;
   tenants: typeof tenants;

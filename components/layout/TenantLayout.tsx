@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { UserButton } from '@clerk/nextjs';
-import { Home, AlertTriangle, CloudRain, Settings, Users, User } from 'lucide-react';
+import { Home, AlertTriangle, CloudRain, Settings, Users, User, CreditCard } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/theme-toggle';
 import {
@@ -17,16 +17,19 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { TrialBanner, SubscriptionGuard } from '@/components/billing';
 
 interface TenantLayoutProps {
   tenantSlug: string;
   tenantName: string;
+  tenantId?: string;
   children: React.ReactNode;
 }
 
-export function TenantLayout({ tenantSlug, tenantName, children }: TenantLayoutProps) {
+export function TenantLayout({ tenantSlug, tenantName, tenantId, children }: TenantLayoutProps) {
   const pathname = usePathname();
   const currentUser = useQuery(api.users.getCurrentUser);
+  const tenant = useQuery(api.tenants.getBySlug, { slug: tenantSlug });
 
   // Platform admins do NOT have automatic tenant access - only check tenant role
   const isAdmin = currentUser?.tenantRole === 'admin' ||
@@ -56,6 +59,11 @@ export function TenantLayout({ tenantSlug, tenantName, children }: TenantLayoutP
             href: `/tenant/${tenantSlug}/users`,
             icon: Users,
           },
+          {
+            label: 'Billing',
+            href: `/tenant/${tenantSlug}/billing`,
+            icon: CreditCard,
+          },
         ]
       : []),
     {
@@ -79,6 +87,11 @@ export function TenantLayout({ tenantSlug, tenantName, children }: TenantLayoutP
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Trial/Billing Banner */}
+      {tenant?._id && (
+        <TrialBanner tenantId={tenant._id} tenantSlug={tenantSlug} />
+      )}
+
       {/* Top Navigation */}
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-14 items-center justify-between">
@@ -164,7 +177,19 @@ export function TenantLayout({ tenantSlug, tenantName, children }: TenantLayoutP
       </header>
 
       {/* Main Content */}
-      <main className="container py-6">{children}</main>
+      <main className="container py-6">
+        {tenant?._id ? (
+          <SubscriptionGuard
+            tenantId={tenant._id}
+            tenantSlug={tenantSlug}
+            allowBillingPage={pathname?.includes('/billing')}
+          >
+            {children}
+          </SubscriptionGuard>
+        ) : (
+          children
+        )}
+      </main>
     </div>
   );
 }
