@@ -66,16 +66,6 @@ const integrations = [
   { name: 'Discord', description: 'Team coordination' },
 ];
 
-// Pricing tiers - coming soon
-const tiers: Array<{
-  name: string;
-  price: string;
-  period?: string;
-  description: string;
-  features: string[];
-  highlighted: boolean;
-}> = [];
-
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-background">
@@ -112,8 +102,8 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 md:py-32">
           <div className="text-center space-y-8 max-w-4xl mx-auto">
             <Badge variant="secondary" className="px-4 py-1.5">
-              <Clock className="h-3 w-3 mr-1.5 inline" />
-              Public Beta Coming Soon
+              <Zap className="h-3 w-3 mr-1.5 inline" />
+              14-Day Free Trial — No Credit Card Required
             </Badge>
             <h1 className="text-4xl md:text-6xl font-bold tracking-tight">
               Community Incident Awareness
@@ -187,24 +177,30 @@ export default function LandingPage() {
               Get your organization set up quickly with our streamlined onboarding process.
             </p>
           </div>
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="grid md:grid-cols-4 gap-8">
             {[
               {
                 step: '1',
-                title: 'Create Your Account',
-                description: 'Sign up with your email and create your organization profile.',
+                title: 'Sign Up',
+                description: 'Create your account and submit your organization details.',
                 icon: Building2,
               },
               {
                 step: '2',
-                title: 'Configure Integrations',
-                description: 'Connect PulsePoint, set up weather zones, and link social accounts.',
-                icon: Zap,
+                title: 'Quick Review',
+                description: 'Our team reviews your request, typically within 24 hours.',
+                icon: Clock,
               },
               {
                 step: '3',
-                title: 'Start Monitoring',
-                description: 'Your dashboard goes live with real-time incident and weather data.',
+                title: 'Configure',
+                description: 'Connect PulsePoint, set up weather zones, and customize your dashboard.',
+                icon: Zap,
+              },
+              {
+                step: '4',
+                title: 'Go Live',
+                description: 'Start monitoring with real-time incident and weather data.',
                 icon: MapPin,
               },
             ].map((item) => (
@@ -304,29 +300,56 @@ export default function LandingPage() {
       {/* Pricing Section */}
       <section id="pricing" className="py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center space-y-4">
-            <h2 className="text-3xl md:text-4xl font-bold">Pricing</h2>
+          <div className="text-center space-y-4 mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold">Simple, Transparent Pricing</h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              We&apos;re working on pricing plans that work for communities of all sizes.
+              One plan with everything you need. Start with a free trial, no credit card required.
             </p>
           </div>
-          <div className="mt-16 max-w-lg mx-auto">
-            <Card className="text-center">
-              <CardHeader>
-                <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
-                  <Clock className="h-8 w-8 text-muted-foreground" />
-                </div>
-                <CardTitle className="text-2xl">Pricing Coming Soon</CardTitle>
-                <CardDescription className="text-base mt-2">
-                  We&apos;re finalizing our pricing structure to ensure it&apos;s fair and accessible.
-                  Sign up to be notified when pricing is announced.
+          <div className="max-w-lg mx-auto">
+            <Card className="relative overflow-hidden border-2 border-primary">
+              <div className="absolute top-0 right-0 bg-primary text-primary-foreground px-3 py-1 text-sm font-medium rounded-bl-lg">
+                14-Day Free Trial
+              </div>
+              <CardHeader className="text-center pt-8">
+                <CardTitle className="text-2xl">Vanguard</CardTitle>
+                <CardDescription className="text-base">
+                  Everything you need for community incident awareness
                 </CardDescription>
+                <div className="mt-6">
+                  <span className="text-5xl font-bold">$29</span>
+                  <span className="text-2xl font-bold text-muted-foreground">.99</span>
+                  <span className="text-muted-foreground">/month</span>
+                </div>
               </CardHeader>
-              <CardContent>
-                <Button disabled className="opacity-60">
-                  <Clock className="mr-2 h-4 w-4" />
-                  Get Notified
-                </Button>
+              <CardContent className="space-y-6">
+                <ul className="space-y-3">
+                  {[
+                    'Real-time incident tracking from PulsePoint',
+                    'National Weather Service alert integration',
+                    'Customizable dashboard and incident views',
+                    'Social media auto-posting (Facebook, Discord)',
+                    'Unlimited team members',
+                    'Role-based access control',
+                    'Incident analytics and reporting',
+                    'Email and chat support',
+                  ].map((feature) => (
+                    <li key={feature} className="flex items-start gap-3">
+                      <Check className="h-5 w-5 text-green-500 mt-0.5 shrink-0" />
+                      <span>{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="pt-4">
+                  <Link href="/signup">
+                    <Button className="w-full" size="lg">
+                      Start Free Trial
+                    </Button>
+                  </Link>
+                  <p className="text-sm text-muted-foreground text-center mt-3">
+                    No credit card required. Cancel anytime.
+                  </p>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -337,14 +360,17 @@ export default function LandingPage() {
       <section className="py-24 bg-primary text-primary-foreground">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-8">
           <h2 className="text-3xl md:text-4xl font-bold">
-            Stay Connected to Your Community
+            Ready to Keep Your Community Informed?
           </h2>
           <p className="text-xl opacity-90">
-            Join Vanguard today and help shape the future of community incident awareness.
+            Start your 14-day free trial today. No credit card required.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <AuthButtons variant="cta" />
           </div>
+          <p className="text-sm opacity-75">
+            Questions? Contact us at support@vanguard.app
+          </p>
         </div>
       </section>
 
