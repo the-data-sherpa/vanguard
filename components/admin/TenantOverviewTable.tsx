@@ -49,8 +49,8 @@ interface TenantData {
   slug: string;
   name: string;
   displayName?: string;
-  status: "pending" | "active" | "suspended" | "deactivated" | "pending_deletion";
-  subscriptionStatus?: "trialing" | "active" | "past_due" | "canceled" | "expired";
+  status: "pending_approval" | "pending" | "active" | "suspended" | "deactivated" | "pending_deletion";
+  subscriptionStatus?: "trialing" | "active" | "past_due" | "canceled" | "expired" | "pro_bono";
   lastIncidentSync?: number;
   lastWeatherSync?: number;
   userCount: number;
@@ -133,6 +133,8 @@ export function TenantOverviewTable({
         return <Badge variant="destructive">Suspended</Badge>;
       case "pending":
         return <Badge variant="secondary">Pending</Badge>;
+      case "pending_approval":
+        return <Badge variant="outline" className="text-amber-600">Pending Approval</Badge>;
       case "deactivated":
         return <Badge variant="secondary">Deactivated</Badge>;
       case "pending_deletion":
@@ -154,6 +156,8 @@ export function TenantOverviewTable({
         return <Badge variant="outline">Canceled</Badge>;
       case "expired":
         return <Badge variant="outline" className="text-muted-foreground">Expired</Badge>;
+      case "pro_bono":
+        return <Badge className="bg-purple-600">Pro Bono</Badge>;
       default:
         return <Badge variant="outline">Unknown</Badge>;
     }

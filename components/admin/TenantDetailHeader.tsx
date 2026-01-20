@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import Link from "next/link";
 
-type TenantStatus = "pending" | "active" | "suspended" | "deactivated" | "pending_deletion";
-type SubscriptionStatus = "trialing" | "active" | "past_due" | "canceled" | "expired";
+type TenantStatus = "pending_approval" | "pending" | "active" | "suspended" | "deactivated" | "pending_deletion";
+type SubscriptionStatus = "trialing" | "active" | "past_due" | "canceled" | "expired" | "pro_bono";
 
 interface TenantDetailHeaderProps {
   tenant: {
@@ -28,6 +28,8 @@ export function TenantDetailHeader({ tenant }: TenantDetailHeaderProps) {
         return <Badge variant="destructive">Suspended</Badge>;
       case "pending":
         return <Badge variant="secondary">Pending</Badge>;
+      case "pending_approval":
+        return <Badge variant="outline" className="text-amber-600 border-amber-600">Pending Approval</Badge>;
       case "deactivated":
         return <Badge variant="secondary">Deactivated</Badge>;
       case "pending_deletion":
@@ -49,6 +51,8 @@ export function TenantDetailHeader({ tenant }: TenantDetailHeaderProps) {
         return <Badge variant="outline">Canceled</Badge>;
       case "expired":
         return <Badge variant="outline" className="text-muted-foreground">Expired</Badge>;
+      case "pro_bono":
+        return <Badge className="bg-purple-600">Pro Bono</Badge>;
       default:
         return null;
     }

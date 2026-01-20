@@ -627,6 +627,190 @@ export const getTenantAuditLogs = query({
   },
 });
 
+// ===================
+// Tenant Approval System
+// ===================
+
+// Trial duration constant
+const TRIAL_DURATION_DAYS = 14;
+const TRIAL_DURATION_MS = TRIAL_DURATION_DAYS * 24 * 60 * 60 * 1000;
+
+/**
+ * Get all tenants pending approval
+ * Returns tenants with owner details
+ */
+export const getPendingApprovals = query({
+  args: {},
+  handler: async (ctx) => {
+    const admin = await getCurrentPlatformAdmin(ctx);
+    if (!admin) {
+      return [];
+    }
+
+    const pendingTenants = await ctx.db
+      .query("tenants")
+      .withIndex("by_status", (q) => q.eq("status", "pending_approval"))
+      .collect();
+
+    // Enrich with owner details
+    const tenantsWithOwners = await Promise.all(
+      pendingTenants.map(async (tenant) => {
+        let owner = null;
+        if (tenant.ownerId) {
+          const ownerUser = await ctx.db.get(tenant.ownerId);
+          if (ownerUser) {
+            owner = {
+              _id: ownerUser._id,
+              email: ownerUser.email,
+              name: ownerUser.name,
+            };
+          }
+        }
+
+        return {
+          _id: tenant._id,
+          slug: tenant.slug,
+          name: tenant.name,
+          displayName: tenant.displayName,
+          _creationTime: tenant._creationTime,
+          owner,
+        };
+      })
+    );
+
+    return tenantsWithOwners;
+  },
+});
+
+/**
+ * Approve a pending tenant
+ * Sets status to active and starts the trial
+ */
+export const approveTenant = mutation({
+  args: {
+    tenantId: v.id("tenants"),
+  },
+  handler: async (ctx, { tenantId }) => {
+    const admin = await requirePlatformAdmin(ctx);
+
+    const tenant = await ctx.db.get(tenantId);
+    if (!tenant) {
+      throw new Error("Tenant not found");
+    }
+
+    if (tenant.status !== "pending_approval") {
+      throw new Error(`Tenant is not pending approval (status: ${tenant.status})`);
+    }
+
+    const now = Date.now();
+    const trialEndsAt = now + TRIAL_DURATION_MS;
+
+    // Update tenant to active with trial
+    await ctx.db.patch(tenantId, {
+      status: "active",
+      subscriptionStatus: "trialing",
+      trialEndsAt,
+      approvedAt: now,
+      approvedBy: admin._id,
+    });
+
+    // Log approval
+    await ctx.db.insert("auditLogs", {
+      tenantId,
+      actorId: admin._id,
+      actorType: "user",
+      action: "tenant.approved",
+      targetType: "tenant",
+      targetId: tenantId,
+      details: { trialEndsAt, trialDays: TRIAL_DURATION_DAYS },
+      result: "success",
+    });
+
+    // Log trial started
+    await ctx.db.insert("auditLogs", {
+      tenantId,
+      actorId: "system",
+      actorType: "system",
+      action: "billing.trial_started",
+      targetType: "tenant",
+      targetId: tenantId,
+      details: { trialEndsAt, trialDays: TRIAL_DURATION_DAYS },
+      result: "success",
+    });
+
+    // Get owner email for Stripe customer creation
+    if (tenant.ownerId) {
+      const owner = await ctx.db.get(tenant.ownerId);
+      if (owner) {
+        // Schedule Stripe customer creation
+        await ctx.scheduler.runAfter(0, internal.stripe.createCustomer, {
+          tenantId,
+          email: owner.email,
+          name: tenant.displayName || tenant.name,
+        });
+      }
+    }
+
+    // If PulsePoint agency configured, schedule unit legend sync
+    if (tenant.pulsepointConfig?.agencyIds?.length) {
+      await ctx.scheduler.runAfter(0, internal.sync.syncUnitLegendForTenant, {
+        tenantId,
+      });
+    }
+
+    return { success: true };
+  },
+});
+
+/**
+ * Reject a pending tenant
+ * Sets status to deactivated with rejection reason
+ */
+export const rejectTenant = mutation({
+  args: {
+    tenantId: v.id("tenants"),
+    reason: v.optional(v.string()),
+  },
+  handler: async (ctx, { tenantId, reason }) => {
+    const admin = await requirePlatformAdmin(ctx);
+
+    const tenant = await ctx.db.get(tenantId);
+    if (!tenant) {
+      throw new Error("Tenant not found");
+    }
+
+    if (tenant.status !== "pending_approval") {
+      throw new Error(`Tenant is not pending approval (status: ${tenant.status})`);
+    }
+
+    const now = Date.now();
+
+    // Update tenant to deactivated
+    await ctx.db.patch(tenantId, {
+      status: "deactivated",
+      rejectedAt: now,
+      rejectedBy: admin._id,
+      rejectionReason: reason,
+      deactivatedAt: now,
+      deactivatedReason: reason || "Application rejected",
+    });
+
+    // Log rejection
+    await ctx.db.insert("auditLogs", {
+      tenantId,
+      actorId: admin._id,
+      actorType: "user",
+      action: "tenant.rejected",
+      targetType: "tenant",
+      targetId: tenantId,
+      details: { reason },
+      result: "success",
+    });
+
+    return { success: true };
+  },
+});
+
 /**
  * Trigger immediate sync for a tenant
  * This is an action because it calls other actions

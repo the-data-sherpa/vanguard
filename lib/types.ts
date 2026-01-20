@@ -48,6 +48,7 @@ export interface GlobalFeatures {
 // ===================
 
 export type TenantStatus =
+  | 'pending_approval'
   | 'pending'
   | 'active'
   | 'suspended'

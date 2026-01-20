@@ -343,6 +343,109 @@ export const permanentlyDeleteTenant = internalMutation({
   },
 });
 
+// ===================
+// Orphaned User Cleanup
+// ===================
+
+const ORPHANED_USER_GRACE_PERIOD_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+/**
+ * Cleanup orphaned users
+ * Users who signed up via Clerk but never completed onboarding (no tenant)
+ * After 7 days of inactivity, they are deactivated in Convex and deleted from Clerk
+ */
+export const cleanupOrphanedUsers = internalAction({
+  args: {},
+  handler: async (ctx): Promise<{ cleanedCount: number }> => {
+    // Run the mutation to find and mark orphaned users
+    const result = await ctx.runMutation(internal.maintenance.markOrphanedUsersInactive);
+
+    // Schedule Clerk deletions for each orphaned user with a clerkId
+    for (const userId of result.usersToDeleteFromClerk) {
+      try {
+        const user = await ctx.runQuery(api.users.getUserById, { userId });
+        if (user?.clerkId) {
+          await ctx.runAction(internal.clerk.deleteClerkUser, {
+            clerkId: user.clerkId,
+          });
+        }
+      } catch (error) {
+        console.error(`[Maintenance] Failed to delete Clerk user for ${userId}:`, error);
+        // Continue with other deletions even if one fails
+      }
+    }
+
+    console.log(`[Maintenance] Orphaned user cleanup complete: ${result.cleanedCount} users cleaned up`);
+
+    return { cleanedCount: result.cleanedCount };
+  },
+});
+
+/**
+ * Mark orphaned users as inactive
+ * Internal mutation called by cleanupOrphanedUsers action
+ */
+export const markOrphanedUsersInactive = internalMutation({
+  args: {},
+  handler: async (ctx): Promise<{ cleanedCount: number; usersToDeleteFromClerk: Id<"users">[] }> => {
+    const cutoff = Date.now() - ORPHANED_USER_GRACE_PERIOD_MS;
+    const usersToDeleteFromClerk: Id<"users">[] = [];
+
+    // Find orphaned users:
+    // - No tenantId (never completed onboarding)
+    // - isActive === true (not already cleaned up)
+    // - lastLoginAt older than cutoff (7 days)
+    // - OR _creationTime older than cutoff if no lastLoginAt
+    const allUsers = await ctx.db.query("users").collect();
+
+    const orphanedUsers = allUsers.filter((user) => {
+      // Must be active and without a tenant
+      if (user.tenantId !== undefined || user.isActive === false) {
+        return false;
+      }
+
+      // Check if inactive for more than 7 days
+      const lastActivity = user.lastLoginAt || user._creationTime;
+      return lastActivity < cutoff;
+    });
+
+    console.log(`[Maintenance] Found ${orphanedUsers.length} orphaned users to clean up`);
+
+    for (const user of orphanedUsers) {
+      // Mark as inactive in Convex
+      await ctx.db.patch(user._id, {
+        isActive: false,
+      });
+
+      // Queue for Clerk deletion if they have a clerkId
+      if (user.clerkId) {
+        usersToDeleteFromClerk.push(user._id);
+      }
+
+      // Log the cleanup
+      await ctx.db.insert("auditLogs", {
+        actorId: "system",
+        actorType: "system",
+        action: "user.orphan_cleanup",
+        targetType: "user",
+        targetId: user._id,
+        details: {
+          email: user.email,
+          hasClerkId: !!user.clerkId,
+          lastLoginAt: user.lastLoginAt,
+          createdAt: user._creationTime,
+        },
+        result: "success",
+      });
+    }
+
+    return {
+      cleanedCount: orphanedUsers.length,
+      usersToDeleteFromClerk,
+    };
+  },
+});
+
 /**
  * Check for and expire trials that have passed their end date
  * Called by daily cron job

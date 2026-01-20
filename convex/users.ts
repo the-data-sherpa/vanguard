@@ -211,6 +211,87 @@ export const getCurrentUser = query({
   },
 });
 
+/**
+ * Check if the current user has any tenant
+ * Used to determine if user needs onboarding
+ */
+export const hasAnyTenant = query({
+  args: {},
+  handler: async (ctx) => {
+    const user = await getCurrentUserInternal(ctx);
+    if (!user) {
+      return { hasTenant: false, isAuthenticated: false };
+    }
+    return {
+      hasTenant: !!user.tenantId,
+      isAuthenticated: true,
+      tenantId: user.tenantId,
+    };
+  },
+});
+
+/**
+ * Get the current user's tenant with details
+ * Used for routing after login
+ */
+export const getCurrentUserTenant = query({
+  args: {},
+  handler: async (ctx) => {
+    const user = await getCurrentUserInternal(ctx);
+    if (!user || !user.tenantId) {
+      return null;
+    }
+
+    const tenant = await ctx.db.get(user.tenantId);
+    if (!tenant) {
+      return null;
+    }
+
+    return {
+      tenant,
+      role: user.tenantRole || "member",
+    };
+  },
+});
+
+/**
+ * Get the current user's pending approval status
+ * Used by the pending-approval page
+ */
+export const getPendingApprovalStatus = query({
+  args: {},
+  handler: async (ctx) => {
+    const user = await getCurrentUserInternal(ctx);
+    if (!user) {
+      return { isAuthenticated: false };
+    }
+
+    if (!user.tenantId) {
+      return { isAuthenticated: true, hasTenant: false };
+    }
+
+    const tenant = await ctx.db.get(user.tenantId);
+    if (!tenant) {
+      return { isAuthenticated: true, hasTenant: false };
+    }
+
+    return {
+      isAuthenticated: true,
+      hasTenant: true,
+      tenant: {
+        _id: tenant._id,
+        name: tenant.name,
+        displayName: tenant.displayName,
+        slug: tenant.slug,
+        status: tenant.status,
+        rejectionReason: tenant.rejectionReason,
+        _creationTime: tenant._creationTime,
+        approvedAt: tenant.approvedAt,
+      },
+    };
+  },
+});
+
 export const getUserById = query({
   args: { userId: v.id("users") },
   handler: async (ctx, { userId }) => {

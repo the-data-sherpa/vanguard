@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { UserButton } from '@clerk/nextjs';
-import { LayoutDashboard, Building2, Activity, Settings, User } from 'lucide-react';
+import { LayoutDashboard, Building2, Activity, Settings, User, ClipboardCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/theme-toggle';
 import {
@@ -26,6 +26,9 @@ interface AdminLayoutProps {
 export function AdminLayout({ children }: AdminLayoutProps) {
   const pathname = usePathname();
   const currentUser = useQuery(api.users.getCurrentUser);
+  const pendingApprovals = useQuery(api.admin.getPendingApprovals);
+
+  const pendingCount = pendingApprovals?.length ?? 0;
 
   const navItems = [
     {
@@ -33,6 +36,12 @@ export function AdminLayout({ children }: AdminLayoutProps) {
       href: '/admin',
       icon: LayoutDashboard,
       exact: true,
+    },
+    {
+      label: 'Approvals',
+      href: '/admin/approvals',
+      icon: ClipboardCheck,
+      badge: pendingCount > 0 ? pendingCount : undefined,
     },
     {
       label: 'Tenants',
@@ -91,6 +100,11 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                   >
                     <Icon className="h-4 w-4" />
                     {item.label}
+                    {item.badge && (
+                      <Badge variant="destructive" className="h-5 w-5 p-0 flex items-center justify-center text-xs">
+                        {item.badge}
+                      </Badge>
+                    )}
                   </Link>
                 );
               })}

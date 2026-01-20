@@ -194,16 +194,37 @@ const TRIAL_DURATION_DAYS = 14;
 const TRIAL_DURATION_MS = TRIAL_DURATION_DAYS * 24 * 60 * 60 * 1000;
 
 /**
- * Create a new tenant
- * Automatically starts a 14-day trial
+ * Create a new tenant (admin only)
+ * Supports pro bono tenants and assigning an initial owner
  */
 export const create = mutation({
   args: {
     slug: v.string(),
     name: v.string(),
     displayName: v.optional(v.string()),
+    // Admin-only options
+    proBono: v.optional(v.boolean()),
+    ownerEmail: v.optional(v.string()),
+    // Optional initial config
+    pulsepointAgencyId: v.optional(v.string()),
+    weatherZones: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
+    // Verify caller is a platform admin
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity?.email) {
+      throw new Error("Authentication required");
+    }
+
+    const adminUser = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", identity.email!))
+      .unique();
+
+    if (!adminUser || adminUser.role !== "platform_admin") {
+      throw new Error("Platform admin access required");
+    }
+
     // Check if slug is already taken
     const existing = await ctx.db
       .query("tenants")
@@ -214,35 +235,285 @@ export const create = mutation({
       throw new Error(`Tenant with slug "${args.slug}" already exists`);
     }
 
-    // Calculate trial end date (14 days from now)
-    const trialEndsAt = Date.now() + TRIAL_DURATION_MS;
+    // Determine subscription status and trial dates
+    const isProBono = args.proBono === true;
+    const trialEndsAt = isProBono ? undefined : Date.now() + TRIAL_DURATION_MS;
+    const subscriptionStatus = isProBono ? "pro_bono" : "trialing";
 
+    // Create the tenant
     const tenantId = await ctx.db.insert("tenants", {
       slug: args.slug,
       name: args.name,
       displayName: args.displayName,
       status: "active",
-      tier: "starter", // Default tier - no tiering in current model
-      subscriptionStatus: "trialing",
+      tier: "starter",
+      subscriptionStatus,
       trialEndsAt,
       features: {
         weatherAlerts: true,
       },
+      // Optional initial config
+      pulsepointConfig: args.pulsepointAgencyId
+        ? {
+            enabled: true,
+            agencyIds: [args.pulsepointAgencyId],
+            syncInterval: 30000,
+          }
+        : undefined,
+      weatherZones: args.weatherZones,
     });
 
-    // Log trial started
+    // Log tenant creation
     await ctx.db.insert("auditLogs", {
       tenantId,
-      actorId: "system",
-      actorType: "system",
-      action: "billing.trial_started",
+      actorId: adminUser._id,
+      actorType: "user",
+      action: "tenant.created",
       targetType: "tenant",
       targetId: tenantId,
-      details: { trialEndsAt, trialDays: TRIAL_DURATION_DAYS },
+      details: {
+        method: "admin",
+        proBono: isProBono,
+        ownerEmail: args.ownerEmail,
+      },
       result: "success",
     });
 
+    if (!isProBono) {
+      // Log trial started for non-pro-bono tenants
+      await ctx.db.insert("auditLogs", {
+        tenantId,
+        actorId: "system",
+        actorType: "system",
+        action: "billing.trial_started",
+        targetType: "tenant",
+        targetId: tenantId,
+        details: { trialEndsAt, trialDays: TRIAL_DURATION_DAYS },
+        result: "success",
+      });
+    }
+
+    // Handle owner assignment/invitation
+    if (args.ownerEmail) {
+      const ownerEmail = args.ownerEmail.toLowerCase().trim();
+
+      // Check if user already exists
+      const existingUser = await ctx.db
+        .query("users")
+        .withIndex("by_email", (q) => q.eq("email", ownerEmail))
+        .unique();
+
+      if (existingUser) {
+        // User exists - check if they already belong to a tenant
+        if (existingUser.tenantId) {
+          throw new Error(`User ${ownerEmail} already belongs to another tenant`);
+        }
+
+        // Assign existing user as owner
+        await ctx.db.patch(existingUser._id, {
+          tenantId,
+          tenantRole: "owner",
+        });
+
+        await ctx.db.insert("auditLogs", {
+          tenantId,
+          actorId: adminUser._id,
+          actorType: "user",
+          action: "user.assigned_owner",
+          targetType: "user",
+          targetId: existingUser._id,
+          details: { email: ownerEmail },
+          result: "success",
+        });
+      } else {
+        // Create pending user as owner (will be activated when they sign up)
+        const newUserId = await ctx.db.insert("users", {
+          email: ownerEmail,
+          emailVisibility: false,
+          verified: false,
+          role: "user",
+          tenantId,
+          tenantRole: "owner",
+          isActive: false,
+          isBanned: false,
+        });
+
+        await ctx.db.insert("auditLogs", {
+          tenantId,
+          actorId: adminUser._id,
+          actorType: "user",
+          action: "user.invited_owner",
+          targetType: "user",
+          targetId: newUserId,
+          details: { email: ownerEmail },
+          result: "success",
+        });
+      }
+    }
+
+    // Schedule Stripe customer creation for non-pro-bono tenants
+    if (!isProBono && args.ownerEmail) {
+      await ctx.scheduler.runAfter(0, internal.stripe.createCustomer, {
+        tenantId,
+        email: args.ownerEmail,
+        name: args.displayName || args.name,
+      });
+    }
+
+    // If PulsePoint agency configured, schedule unit legend sync
+    if (args.pulsepointAgencyId) {
+      await ctx.scheduler.runAfter(0, internal.sync.syncUnitLegendForTenant, {
+        tenantId,
+      });
+    }
+
     return tenantId;
+  },
+});
+
+/**
+ * Create a new tenant as the owner (self-service signup)
+ * User must be authenticated and not already belong to a tenant
+ *
+ * Creates tenant in "pending_approval" status - requires admin approval
+ * before trial starts.
+ */
+export const createAsOwner = mutation({
+  args: {
+    slug: v.string(),
+    name: v.string(),
+    displayName: v.optional(v.string()),
+    // Optional initial configuration
+    pulsepointAgencyId: v.optional(v.string()),
+    weatherZones: v.optional(v.array(v.string())),
+  },
+  handler: async (ctx, args) => {
+    // Get current user
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Authentication required");
+    }
+
+    const email = identity.email;
+    if (!email) {
+      throw new Error("User email not available");
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .unique();
+
+    if (!user) {
+      throw new Error("User not found. Please try signing out and back in.");
+    }
+
+    if (user.isBanned) {
+      throw new Error("User is banned");
+    }
+
+    // Check if user already has a tenant
+    if (user.tenantId) {
+      throw new Error("User already belongs to a tenant");
+    }
+
+    // Check if user already owns a tenant (limit: 1 tenant per user)
+    const existingOwnedTenants = await ctx.db
+      .query("tenants")
+      .withIndex("by_owner", (q) => q.eq("ownerId", user._id))
+      .collect();
+
+    if (existingOwnedTenants.length >= 1) {
+      throw new Error("You have reached the maximum number of organizations allowed");
+    }
+
+    // Validate slug format
+    const slugPattern = /^[a-z0-9-]+$/;
+    if (!slugPattern.test(args.slug)) {
+      throw new Error("Slug must only contain lowercase letters, numbers, and hyphens");
+    }
+
+    if (args.slug.length < 3) {
+      throw new Error("Slug must be at least 3 characters");
+    }
+
+    if (args.slug.length > 50) {
+      throw new Error("Slug must be 50 characters or less");
+    }
+
+    // Check if slug is already taken
+    const existing = await ctx.db
+      .query("tenants")
+      .withIndex("by_slug", (q) => q.eq("slug", args.slug))
+      .unique();
+
+    if (existing) {
+      throw new Error(`Slug "${args.slug}" is already taken`);
+    }
+
+    // Create the tenant in pending_approval status (no trial yet)
+    const tenantId = await ctx.db.insert("tenants", {
+      slug: args.slug,
+      name: args.name,
+      displayName: args.displayName,
+      status: "pending_approval",  // Requires admin approval
+      tier: "starter",
+      // No trial until approved:
+      subscriptionStatus: undefined,
+      trialEndsAt: undefined,
+      ownerId: user._id,
+      features: {
+        weatherAlerts: true,
+      },
+      // Optional initial config
+      pulsepointConfig: args.pulsepointAgencyId
+        ? {
+            enabled: true,
+            agencyIds: [args.pulsepointAgencyId],
+            syncInterval: 30000, // 30 seconds
+          }
+        : undefined,
+      weatherZones: args.weatherZones,
+    });
+
+    // Assign user as owner
+    await ctx.db.patch(user._id, {
+      tenantId,
+      tenantRole: "owner",
+      lastTenantCreatedAt: Date.now(),
+    });
+
+    // Log tenant creation (pending approval)
+    await ctx.db.insert("auditLogs", {
+      tenantId,
+      actorId: user._id,
+      actorType: "user",
+      action: "tenant.created",
+      targetType: "tenant",
+      targetId: tenantId,
+      details: {
+        method: "self_service",
+        status: "pending_approval",
+      },
+      result: "success",
+    });
+
+    return { tenantId, slug: args.slug };
+  },
+});
+
+/**
+ * Check if a slug is available
+ */
+export const checkSlugAvailable = query({
+  args: { slug: v.string() },
+  handler: async (ctx, { slug }) => {
+    const existing = await ctx.db
+      .query("tenants")
+      .withIndex("by_slug", (q) => q.eq("slug", slug))
+      .unique();
+
+    return { available: !existing };
   },
 });
 

@@ -11,6 +11,7 @@
 import type * as admin from "../admin.js";
 import type * as billing from "../billing.js";
 import type * as cacheHelpers from "../cacheHelpers.js";
+import type * as clerk from "../clerk.js";
 import type * as crons from "../crons.js";
 import type * as demo from "../demo.js";
 import type * as exports from "../exports.js";
@@ -38,6 +39,7 @@ declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   billing: typeof billing;
   cacheHelpers: typeof cacheHelpers;
+  clerk: typeof clerk;
   crons: typeof crons;
   demo: typeof demo;
   exports: typeof exports;

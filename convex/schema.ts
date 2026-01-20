@@ -6,6 +6,7 @@ import { v } from "convex/values";
 // ===================
 
 const tenantStatus = v.union(
+  v.literal("pending_approval"),  // Awaiting admin review (self-service signups)
   v.literal("pending"),
   v.literal("active"),
   v.literal("suspended"),
@@ -26,7 +27,8 @@ const subscriptionStatus = v.union(
   v.literal("active"),      // Paid subscription
   v.literal("past_due"),    // Payment failed
   v.literal("canceled"),    // Subscription canceled
-  v.literal("expired")      // Trial ended, no subscription
+  v.literal("expired"),     // Trial ended, no subscription
+  v.literal("pro_bono")     // Billing exempt (granted by admin)
 );
 
 const incidentSource = v.union(
@@ -144,6 +146,14 @@ export default defineSchema({
     billingCustomerId: v.optional(v.string()),
     billingSubscriptionId: v.optional(v.string()),
 
+    // Ownership & Approval
+    ownerId: v.optional(v.id("users")),
+    approvedAt: v.optional(v.number()),
+    approvedBy: v.optional(v.id("users")),
+    rejectedAt: v.optional(v.number()),
+    rejectedBy: v.optional(v.id("users")),
+    rejectionReason: v.optional(v.string()),
+
     // Deactivation
     deactivatedAt: v.optional(v.number()),
     deactivatedReason: v.optional(v.string()),
@@ -167,7 +177,8 @@ export default defineSchema({
   })
     .index("by_slug", ["slug"])
     .index("by_status", ["status"])
-    .index("by_subscription_status", ["subscriptionStatus"]),
+    .index("by_subscription_status", ["subscriptionStatus"])
+    .index("by_owner", ["ownerId"]),
 
   // ===================
   // Incidents
@@ -331,6 +342,7 @@ export default defineSchema({
       })
     ),
     lastLoginAt: v.optional(v.number()),
+    lastTenantCreatedAt: v.optional(v.number()),
   })
     .index("by_clerk_id", ["clerkId"])
     .index("by_email", ["email"])

@@ -1,7 +1,8 @@
 'use client';
 
+import { useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { UserButton } from '@clerk/nextjs';
@@ -18,6 +19,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { TrialBanner, SubscriptionGuard } from '@/components/billing';
+import { TenantSelector } from './TenantSelector';
 
 interface TenantLayoutProps {
   tenantSlug: string;
@@ -28,8 +30,16 @@ interface TenantLayoutProps {
 
 export function TenantLayout({ tenantSlug, tenantName, tenantId, children }: TenantLayoutProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const currentUser = useQuery(api.users.getCurrentUser);
   const tenant = useQuery(api.tenants.getBySlug, { slug: tenantSlug });
+
+  // Redirect to pending-approval page if tenant is pending approval
+  useEffect(() => {
+    if (tenant && tenant.status === 'pending_approval') {
+      router.push('/pending-approval');
+    }
+  }, [tenant, router]);
 
   // Platform admins do NOT have automatic tenant access - only check tenant role
   const isAdmin = currentUser?.tenantRole === 'admin' ||
@@ -96,10 +106,11 @@ export function TenantLayout({ tenantSlug, tenantName, tenantId, children }: Ten
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-14 items-center justify-between">
           <div className="flex items-center">
-            <Link href={`/tenant/${tenantSlug}`} className="mr-6 flex items-center space-x-2">
-              <span className="font-bold">{tenantName}</span>
-            </Link>
-            <nav className="flex items-center space-x-6 text-sm font-medium">
+            <TenantSelector
+              currentTenantSlug={tenantSlug}
+              currentTenantName={tenantName}
+            />
+            <nav className="ml-6 flex items-center space-x-6 text-sm font-medium">
               {navItems.map((item) => {
                 const isActive = item.exact
                   ? pathname === item.href
