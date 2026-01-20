@@ -101,7 +101,7 @@ export default function PendingApprovalPage() {
 
             <div className="border-t pt-4">
               <p className="text-xs text-muted-foreground text-center">
-                Questions? Contact us at support@vanguard.app
+                Questions? Contact us at support@vanguardalerts.com
               </p>
             </div>
           </CardContent>
@@ -142,7 +142,7 @@ export default function PendingApprovalPage() {
 
             <div className="border-t pt-4">
               <p className="text-xs text-muted-foreground text-center">
-                If you believe this was a mistake, please contact support@vanguard.app
+                If you believe this was a mistake, please contact support@vanguardalerts.com
               </p>
             </div>
           </CardContent>

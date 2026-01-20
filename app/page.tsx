@@ -432,7 +432,7 @@ export default function LandingPage() {
             <AuthButtons variant="cta" />
           </div>
           <p className="text-sm opacity-75">
-            Questions? Contact us at support@vanguard.app
+            Questions? Contact us at support@vanguardalerts.com
           </p>
         </div>
       </section>
