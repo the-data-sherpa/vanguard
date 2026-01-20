@@ -59,18 +59,16 @@ npx convex deploy --prod
 
 ### Configure Authentication
 
-1. **Settings** → **Paths**:
-   - Sign-in URL: `/login`
-   - Sign-up URL: `/signup`
-   - After sign-in URL: `/`
-   - After sign-up URL: `/onboarding`
+1. **User & Authentication** → **Email, Phone, Username**:
+   - Enable email addresses (required)
+   - Configure other options as needed
 
 2. **Settings** → **Sessions**:
    - Set appropriate session lifetime
 
-3. **User & Authentication** → **Email, Phone, Username**:
-   - Enable email addresses (required)
-   - Configure other options as needed
+> **Note**: Redirect URLs are configured in code via `forceRedirectUrl` props:
+> - Sign-in → `/` (see `app/login/[[...login]]/page.tsx`)
+> - Sign-up → `/onboarding` (see `app/signup/[[...signup]]/page.tsx`)
 
 ### Set Up Webhook
 
