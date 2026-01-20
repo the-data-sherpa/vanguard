@@ -144,13 +144,13 @@ http.route({
     // Get the raw body
     const payload = await request.text();
 
-    // Verify the webhook signature
+    // Verify the webhook signature (use async version for Convex runtime)
     let event: Stripe.Event;
     try {
       const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
         apiVersion: "2025-12-15.clover",
       });
-      event = stripe.webhooks.constructEvent(payload, signature, webhookSecret);
+      event = await stripe.webhooks.constructEventAsync(payload, signature, webhookSecret);
     } catch (err) {
       console.error("Stripe webhook verification failed:", err);
       return new Response("Invalid webhook signature", { status: 400 });
