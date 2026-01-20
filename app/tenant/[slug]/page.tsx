@@ -31,7 +31,7 @@ export default function TenantDashboard() {
   );
 
   const activeIncidentsRaw = useQuery(
-    api.incidents.listActive,
+    api.incidents.listActiveGrouped,
     tenantId ? { tenantId } : "skip"
   );
 
@@ -182,7 +182,7 @@ export default function TenantDashboard() {
                 <span className="font-medium">{stats.activeIncidentCount}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Today's Calls</span>
+                <span className="text-muted-foreground">Today&apos;s Calls</span>
                 <span className="font-medium">{stats.todaysCallCount}</span>
               </div>
               <div className="flex justify-between">

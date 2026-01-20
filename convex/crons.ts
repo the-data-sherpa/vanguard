@@ -31,15 +31,16 @@ crons.interval(
 );
 
 /**
- * Daily cleanup: Runs at 2 AM UTC
+ * Daily cleanup: Runs at 6 AM UTC (2 AM ET)
  *
  * - Removes expired weather alerts (older than 24 hours)
- * - Archives old closed incidents (older than 30 days)
+ * - Deletes old incidents (30-day retention policy)
+ * - Syncs unit legends from PulsePoint
  */
 crons.daily(
   "daily-cleanup",
   { hourUTC: 6, minuteUTC: 0 }, // 6:00 AM UTC / 2:00 AM ET
-  internal.maintenance.cleanupExpiredAlerts
+  internal.scheduler.dailyCleanupTick
 );
 
 export default crons;

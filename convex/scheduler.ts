@@ -89,3 +89,85 @@ export const maintenanceTick = internalAction({
     };
   },
 });
+
+// Type definition for daily cleanup tick result
+type DailyCleanupTickResult = {
+  duration: number;
+  expiredAlerts: unknown;
+  oldIncidents: unknown;
+  unitLegends: unknown;
+  scheduledDeletions: unknown;
+  expiredTrials: unknown;
+  orphanedUsers: unknown;
+};
+
+/**
+ * Daily cleanup tick - runs once per day
+ *
+ * Handles:
+ * - Cleanup expired weather alerts (24 hours old)
+ * - Delete old incidents (30-day retention)
+ * - Sync unit legends from PulsePoint
+ * - Process scheduled tenant deletions (30-day grace period)
+ * - Expire trials that have passed their end date
+ * - Cleanup orphaned users (signed up but never completed onboarding)
+ */
+export const dailyCleanupTick = internalAction({
+  args: {},
+  handler: async (ctx): Promise<DailyCleanupTickResult> => {
+    const startTime = Date.now();
+    console.log("[DAILY_CLEANUP] Tick started");
+
+    // Run all daily cleanup tasks in parallel
+    const [expiredAlertsResult, oldIncidentsResult, unitLegendsResult, scheduledDeletionsResult, expiredTrialsResult, orphanedUsersResult] = await Promise.all([
+      // 1. Cleanup expired weather alerts
+      ctx.runAction(internal.maintenance.cleanupExpiredAlerts).catch((error) => {
+        console.error("[DAILY_CLEANUP] Expired alerts cleanup failed:", error);
+        return { error: String(error) };
+      }),
+
+      // 2. Delete old incidents (30-day retention)
+      ctx.runAction(internal.maintenance.cleanupOldIncidents).catch((error) => {
+        console.error("[DAILY_CLEANUP] Old incidents cleanup failed:", error);
+        return { error: String(error) };
+      }),
+
+      // 3. Sync unit legends for all tenants
+      ctx.runAction(internal.sync.syncAllTenantUnitLegends).catch((error) => {
+        console.error("[DAILY_CLEANUP] Unit legend sync failed:", error);
+        return { error: String(error) };
+      }),
+
+      // 4. Process scheduled tenant deletions
+      ctx.runAction(internal.maintenance.processScheduledDeletions).catch((error) => {
+        console.error("[DAILY_CLEANUP] Scheduled deletions failed:", error);
+        return { error: String(error) };
+      }),
+
+      // 5. Expire trials that have passed their end date
+      ctx.runAction(internal.maintenance.expireTrials).catch((error) => {
+        console.error("[DAILY_CLEANUP] Trial expiration failed:", error);
+        return { error: String(error) };
+      }),
+
+      // 6. Cleanup orphaned users (signed up but never completed onboarding)
+      ctx.runAction(internal.maintenance.cleanupOrphanedUsers).catch((error) => {
+        console.error("[DAILY_CLEANUP] Orphaned user cleanup failed:", error);
+        return { error: String(error) };
+      }),
+    ]);
+
+    const duration = Date.now() - startTime;
+    console.log(`[DAILY_CLEANUP] Tick completed in ${duration}ms`);
+
+    return {
+      duration,
+      expiredAlerts: expiredAlertsResult,
+      oldIncidents: oldIncidentsResult,
+      unitLegends: unitLegendsResult,
+      scheduledDeletions: scheduledDeletionsResult,
+      expiredTrials: expiredTrialsResult,
+      orphanedUsers: orphanedUsersResult,
+    };
+  },
+});

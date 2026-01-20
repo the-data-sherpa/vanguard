@@ -14,6 +14,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import type { Incident, UnitLegend, CallTypeCategory } from '@/lib/types';
+import { getUnitStatusByUnitId } from '@/lib/types';
 import {
   getCallTypeDescription,
   getIncidentPriority,
@@ -184,7 +185,7 @@ export function IncidentCard({
                       <p className="text-xs font-semibold text-primary mb-2">{dept}</p>
                       <div className="space-y-1 ml-2">
                         {units.map((unit) => {
-                          const unitData = incident.unitStatuses?.[unit];
+                          const unitData = getUnitStatusByUnitId(incident.unitStatuses, unit);
                           const status = unitData?.status || 'Unknown';
                           const statusLabel = STATUS_LABELS[status] || status;
 
@@ -205,7 +206,7 @@ export function IncidentCard({
               // Fallback: flat list without grouping
               <div className="space-y-1 ml-2">
                 {incident.units!.map((unit) => {
-                  const unitData = incident.unitStatuses?.[unit];
+                  const unitData = getUnitStatusByUnitId(incident.unitStatuses, unit);
                   const status = unitData?.status || 'Unknown';
                   const statusLabel = STATUS_LABELS[status] || status;
 

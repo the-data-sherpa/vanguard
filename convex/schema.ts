@@ -6,6 +6,7 @@ import { v } from "convex/values";
 // ===================
 
 const tenantStatus = v.union(
+  v.literal("pending_approval"),  // Awaiting admin review (self-service signups)
   v.literal("pending"),
   v.literal("active"),
   v.literal("suspended"),
@@ -18,6 +19,16 @@ const tenantTier = v.union(
   v.literal("starter"),
   v.literal("professional"),
   v.literal("enterprise")
+);
+
+// Subscription status for billing
+const subscriptionStatus = v.union(
+  v.literal("trialing"),    // 14-day trial active
+  v.literal("active"),      // Paid subscription
+  v.literal("past_due"),    // Payment failed
+  v.literal("canceled"),    // Subscription canceled
+  v.literal("expired"),     // Trial ended, no subscription
+  v.literal("pro_bono")     // Billing exempt (granted by admin)
 );
 
 const incidentSource = v.union(
@@ -128,9 +139,20 @@ export default defineSchema({
     ),
 
     // Billing & Trial
+    subscriptionStatus: v.optional(subscriptionStatus),
     trialEndsAt: v.optional(v.number()),
+    currentPeriodEnd: v.optional(v.number()),
+    cancelAtPeriodEnd: v.optional(v.boolean()),
     billingCustomerId: v.optional(v.string()),
     billingSubscriptionId: v.optional(v.string()),
+
+    // Ownership & Approval
+    ownerId: v.optional(v.id("users")),
+    approvedAt: v.optional(v.number()),
+    approvedBy: v.optional(v.id("users")),
+    rejectedAt: v.optional(v.number()),
+    rejectedBy: v.optional(v.id("users")),
+    rejectionReason: v.optional(v.string()),
 
     // Deactivation
     deactivatedAt: v.optional(v.number()),
@@ -154,7 +176,9 @@ export default defineSchema({
     lastWeatherSync: v.optional(v.number()),
   })
     .index("by_slug", ["slug"])
-    .index("by_status", ["status"]),
+    .index("by_status", ["status"])
+    .index("by_subscription_status", ["subscriptionStatus"])
+    .index("by_owner", ["ownerId"]),
 
   // ===================
   // Incidents
@@ -180,14 +204,30 @@ export default defineSchema({
 
     // Units
     units: v.optional(v.array(v.string())),
+    // UnitStatuses: supports both legacy Record format and new Array format during migration
     unitStatuses: v.optional(
-      v.record(
-        v.string(),
-        v.object({
-          unit: v.string(),
-          status: v.string(),
-          timestamp: v.number(),
-        })
+      v.union(
+        // Legacy Record format (for backwards compatibility)
+        v.record(
+          v.string(),
+          v.object({
+            unit: v.string(),
+            status: v.string(),
+            timestamp: v.number(),
+          })
+        ),
+        // New Array format with richer timestamps
+        v.array(
+          v.object({
+            unitId: v.string(),
+            status: v.string(),
+            timeDispatched: v.optional(v.number()),
+            timeAcknowledged: v.optional(v.number()),
+            timeEnroute: v.optional(v.number()),
+            timeOnScene: v.optional(v.number()),
+            timeCleared: v.optional(v.number()),
+          })
+        )
       )
     ),
 
@@ -271,6 +311,7 @@ export default defineSchema({
   // Users
   // ===================
   users: defineTable({
+    clerkId: v.optional(v.string()),
     tenantId: v.optional(v.id("tenants")),
     email: v.string(),
     emailVisibility: v.boolean(),
@@ -301,8 +342,25 @@ export default defineSchema({
       })
     ),
     lastLoginAt: v.optional(v.number()),
+    lastTenantCreatedAt: v.optional(v.number()),
   })
+    .index("by_clerk_id", ["clerkId"])
     .index("by_email", ["email"])
+    .index("by_tenant", ["tenantId"]),
+
+  // ===================
+  // Incident Notes
+  // ===================
+  incidentNotes: defineTable({
+    tenantId: v.id("tenants"),
+    incidentId: v.id("incidents"),
+    content: v.string(),
+    authorId: v.id("users"),
+    authorName: v.string(),
+    isEdited: v.optional(v.boolean()),
+    editedAt: v.optional(v.number()),
+  })
+    .index("by_incident", ["incidentId"])
     .index("by_tenant", ["tenantId"]),
 
   // ===================

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useMemo } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useParams, useRouter } from "next/navigation";
@@ -24,20 +25,29 @@ export default function WeatherPage() {
     tenantId ? { tenantId, includeExpired: true, limit: 100 } : "skip"
   );
 
-  // Loading state
-  if (!tenant || alertsRaw === undefined) {
+  // Redirect if weather alerts are not enabled - must be in useEffect, not during render
+  const shouldRedirect = tenant && !tenant.features?.weatherAlerts;
+  useEffect(() => {
+    if (shouldRedirect) {
+      router.push(`/tenant/${slug}`);
+    }
+  }, [shouldRedirect, router, slug]);
+
+  // Memoize alerts to maintain consistent hook order
+  const { alerts, activeAlerts, expiredAlerts } = useMemo(() => {
+    if (!alertsRaw) return { alerts: [], activeAlerts: [], expiredAlerts: [] };
+    const adapted = adaptWeatherAlerts(alertsRaw);
+    return {
+      alerts: adapted,
+      activeAlerts: adapted.filter((a) => a.status === "active"),
+      expiredAlerts: adapted.filter((a) => a.status === "expired" || a.status === "cancelled"),
+    };
+  }, [alertsRaw]);
+
+  // Loading state or redirecting
+  if (!tenant || alertsRaw === undefined || shouldRedirect) {
     return <WeatherPageSkeleton />;
   }
-
-  // Check if weather alerts are enabled
-  if (!tenant.features?.weatherAlerts) {
-    router.push(`/tenant/${slug}`);
-    return null;
-  }
-
-  const alerts = adaptWeatherAlerts(alertsRaw);
-  const activeAlerts = alerts.filter((a) => a.status === "active");
-  const expiredAlerts = alerts.filter((a) => a.status === "expired" || a.status === "cancelled");
 
   return (
     <div className="space-y-6">

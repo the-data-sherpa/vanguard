@@ -1,172 +1,244 @@
 /**
  * Call Type Mapping Utility
  * Maps PulsePoint call type codes to human-readable categories and descriptions
+ *
+ * Ported from ICAW's comprehensive call type system:
+ * ~/Projects/icaw/convex/callTypes.ts
  */
 
 import type { CallTypeCategory } from './types';
 
 /**
- * Call type code to description mapping
- * Based on ICAW reference: ~/Projects/icaw/convex/callTypes.ts
+ * ICAW categories mapped to Vanguard's simplified category system
+ * ICAW has 17 categories, Vanguard uses 6
  */
-const CALL_TYPE_DESCRIPTIONS: Record<string, string> = {
+type ICAWCategory =
+  | 'Aid'
+  | 'Aircraft'
+  | 'Alarm'
+  | 'Assist'
+  | 'Explosion'
+  | 'Fire'
+  | 'Hazard'
+  | 'Investigation'
+  | 'Lockout'
+  | 'Medical'
+  | 'Natural Disaster'
+  | 'Rescue'
+  | 'Vehicle'
+  | 'Wires'
+  | 'Other'
+  | 'Alert'
+  | 'Unknown';
+
+/**
+ * Map ICAW's 17 categories to Vanguard's 6 categories
+ */
+const ICAW_TO_VANGUARD_CATEGORY: Record<ICAWCategory, CallTypeCategory> = {
+  'Aid': 'other',
+  'Aircraft': 'traffic',
+  'Alarm': 'fire',
+  'Assist': 'other',
+  'Explosion': 'fire',
+  'Fire': 'fire',
+  'Hazard': 'hazmat',
+  'Investigation': 'other',
+  'Lockout': 'other',
+  'Medical': 'medical',
+  'Natural Disaster': 'other',
+  'Rescue': 'rescue',
+  'Vehicle': 'traffic',
+  'Wires': 'hazmat',
+  'Other': 'other',
+  'Alert': 'other',
+  'Unknown': 'other',
+};
+
+/**
+ * Call type definition with ICAW category
+ */
+interface CallTypeDefinition {
+  id: string;
+  description: string;
+  category: ICAWCategory;
+  alertable: boolean;
+}
+
+/**
+ * Comprehensive call type definitions from ICAW
+ * All call types mapped to 17 ICAW categories
+ */
+const CALL_TYPES: CallTypeDefinition[] = [
   // Aid
-  AA: 'Auto Aid',
-  MU: 'Mutual Aid',
-  ST: 'Strike Team/Task Force',
+  { id: 'AA', description: 'Auto Aid', category: 'Aid', alertable: true },
+  { id: 'MU', description: 'Mutual Aid', category: 'Aid', alertable: true },
+  { id: 'ST', description: 'Strike Team/Task Force', category: 'Aid', alertable: true },
 
   // Aircraft
-  AC: 'Aircraft Crash',
-  AE: 'Aircraft Emergency',
-  AES: 'Aircraft Emergency Standby',
-  LZ: 'Landing Zone',
+  { id: 'AC', description: 'Aircraft Crash', category: 'Aircraft', alertable: true },
+  { id: 'AE', description: 'Aircraft Emergency', category: 'Aircraft', alertable: true },
+  { id: 'AES', description: 'Aircraft Emergency Standby', category: 'Aircraft', alertable: true },
+  { id: 'LZ', description: 'Landing Zone', category: 'Aircraft', alertable: true },
 
   // Alarm
-  AED: 'AED Alarm',
-  OA: 'Alarm',
-  CMA: 'Carbon Monoxide Alarm',
-  FA: 'Fire Alarm',
-  MA: 'Manual Alarm',
-  SD: 'Smoke Detector',
-  TRBL: 'Trouble Alarm',
-  WFA: 'Waterflow Alarm',
+  { id: 'AED', description: 'AED Alarm', category: 'Alarm', alertable: false },
+  { id: 'OA', description: 'Alarm', category: 'Alarm', alertable: false },
+  { id: 'CMA', description: 'Carbon Monoxide Alarm', category: 'Alarm', alertable: false },
+  { id: 'FA', description: 'Fire Alarm', category: 'Alarm', alertable: false },
+  { id: 'MA', description: 'Manual Alarm', category: 'Alarm', alertable: false },
+  { id: 'SD', description: 'Smoke Detector', category: 'Alarm', alertable: false },
+  { id: 'TRBL', description: 'Trouble Alarm', category: 'Alarm', alertable: false },
+  { id: 'WFA', description: 'Waterflow Alarm', category: 'Alarm', alertable: false },
 
   // Assist
-  FL: 'Flooding',
-  LR: 'Ladder Request',
-  LA: 'Lift Assist',
-  PA: 'Police Assist',
-  PS: 'Public Service',
-  SH: 'Sheared Hydrant',
+  { id: 'FL', description: 'Flooding', category: 'Assist', alertable: true },
+  { id: 'LR', description: 'Ladder Request', category: 'Assist', alertable: false },
+  { id: 'LA', description: 'Lift Assist', category: 'Assist', alertable: false },
+  { id: 'PA', description: 'Police Assist', category: 'Assist', alertable: false },
+  { id: 'PS', description: 'Public Service', category: 'Assist', alertable: false },
+  { id: 'SH', description: 'Sheared Hydrant', category: 'Assist', alertable: false },
 
   // Explosion
-  EX: 'Explosion',
-  PE: 'Pipeline Emergency',
-  TE: 'Transformer Explosion',
+  { id: 'EX', description: 'Explosion', category: 'Explosion', alertable: false },
+  { id: 'PE', description: 'Pipeline Emergency', category: 'Explosion', alertable: true },
+  { id: 'TE', description: 'Transformer Explosion', category: 'Explosion', alertable: true },
 
   // Fire
-  AF: 'Appliance Fire',
-  CHIM: 'Chimney Fire',
-  CF: 'Commercial Fire',
-  WSF: 'Confirmed Structure Fire',
-  WVEG: 'Confirmed Vegetation Fire',
-  CB: 'Controlled Burn/Prescribed Fire',
-  ELF: 'Electrical Fire',
-  EF: 'Extinguished Fire',
-  FIRE: 'Fire',
-  FULL: 'Full Assignment',
-  IF: 'Illegal Fire',
-  MF: 'Marine Fire',
-  OF: 'Outside Fire',
-  PF: 'Pole Fire',
-  GF: 'Refuse/Garbage Fire',
-  RF: 'Residential Fire',
-  SF: 'Structure Fire',
-  TF: 'Tank Fire',
-  VEG: 'Vegetation Fire',
-  VF: 'Vehicle Fire',
-  WF: 'Confirmed Fire',
-  WCF: 'Working Commercial Fire',
-  WRF: 'Working Residential Fire',
+  { id: 'AF', description: 'Appliance Fire', category: 'Fire', alertable: false },
+  { id: 'CHIM', description: 'Chimney Fire', category: 'Fire', alertable: false },
+  { id: 'CF', description: 'Commercial Fire', category: 'Fire', alertable: true },
+  { id: 'WSF', description: 'Confirmed Structure Fire', category: 'Fire', alertable: true },
+  { id: 'WVEG', description: 'Confirmed Vegetation Fire', category: 'Fire', alertable: true },
+  { id: 'CB', description: 'Controlled Burn/Prescribed Fire', category: 'Fire', alertable: false },
+  { id: 'ELF', description: 'Electrical Fire', category: 'Fire', alertable: false },
+  { id: 'EF', description: 'Extinguished Fire', category: 'Fire', alertable: false },
+  { id: 'FIRE', description: 'Fire', category: 'Fire', alertable: false },
+  { id: 'FULL', description: 'Full Assignment', category: 'Fire', alertable: false },
+  { id: 'IF', description: 'Illegal Fire', category: 'Fire', alertable: false },
+  { id: 'MF', description: 'Marine Fire', category: 'Fire', alertable: false },
+  { id: 'OF', description: 'Outside Fire', category: 'Fire', alertable: false },
+  { id: 'PF', description: 'Pole Fire', category: 'Fire', alertable: true },
+  { id: 'GF', description: 'Refuse/Garbage Fire', category: 'Fire', alertable: false },
+  { id: 'RF', description: 'Residential Fire', category: 'Fire', alertable: true },
+  { id: 'SF', description: 'Structure Fire', category: 'Fire', alertable: true },
+  { id: 'TF', description: 'Tank Fire', category: 'Fire', alertable: false },
+  { id: 'VEG', description: 'Vegetation Fire', category: 'Fire', alertable: true },
+  { id: 'VF', description: 'Vehicle Fire', category: 'Fire', alertable: true },
+  { id: 'WF', description: 'Confirmed Fire', category: 'Fire', alertable: false },
+  { id: 'WCF', description: 'Working Commercial Fire', category: 'Fire', alertable: true },
+  { id: 'WRF', description: 'Working Residential Fire', category: 'Fire', alertable: true },
 
   // Hazard
-  BT: 'Bomb Threat',
-  EE: 'Electrical Emergency',
-  EM: 'Emergency',
-  ER: 'Emergency Response',
-  GAS: 'Gas Leak',
-  HC: 'Hazardous Condition',
-  HMR: 'Hazardous Response',
-  TD: 'Tree Down',
-  WE: 'Water Emergency',
+  { id: 'BT', description: 'Bomb Threat', category: 'Hazard', alertable: false },
+  { id: 'EE', description: 'Electrical Emergency', category: 'Hazard', alertable: true },
+  { id: 'EM', description: 'Emergency', category: 'Hazard', alertable: false },
+  { id: 'ER', description: 'Emergency Response', category: 'Hazard', alertable: false },
+  { id: 'GAS', description: 'Gas Leak', category: 'Hazard', alertable: true },
+  { id: 'HC', description: 'Hazardous Condition', category: 'Hazard', alertable: false },
+  { id: 'HMR', description: 'Hazardous Response', category: 'Hazard', alertable: true },
+  { id: 'TD', description: 'Tree Down', category: 'Hazard', alertable: false },
+  { id: 'WE', description: 'Water Emergency', category: 'Hazard', alertable: true },
 
   // Investigation
-  AI: 'Arson Investigation',
-  FWI: 'Fireworks Investigation',
-  HMI: 'Hazmat Investigation',
-  INV: 'Investigation',
-  OI: 'Odor Investigation',
-  SI: 'Smoke Investigation',
+  { id: 'AI', description: 'Arson Investigation', category: 'Investigation', alertable: false },
+  { id: 'FWI', description: 'Fireworks Investigation', category: 'Investigation', alertable: false },
+  { id: 'HMI', description: 'Hazmat Investigation', category: 'Investigation', alertable: false },
+  { id: 'INV', description: 'Investigation', category: 'Investigation', alertable: false },
+  { id: 'OI', description: 'Odor Investigation', category: 'Investigation', alertable: false },
+  { id: 'SI', description: 'Smoke Investigation', category: 'Investigation', alertable: false },
 
   // Lockout
-  CL: 'Commercial Lockout',
-  LO: 'Lockout',
-  RL: 'Residential Lockout',
-  VL: 'Vehicle Lockout',
+  { id: 'CL', description: 'Commercial Lockout', category: 'Lockout', alertable: false },
+  { id: 'LO', description: 'Lockout', category: 'Lockout', alertable: false },
+  { id: 'RL', description: 'Residential Lockout', category: 'Lockout', alertable: false },
+  { id: 'VL', description: 'Vehicle Lockout', category: 'Lockout', alertable: false },
 
   // Medical
-  CP: 'Community Paramedicine',
-  IFT: 'Interfacility Transfer',
-  ME: 'Medical Emergency',
-  MCI: 'Multi Casualty Incident',
+  { id: 'CP', description: 'Community Paramedicine', category: 'Medical', alertable: false },
+  { id: 'IFT', description: 'Interfacility Transfer', category: 'Medical', alertable: false },
+  { id: 'ME', description: 'Medical Emergency', category: 'Medical', alertable: false },
+  { id: 'MCI', description: 'Multi Casualty Incident', category: 'Medical', alertable: true },
 
   // Natural Disaster
-  EQ: 'Earthquake',
-  FLW: 'Flood Warning',
-  TOW: 'Tornado Warning',
-  TSW: 'Tsunami Warning',
-  WX: 'Weather Incident',
+  { id: 'EQ', description: 'Earthquake', category: 'Natural Disaster', alertable: true },
+  { id: 'FLW', description: 'Flood Warning', category: 'Natural Disaster', alertable: true },
+  { id: 'TOW', description: 'Tornado Warning', category: 'Natural Disaster', alertable: true },
+  { id: 'TSW', description: 'Tsunami Warning', category: 'Natural Disaster', alertable: true },
+  { id: 'WX', description: 'Weather Incident', category: 'Natural Disaster', alertable: false },
 
   // Rescue
-  AR: 'Animal Rescue',
-  CR: 'Cliff Rescue',
-  CSR: 'Confined Space Rescue',
-  ELR: 'Elevator Rescue',
-  EER: 'Elevator/Escalator Rescue',
-  IR: 'Ice Rescue',
-  IA: 'Industrial Accident',
-  RES: 'Rescue',
-  RR: 'Rope Rescue',
-  SC: 'Structural Collapse',
-  TR: 'Technical Rescue',
-  TNR: 'Trench Rescue',
-  USAR: 'Urban Search and Rescue',
-  VS: 'Vessel Sinking',
-  WR: 'Water Rescue',
+  { id: 'AR', description: 'Animal Rescue', category: 'Rescue', alertable: true },
+  { id: 'CR', description: 'Cliff Rescue', category: 'Rescue', alertable: true },
+  { id: 'CSR', description: 'Confined Space Rescue', category: 'Rescue', alertable: true },
+  { id: 'ELR', description: 'Elevator Rescue', category: 'Rescue', alertable: true },
+  { id: 'EER', description: 'Elevator/Escalator Rescue', category: 'Rescue', alertable: true },
+  { id: 'IR', description: 'Ice Rescue', category: 'Rescue', alertable: true },
+  { id: 'IA', description: 'Industrial Accident', category: 'Rescue', alertable: false },
+  { id: 'RES', description: 'Rescue', category: 'Rescue', alertable: true },
+  { id: 'RR', description: 'Rope Rescue', category: 'Rescue', alertable: true },
+  { id: 'SC', description: 'Structural Collapse', category: 'Rescue', alertable: false },
+  { id: 'TR', description: 'Technical Rescue', category: 'Rescue', alertable: true },
+  { id: 'TNR', description: 'Trench Rescue', category: 'Rescue', alertable: true },
+  { id: 'USAR', description: 'Urban Search and Rescue', category: 'Rescue', alertable: true },
+  { id: 'VS', description: 'Vessel Sinking', category: 'Rescue', alertable: true },
+  { id: 'WR', description: 'Water Rescue', category: 'Rescue', alertable: true },
 
   // Vehicle/Traffic
-  TCP: 'Collision Involving Pedestrian',
-  TCS: 'Collision Involving Structure',
-  TCT: 'Collision Involving Train',
-  TCE: 'Expanded Traffic Collision',
-  RTE: 'Railroad/Train Emergency',
-  TC: 'Traffic Collision',
-  MVA: 'Motor Vehicle Accident',
-  MVC: 'Motor Vehicle Collision',
+  { id: 'TCP', description: 'Collision Involving Pedestrian', category: 'Vehicle', alertable: true },
+  { id: 'TCS', description: 'Collision Involving Structure', category: 'Vehicle', alertable: true },
+  { id: 'TCT', description: 'Collision Involving Train', category: 'Vehicle', alertable: true },
+  { id: 'TCE', description: 'Expanded Traffic Collision', category: 'Vehicle', alertable: true },
+  { id: 'RTE', description: 'Railroad/Train Emergency', category: 'Vehicle', alertable: true },
+  { id: 'TC', description: 'Traffic Collision', category: 'Vehicle', alertable: true },
+  { id: 'MVA', description: 'Motor Vehicle Accident', category: 'Vehicle', alertable: true },
+  { id: 'MVC', description: 'Motor Vehicle Collision', category: 'Vehicle', alertable: true },
 
   // Wires
-  PLE: 'Powerline Emergency',
-  WA: 'Wires Arcing',
-  WD: 'Wires Down',
-  WDA: 'Wires Down/Arcing',
+  { id: 'PLE', description: 'Powerline Emergency', category: 'Wires', alertable: true },
+  { id: 'WA', description: 'Wires Arcing', category: 'Wires', alertable: true },
+  { id: 'WD', description: 'Wires Down', category: 'Wires', alertable: true },
+  { id: 'WDA', description: 'Wires Down/Arcing', category: 'Wires', alertable: true },
 
   // Other
-  BP: 'Burn Permit',
-  CA: 'Community Activity',
-  FW: 'Fire Watch',
-  MC: 'Move-up/Cover',
-  NO: 'Notification',
-  STBY: 'Standby',
-  TEST: 'Test',
-  TRNG: 'Training',
+  { id: 'BP', description: 'Burn Permit', category: 'Other', alertable: false },
+  { id: 'CA', description: 'Community Activity', category: 'Other', alertable: false },
+  { id: 'FW', description: 'Fire Watch', category: 'Other', alertable: false },
+  { id: 'MC', description: 'Move-up/Cover', category: 'Other', alertable: false },
+  { id: 'NO', description: 'Notification', category: 'Other', alertable: false },
+  { id: 'STBY', description: 'Standby', category: 'Other', alertable: false },
+  { id: 'TEST', description: 'Test', category: 'Other', alertable: false },
+  { id: 'TRNG', description: 'Training', category: 'Other', alertable: false },
 
   // Alert
-  NEWS: 'News',
-  CERT: 'CERT',
-  DISASTER: 'Disaster',
+  { id: 'NEWS', description: 'News', category: 'Alert', alertable: false },
+  { id: 'CERT', description: 'CERT', category: 'Alert', alertable: false },
+  { id: 'DISASTER', description: 'Disaster', category: 'Alert', alertable: false },
 
   // Unknown
-  UNK: 'Unknown Call Type',
-};
+  { id: 'UNK', description: 'Unknown Call Type', category: 'Unknown', alertable: false },
+];
+
+/**
+ * Build lookup map for fast access by code
+ */
+const CALL_TYPE_BY_CODE = new Map<string, CallTypeDefinition>(
+  CALL_TYPES.map(ct => [ct.id.toUpperCase(), ct])
+);
+
+/**
+ * Get call type definition by code
+ */
+export function getCallTypeByCode(code: string): CallTypeDefinition | undefined {
+  return CALL_TYPE_BY_CODE.get(code.toUpperCase().trim());
+}
 
 /**
  * Get the human-readable description for a call type code
  */
 export function getCallTypeDescription(callType: string): string {
-  // First try exact match
-  const upper = callType.toUpperCase().trim();
-  if (CALL_TYPE_DESCRIPTIONS[upper]) {
-    return CALL_TYPE_DESCRIPTIONS[upper];
+  const def = getCallTypeByCode(callType);
+  if (def) {
+    return def.description;
   }
 
   // If it's already a descriptive string (contains spaces), return as-is
@@ -179,211 +251,100 @@ export function getCallTypeDescription(callType: string): string {
 }
 
 /**
- * Mapping of PulsePoint call type codes to categories
- * Based on common fire/EMS dispatch codes
- */
-const CALL_TYPE_MAPPINGS: Record<string, CallTypeCategory> = {
-  // Fire calls
-  FIRE: 'fire',
-  'STRUCTURE FIRE': 'fire',
-  'RESIDENTIAL FIRE': 'fire',
-  'COMMERCIAL FIRE': 'fire',
-  'VEHICLE FIRE': 'fire',
-  'BRUSH FIRE': 'fire',
-  'WILDLAND FIRE': 'fire',
-  'GRASS FIRE': 'fire',
-  'TRASH FIRE': 'fire',
-  'DUMPSTER FIRE': 'fire',
-  'FIRE ALARM': 'fire',
-  'SMOKE INVESTIGATION': 'fire',
-  'ODOR INVESTIGATION': 'fire',
-  'GAS LEAK': 'fire',
-  'CARBON MONOXIDE': 'fire',
-  CO: 'fire',
-
-  // Medical calls
-  MEDICAL: 'medical',
-  'MEDICAL EMERGENCY': 'medical',
-  'CARDIAC ARREST': 'medical',
-  'CHEST PAIN': 'medical',
-  'DIFFICULTY BREATHING': 'medical',
-  'BREATHING PROBLEMS': 'medical',
-  STROKE: 'medical',
-  SEIZURE: 'medical',
-  'DIABETIC EMERGENCY': 'medical',
-  'ALLERGIC REACTION': 'medical',
-  'FALL VICTIM': 'medical',
-  FALL: 'medical',
-  OVERDOSE: 'medical',
-  'DRUG OVERDOSE': 'medical',
-  'SICK PERSON': 'medical',
-  'UNCONSCIOUS PERSON': 'medical',
-  'ABDOMINAL PAIN': 'medical',
-  'BACK PAIN': 'medical',
-  'HEADACHE': 'medical',
-  HEMORRHAGE: 'medical',
-  BLEEDING: 'medical',
-  'PSYCHIATRIC EMERGENCY': 'medical',
-  'BEHAVIORAL EMERGENCY': 'medical',
-  ASSAULT: 'medical',
-  'ASSAULT VICTIM': 'medical',
-  'STABBING': 'medical',
-  'GUNSHOT': 'medical',
-  'SHOOTING': 'medical',
-  ELECTROCUTION: 'medical',
-  'HEAT EMERGENCY': 'medical',
-  'COLD EMERGENCY': 'medical',
-  'PREGNANCY': 'medical',
-  'CHILDBIRTH': 'medical',
-  'CHOKING': 'medical',
-  DROWNING: 'medical',
-  'NEAR DROWNING': 'medical',
-  'ANIMAL BITE': 'medical',
-  'BEE STING': 'medical',
-  EMS: 'medical',
-
-  // Rescue calls
-  RESCUE: 'rescue',
-  'WATER RESCUE': 'rescue',
-  'SWIFT WATER RESCUE': 'rescue',
-  'TECHNICAL RESCUE': 'rescue',
-  'HIGH ANGLE RESCUE': 'rescue',
-  'CONFINED SPACE RESCUE': 'rescue',
-  'TRENCH RESCUE': 'rescue',
-  'BUILDING COLLAPSE': 'rescue',
-  'ELEVATOR RESCUE': 'rescue',
-  'ENTRAPMENT': 'rescue',
-  'PERSON TRAPPED': 'rescue',
-  'LOCK IN/OUT': 'rescue',
-  'LOCKOUT': 'rescue',
-  'SEARCH AND RESCUE': 'rescue',
-  'MISSING PERSON': 'rescue',
-
-  // Traffic/MVA calls
-  'TRAFFIC ACCIDENT': 'traffic',
-  'MOTOR VEHICLE ACCIDENT': 'traffic',
-  MVA: 'traffic',
-  MVC: 'traffic',
-  'VEHICLE ACCIDENT': 'traffic',
-  'CAR ACCIDENT': 'traffic',
-  'AUTO ACCIDENT': 'traffic',
-  'TRAFFIC COLLISION': 'traffic',
-  'HIT AND RUN': 'traffic',
-  'PEDESTRIAN STRUCK': 'traffic',
-  'BICYCLE ACCIDENT': 'traffic',
-  'MOTORCYCLE ACCIDENT': 'traffic',
-  'BUS ACCIDENT': 'traffic',
-  'TRAIN ACCIDENT': 'traffic',
-  'AIRCRAFT EMERGENCY': 'traffic',
-  'PLANE CRASH': 'traffic',
-  'ROLLOVER': 'traffic',
-  'EXTRICATION': 'traffic',
-  'VEHICLE EXTRICATION': 'traffic',
-  'ACCIDENT WITH INJURIES': 'traffic',
-  'ACCIDENT WITH ENTRAPMENT': 'traffic',
-
-  // Hazmat calls
-  HAZMAT: 'hazmat',
-  'HAZARDOUS MATERIALS': 'hazmat',
-  'HAZ MAT': 'hazmat',
-  'CHEMICAL SPILL': 'hazmat',
-  'FUEL SPILL': 'hazmat',
-  'OIL SPILL': 'hazmat',
-  'PROPANE LEAK': 'hazmat',
-  'NATURAL GAS LEAK': 'hazmat',
-  'UNKNOWN SUBSTANCE': 'hazmat',
-  'SUSPICIOUS PACKAGE': 'hazmat',
-  'BIOLOGICAL HAZARD': 'hazmat',
-  'RADIATION': 'hazmat',
-  'TRANSFORMER FIRE': 'hazmat',
-  'ELECTRICAL HAZARD': 'hazmat',
-  'POWERLINE DOWN': 'hazmat',
-  'WIRES DOWN': 'hazmat',
-};
-
-/**
- * Normalize a call type string for comparison
- */
-function normalizeCallType(callType: string): string {
-  return callType
-    .toUpperCase()
-    .replace(/[^A-Z0-9\s]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-/**
- * Map a PulsePoint call type to a category
+ * Map a PulsePoint call type code to a Vanguard category
+ * Uses ICAW's code-based lookup for accuracy
  */
 export function mapCallTypeToCategory(callType: string): CallTypeCategory {
-  const normalized = normalizeCallType(callType);
-
-  // Direct match
-  if (CALL_TYPE_MAPPINGS[normalized]) {
-    return CALL_TYPE_MAPPINGS[normalized];
+  // First, try direct code lookup (most reliable)
+  const def = getCallTypeByCode(callType);
+  if (def) {
+    return ICAW_TO_VANGUARD_CATEGORY[def.category];
   }
 
-  // Partial match - check if any mapping key is contained in the call type
-  for (const [key, category] of Object.entries(CALL_TYPE_MAPPINGS)) {
-    if (normalized.includes(key) || key.includes(normalized)) {
-      return category;
-    }
-  }
+  // Fallback: keyword-based matching for descriptive call types
+  const lower = callType.toLowerCase();
 
-  // Keyword-based fallback
-  const lowerCallType = callType.toLowerCase();
-
+  // Fire-related keywords
   if (
-    lowerCallType.includes('fire') ||
-    lowerCallType.includes('smoke') ||
-    lowerCallType.includes('alarm')
+    lower.includes('fire') ||
+    lower.includes('smoke') ||
+    lower.includes('alarm') ||
+    lower.includes('explosion')
   ) {
     return 'fire';
   }
 
+  // Medical keywords
   if (
-    lowerCallType.includes('medical') ||
-    lowerCallType.includes('ems') ||
-    lowerCallType.includes('ambulance') ||
-    lowerCallType.includes('cardiac') ||
-    lowerCallType.includes('breathing') ||
-    lowerCallType.includes('unconscious') ||
-    lowerCallType.includes('injury') ||
-    lowerCallType.includes('sick')
+    lower.includes('medical') ||
+    lower.includes('ems') ||
+    lower.includes('ambulance') ||
+    lower.includes('cardiac') ||
+    lower.includes('breathing') ||
+    lower.includes('unconscious') ||
+    lower.includes('injury') ||
+    lower.includes('sick') ||
+    lower.includes('casualty')
   ) {
     return 'medical';
   }
 
+  // Rescue keywords
   if (
-    lowerCallType.includes('rescue') ||
-    lowerCallType.includes('trapped') ||
-    lowerCallType.includes('missing')
+    lower.includes('rescue') ||
+    lower.includes('trapped') ||
+    lower.includes('missing') ||
+    lower.includes('collapse')
   ) {
     return 'rescue';
   }
 
+  // Traffic/Vehicle keywords
   if (
-    lowerCallType.includes('accident') ||
-    lowerCallType.includes('collision') ||
-    lowerCallType.includes('mva') ||
-    lowerCallType.includes('mvc') ||
-    lowerCallType.includes('vehicle') ||
-    lowerCallType.includes('traffic')
+    lower.includes('accident') ||
+    lower.includes('collision') ||
+    lower.includes('mva') ||
+    lower.includes('mvc') ||
+    lower.includes('vehicle') ||
+    lower.includes('traffic') ||
+    lower.includes('aircraft') ||
+    lower.includes('train')
   ) {
     return 'traffic';
   }
 
+  // Hazmat keywords
   if (
-    lowerCallType.includes('hazmat') ||
-    lowerCallType.includes('hazardous') ||
-    lowerCallType.includes('spill') ||
-    lowerCallType.includes('chemical') ||
-    lowerCallType.includes('leak')
+    lower.includes('hazmat') ||
+    lower.includes('hazardous') ||
+    lower.includes('spill') ||
+    lower.includes('chemical') ||
+    lower.includes('leak') ||
+    lower.includes('gas') ||
+    lower.includes('wires') ||
+    lower.includes('powerline') ||
+    lower.includes('electrical')
   ) {
     return 'hazmat';
   }
 
   return 'other';
+}
+
+/**
+ * Check if a call type is alertable (important enough to notify users)
+ */
+export function isAlertableCallType(callType: string): boolean {
+  const def = getCallTypeByCode(callType);
+  return def?.alertable ?? false;
+}
+
+/**
+ * Get the ICAW category for a call type (more granular than Vanguard category)
+ */
+export function getICAWCategory(callType: string): ICAWCategory {
+  const def = getCallTypeByCode(callType);
+  return def?.category ?? 'Unknown';
 }
 
 /**

@@ -51,3 +51,4 @@ docker-data/
 *.seed
 *.pid.lock
 Thumbs.db
+.env.tmp

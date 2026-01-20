@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { AuthButtons, HeroTagline } from '@/components/auth/AuthButtons';
 
 const features = [
   {
@@ -61,19 +62,9 @@ const features = [
 const integrations = [
   { name: 'PulsePoint', description: 'Real-time CAD incident data' },
   { name: 'National Weather Service', description: 'Official weather alerts' },
-  { name: 'Facebook', description: 'Community updates' },
-  { name: 'Discord', description: 'Team coordination' },
+  { name: 'Facebook', description: 'Community updates', comingSoon: true },
+  { name: 'Discord', description: 'Team coordination', comingSoon: true },
 ];
-
-// Pricing tiers - coming soon
-const tiers: Array<{
-  name: string;
-  price: string;
-  period?: string;
-  description: string;
-  features: string[];
-  highlighted: boolean;
-}> = [];
 
 export default function LandingPage() {
   return (
@@ -99,14 +90,7 @@ export default function LandingPage() {
             </div>
             <div className="flex items-center gap-4">
               <ThemeToggle />
-              <Button variant="ghost" disabled className="opacity-60">
-                Sign In
-                <Badge variant="secondary" className="ml-2 text-xs">Soon</Badge>
-              </Button>
-              <Button disabled className="opacity-60">
-                Get Started
-                <Badge variant="secondary" className="ml-2 text-xs">Soon</Badge>
-              </Button>
+              <AuthButtons variant="nav" />
             </div>
           </div>
         </div>
@@ -118,8 +102,8 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 md:py-32">
           <div className="text-center space-y-8 max-w-4xl mx-auto">
             <Badge variant="secondary" className="px-4 py-1.5">
-              <Clock className="h-3 w-3 mr-1.5 inline" />
-              Public Beta Coming Soon
+              <Zap className="h-3 w-3 mr-1.5 inline" />
+              14-Day Free Trial — No Credit Card Required
             </Badge>
             <h1 className="text-4xl md:text-6xl font-bold tracking-tight">
               Community Incident Awareness
@@ -130,18 +114,9 @@ export default function LandingPage() {
               Real-time tracking, weather alerts, and social updates — all in one place.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button size="lg" disabled className="opacity-60">
-                <Clock className="mr-2 h-4 w-4" />
-                Coming Soon
-              </Button>
-              <Button size="lg" variant="outline" disabled className="opacity-60">
-                <Clock className="mr-2 h-4 w-4" />
-                View Demo
-              </Button>
+              <AuthButtons variant="hero" />
             </div>
-            <p className="text-sm text-muted-foreground">
-              Sign up for updates to be notified when we launch.
-            </p>
+            <HeroTagline />
           </div>
         </div>
       </section>
@@ -202,24 +177,30 @@ export default function LandingPage() {
               Get your organization set up quickly with our streamlined onboarding process.
             </p>
           </div>
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="grid md:grid-cols-4 gap-8">
             {[
               {
                 step: '1',
-                title: 'Create Your Account',
-                description: 'Sign up with your email and create your organization profile.',
+                title: 'Sign Up',
+                description: 'Create your account and submit your organization details.',
                 icon: Building2,
               },
               {
                 step: '2',
-                title: 'Configure Integrations',
-                description: 'Connect PulsePoint, set up weather zones, and link social accounts.',
-                icon: Zap,
+                title: 'Quick Review',
+                description: 'Our team reviews your request, typically within 24 hours.',
+                icon: Clock,
               },
               {
                 step: '3',
-                title: 'Start Monitoring',
-                description: 'Your dashboard goes live with real-time incident and weather data.',
+                title: 'Configure',
+                description: 'Connect PulsePoint, set up weather zones, and customize your dashboard.',
+                icon: Zap,
+              },
+              {
+                step: '4',
+                title: 'Go Live',
+                description: 'Start monitoring with real-time incident and weather data.',
                 icon: MapPin,
               },
             ].map((item) => (
@@ -252,7 +233,12 @@ export default function LandingPage() {
                   <div key={integration.name} className="flex items-start gap-3 p-4 rounded-lg bg-muted/50">
                     <Check className="h-5 w-5 text-green-500 mt-0.5" />
                     <div>
-                      <div className="font-medium">{integration.name}</div>
+                      <div className="font-medium flex items-center gap-2">
+                        {integration.name}
+                        {integration.comingSoon && (
+                          <Badge variant="secondary" className="text-xs">Coming Soon</Badge>
+                        )}
+                      </div>
                       <div className="text-sm text-muted-foreground">{integration.description}</div>
                     </div>
                   </div>
@@ -260,10 +246,68 @@ export default function LandingPage() {
               </div>
             </div>
             <div className="relative">
-              <div className="aspect-video rounded-xl bg-gradient-to-br from-muted to-muted/50 border flex items-center justify-center">
-                <div className="text-center p-8">
-                  <MapPin className="h-16 w-16 mx-auto text-muted-foreground/50 mb-4" />
-                  <p className="text-muted-foreground">Live incident map preview</p>
+              <div className="aspect-video rounded-xl bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-800 dark:to-slate-900 border overflow-hidden relative">
+                {/* Mock map grid lines */}
+                <div className="absolute inset-0 opacity-20">
+                  <div className="absolute inset-0" style={{ backgroundImage: 'linear-gradient(to right, currentColor 1px, transparent 1px), linear-gradient(to bottom, currentColor 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
+                </div>
+
+                {/* Mock roads */}
+                <div className="absolute inset-0">
+                  <div className="absolute top-1/3 left-0 right-0 h-1 bg-slate-400/30 dark:bg-slate-600/30" />
+                  <div className="absolute top-2/3 left-0 right-0 h-0.5 bg-slate-400/20 dark:bg-slate-600/20" />
+                  <div className="absolute left-1/4 top-0 bottom-0 w-1 bg-slate-400/30 dark:bg-slate-600/30" />
+                  <div className="absolute left-2/3 top-0 bottom-0 w-0.5 bg-slate-400/20 dark:bg-slate-600/20" />
+                </div>
+
+                {/* Mock incident markers */}
+                <div className="absolute top-[25%] left-[20%] flex flex-col items-center">
+                  <div className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center shadow-lg animate-pulse">
+                    <span className="text-white text-xs font-bold">🔥</span>
+                  </div>
+                  <div className="w-2 h-2 bg-red-500 rotate-45 -mt-1" />
+                </div>
+
+                <div className="absolute top-[45%] left-[55%] flex flex-col items-center">
+                  <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center shadow-lg">
+                    <span className="text-white text-xs font-bold">🚑</span>
+                  </div>
+                  <div className="w-2 h-2 bg-blue-500 rotate-45 -mt-1" />
+                </div>
+
+                <div className="absolute top-[60%] left-[35%] flex flex-col items-center">
+                  <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center shadow-lg">
+                    <span className="text-white text-xs font-bold">🚗</span>
+                  </div>
+                  <div className="w-2 h-2 bg-orange-500 rotate-45 -mt-1" />
+                </div>
+
+                <div className="absolute top-[30%] left-[75%] flex flex-col items-center">
+                  <div className="w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center shadow-lg">
+                    <span className="text-white text-xs font-bold">⚠️</span>
+                  </div>
+                  <div className="w-2 h-2 bg-yellow-500 rotate-45 -mt-1" />
+                </div>
+
+                {/* Mini legend */}
+                <div className="absolute bottom-3 left-3 bg-background/90 backdrop-blur-sm rounded-lg p-2 text-xs shadow-lg border">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-3 h-3 bg-red-500 rounded-full" />
+                    <span className="text-muted-foreground">Fire</span>
+                  </div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-3 h-3 bg-blue-500 rounded-full" />
+                    <span className="text-muted-foreground">Medical</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-orange-500 rounded-full" />
+                    <span className="text-muted-foreground">Traffic</span>
+                  </div>
+                </div>
+
+                {/* Coming Soon overlay */}
+                <div className="absolute inset-0 bg-background/60 backdrop-blur-[2px] flex items-center justify-center">
+                  <Badge variant="secondary" className="text-sm px-4 py-1.5">Coming Soon</Badge>
                 </div>
               </div>
             </div>
@@ -319,29 +363,56 @@ export default function LandingPage() {
       {/* Pricing Section */}
       <section id="pricing" className="py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center space-y-4">
-            <h2 className="text-3xl md:text-4xl font-bold">Pricing</h2>
+          <div className="text-center space-y-4 mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold">Simple, Transparent Pricing</h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              We&apos;re working on pricing plans that work for communities of all sizes.
+              One plan with everything you need. Start with a free trial, no credit card required.
             </p>
           </div>
-          <div className="mt-16 max-w-lg mx-auto">
-            <Card className="text-center">
-              <CardHeader>
-                <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
-                  <Clock className="h-8 w-8 text-muted-foreground" />
-                </div>
-                <CardTitle className="text-2xl">Pricing Coming Soon</CardTitle>
-                <CardDescription className="text-base mt-2">
-                  We&apos;re finalizing our pricing structure to ensure it&apos;s fair and accessible.
-                  Sign up to be notified when pricing is announced.
+          <div className="max-w-lg mx-auto">
+            <Card className="relative overflow-hidden border-2 border-primary">
+              <div className="absolute top-0 right-0 bg-primary text-primary-foreground px-3 py-1 text-sm font-medium rounded-bl-lg">
+                14-Day Free Trial
+              </div>
+              <CardHeader className="text-center pt-8">
+                <CardTitle className="text-2xl">Vanguard</CardTitle>
+                <CardDescription className="text-base">
+                  Everything you need for community incident awareness
                 </CardDescription>
+                <div className="mt-6">
+                  <span className="text-5xl font-bold">$29</span>
+                  <span className="text-2xl font-bold text-muted-foreground">.99</span>
+                  <span className="text-muted-foreground">/month</span>
+                </div>
               </CardHeader>
-              <CardContent>
-                <Button disabled className="opacity-60">
-                  <Clock className="mr-2 h-4 w-4" />
-                  Get Notified
-                </Button>
+              <CardContent className="space-y-6">
+                <ul className="space-y-3">
+                  {[
+                    'Real-time incident tracking from PulsePoint',
+                    'National Weather Service alert integration',
+                    'Customizable dashboard and incident views',
+                    'Social media auto-posting (Facebook, Discord)',
+                    'Unlimited team members',
+                    'Role-based access control',
+                    'Incident analytics and reporting',
+                    'Email and chat support',
+                  ].map((feature) => (
+                    <li key={feature} className="flex items-start gap-3">
+                      <Check className="h-5 w-5 text-green-500 mt-0.5 shrink-0" />
+                      <span>{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="pt-4">
+                  <Link href="/signup">
+                    <Button className="w-full" size="lg">
+                      Start Free Trial
+                    </Button>
+                  </Link>
+                  <p className="text-sm text-muted-foreground text-center mt-3">
+                    No credit card required. Cancel anytime.
+                  </p>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -352,21 +423,17 @@ export default function LandingPage() {
       <section className="py-24 bg-primary text-primary-foreground">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-8">
           <h2 className="text-3xl md:text-4xl font-bold">
-            Stay Connected to Your Community
+            Ready to Keep Your Community Informed?
           </h2>
           <p className="text-xl opacity-90">
-            Vanguard is coming soon. Be the first to know when we launch and help
-            shape the future of community incident awareness.
+            Start your 14-day free trial today. No credit card required.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" variant="secondary" disabled className="opacity-80">
-              <Clock className="mr-2 h-4 w-4" />
-              Coming Soon
-            </Button>
-            <Button size="lg" variant="outline" className="bg-transparent border-primary-foreground/30 hover:bg-primary-foreground/10" disabled>
-              Contact Us
-            </Button>
+            <AuthButtons variant="cta" />
           </div>
+          <p className="text-sm opacity-75">
+            Questions? Contact us at support@vanguardalerts.com
+          </p>
         </div>
       </section>
 

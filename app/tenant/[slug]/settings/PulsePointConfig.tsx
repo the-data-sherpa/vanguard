@@ -7,7 +7,7 @@ import { Id } from "@/convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Save, Loader2, AlertTriangle } from "lucide-react";
+import { Save, Loader2, AlertTriangle, Trash2 } from "lucide-react";
 
 interface PulsePointConfigProps {
   tenantId: Id<"tenants">;
@@ -27,19 +27,20 @@ export function PulsePointConfig({ tenantId, initialConfig }: PulsePointConfigPr
 
   const updatePulsepointConfig = useMutation(api.tenants.updatePulsepointConfig);
 
-  const handleSave = async () => {
+  const handleSave = async (confirmDelete = false) => {
     // If there's an existing agency ID and it's changing, show confirmation first
-    if (initialAgencyId && agencyId.trim() !== initialAgencyId && !showConfirm) {
+    if (initialAgencyId && agencyId.trim() !== initialAgencyId && !showConfirm && !confirmDelete) {
       setShowConfirm(true);
       return;
     }
 
     setSaving(true);
     setMessage(null);
-    setShowConfirm(false);
 
     try {
       const trimmedAgencyId = agencyId.trim();
+      const isChangingAgency = initialAgencyId && trimmedAgencyId !== initialAgencyId;
+
       await updatePulsepointConfig({
         tenantId,
         config: {
@@ -47,18 +48,32 @@ export function PulsePointConfig({ tenantId, initialConfig }: PulsePointConfigPr
           agencyIds: trimmedAgencyId ? [trimmedAgencyId] : [],
           syncInterval: 60, // 1 minute default
         },
+        // Pass deleteExistingIncidents when changing agencies
+        deleteExistingIncidents: isChangingAgency ? true : undefined,
       });
 
+      setShowConfirm(false);
       setMessage({
         type: "success",
-        text: trimmedAgencyId
-          ? "Agency ID saved successfully"
-          : "PulsePoint configuration cleared",
+        text: isChangingAgency
+          ? "Agency changed. All previous incident data has been cleared."
+          : trimmedAgencyId
+            ? "Agency ID saved successfully"
+            : "PulsePoint configuration cleared",
       });
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to save";
+
+      // Handle the special confirmation error
+      if (errorMessage === "AGENCY_CHANGE_REQUIRES_CONFIRMATION") {
+        setShowConfirm(true);
+        setSaving(false);
+        return;
+      }
+
       setMessage({
         type: "error",
-        text: error instanceof Error ? error.message : "Failed to save",
+        text: errorMessage,
       });
     } finally {
       setSaving(false);
@@ -92,7 +107,7 @@ export function PulsePointConfig({ tenantId, initialConfig }: PulsePointConfigPr
           />
           {!showConfirm ? (
             <Button
-              onClick={handleSave}
+              onClick={() => handleSave(false)}
               disabled={saving || !hasChanges}
               size="default"
               variant={isChangingExistingAgency ? "destructive" : "default"}
@@ -115,12 +130,19 @@ export function PulsePointConfig({ tenantId, initialConfig }: PulsePointConfigPr
                 Cancel
               </Button>
               <Button
-                onClick={handleSave}
+                onClick={() => handleSave(true)}
                 disabled={saving}
                 size="default"
                 variant="destructive"
               >
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirm"}
+                {saving ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete Data & Change
+                  </>
+                )}
               </Button>
             </div>
           )}
@@ -134,10 +156,13 @@ export function PulsePointConfig({ tenantId, initialConfig }: PulsePointConfigPr
         <div className="flex items-start gap-2 p-3 rounded-md bg-destructive/10 border border-destructive/20">
           <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
           <div className="text-sm">
-            <p className="font-medium text-destructive">Warning: Changing agency ID</p>
+            <p className="font-medium text-destructive">Warning: This will permanently delete all incident data</p>
             <p className="text-muted-foreground mt-1">
-              Changing the agency ID will affect incident syncing. New incidents will come
-              from the new agency.
+              Changing the agency ID will <strong className="text-destructive">permanently delete</strong> all
+              existing incidents, notes, and grouped incident data. This action cannot be undone.
+            </p>
+            <p className="text-muted-foreground mt-1">
+              New incidents will be synced from the new agency after the change.
             </p>
           </div>
         </div>
