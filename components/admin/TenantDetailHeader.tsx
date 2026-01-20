@@ -6,7 +6,7 @@ import { ArrowLeft, ExternalLink } from "lucide-react";
 import Link from "next/link";
 
 type TenantStatus = "pending" | "active" | "suspended" | "deactivated" | "pending_deletion";
-type TenantTier = "free" | "starter" | "professional" | "enterprise";
+type SubscriptionStatus = "trialing" | "active" | "past_due" | "canceled" | "expired";
 
 interface TenantDetailHeaderProps {
   tenant: {
@@ -14,7 +14,7 @@ interface TenantDetailHeaderProps {
     displayName?: string;
     slug: string;
     status: TenantStatus;
-    tier: TenantTier;
+    subscriptionStatus?: SubscriptionStatus;
     deletionScheduledAt?: number;
   };
 }
@@ -37,16 +37,20 @@ export function TenantDetailHeader({ tenant }: TenantDetailHeaderProps) {
     }
   };
 
-  const getTierBadge = (tier: TenantTier) => {
-    switch (tier) {
-      case "enterprise":
-        return <Badge className="bg-purple-600">Enterprise</Badge>;
-      case "professional":
-        return <Badge className="bg-blue-600">Professional</Badge>;
-      case "starter":
-        return <Badge variant="secondary">Starter</Badge>;
+  const getSubscriptionBadge = (subscriptionStatus?: SubscriptionStatus) => {
+    switch (subscriptionStatus) {
+      case "active":
+        return <Badge className="bg-green-600">Subscribed</Badge>;
+      case "trialing":
+        return <Badge variant="secondary">Trial</Badge>;
+      case "past_due":
+        return <Badge variant="destructive">Past Due</Badge>;
+      case "canceled":
+        return <Badge variant="outline">Canceled</Badge>;
+      case "expired":
+        return <Badge variant="outline" className="text-muted-foreground">Expired</Badge>;
       default:
-        return <Badge variant="outline">Free</Badge>;
+        return null;
     }
   };
 
@@ -72,7 +76,7 @@ export function TenantDetailHeader({ tenant }: TenantDetailHeaderProps) {
               {tenant.displayName || tenant.name}
             </h1>
             {getStatusBadge(tenant.status)}
-            {getTierBadge(tenant.tier)}
+            {getSubscriptionBadge(tenant.subscriptionStatus)}
           </div>
           <div className="flex items-center gap-4 mt-2">
             <p className="text-muted-foreground">

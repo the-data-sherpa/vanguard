@@ -50,7 +50,7 @@ interface TenantData {
   name: string;
   displayName?: string;
   status: "pending" | "active" | "suspended" | "deactivated" | "pending_deletion";
-  tier: "free" | "starter" | "professional" | "enterprise";
+  subscriptionStatus?: "trialing" | "active" | "past_due" | "canceled" | "expired";
   lastIncidentSync?: number;
   lastWeatherSync?: number;
   userCount: number;
@@ -142,16 +142,20 @@ export function TenantOverviewTable({
     }
   };
 
-  const getTierBadge = (tier: TenantData["tier"]) => {
-    switch (tier) {
-      case "enterprise":
-        return <Badge className="bg-purple-600">Enterprise</Badge>;
-      case "professional":
-        return <Badge className="bg-blue-600">Professional</Badge>;
-      case "starter":
-        return <Badge variant="secondary">Starter</Badge>;
+  const getSubscriptionBadge = (subscriptionStatus?: TenantData["subscriptionStatus"]) => {
+    switch (subscriptionStatus) {
+      case "active":
+        return <Badge className="bg-green-600">Subscribed</Badge>;
+      case "trialing":
+        return <Badge variant="secondary">Trial</Badge>;
+      case "past_due":
+        return <Badge variant="destructive">Past Due</Badge>;
+      case "canceled":
+        return <Badge variant="outline">Canceled</Badge>;
+      case "expired":
+        return <Badge variant="outline" className="text-muted-foreground">Expired</Badge>;
       default:
-        return <Badge variant="outline">Free</Badge>;
+        return <Badge variant="outline">Unknown</Badge>;
     }
   };
 
@@ -175,7 +179,7 @@ export function TenantOverviewTable({
             <TableRow>
               <TableHead>Tenant</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Tier</TableHead>
+              <TableHead>Subscription</TableHead>
               <TableHead className="text-center">Users</TableHead>
               <TableHead>Last Sync</TableHead>
               <TableHead className="w-[70px]"></TableHead>
@@ -195,7 +199,7 @@ export function TenantOverviewTable({
                   </div>
                 </TableCell>
                 <TableCell>{getStatusBadge(tenant.status)}</TableCell>
-                <TableCell>{getTierBadge(tenant.tier)}</TableCell>
+                <TableCell>{getSubscriptionBadge(tenant.subscriptionStatus)}</TableCell>
                 <TableCell className="text-center">{tenant.userCount}</TableCell>
                 <TableCell>
                   <div className="text-sm">

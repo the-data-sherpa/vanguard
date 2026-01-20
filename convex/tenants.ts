@@ -202,12 +202,6 @@ export const create = mutation({
     slug: v.string(),
     name: v.string(),
     displayName: v.optional(v.string()),
-    tier: v.union(
-      v.literal("free"),
-      v.literal("starter"),
-      v.literal("professional"),
-      v.literal("enterprise")
-    ),
   },
   handler: async (ctx, args) => {
     // Check if slug is already taken
@@ -228,7 +222,7 @@ export const create = mutation({
       name: args.name,
       displayName: args.displayName,
       status: "active",
-      tier: args.tier,
+      tier: "starter", // Default tier - no tiering in current model
       subscriptionStatus: "trialing",
       trialEndsAt,
       features: {

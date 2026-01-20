@@ -102,7 +102,7 @@ export const listAllTenants = query({
           name: tenant.name,
           displayName: tenant.displayName,
           status: tenant.status,
-          tier: tenant.tier,
+          subscriptionStatus: tenant.subscriptionStatus,
           lastIncidentSync: tenant.lastIncidentSync,
           lastWeatherSync: tenant.lastWeatherSync,
           userCount: users.length,

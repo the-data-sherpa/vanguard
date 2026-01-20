@@ -8,64 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Loader2, Check } from "lucide-react";
-import { cn } from "@/lib/utils";
-
-type TenantTier = "free" | "starter" | "professional" | "enterprise";
-
-const TIER_FEATURES: Record<TenantTier, { name: string; description: string; features: string[] }> = {
-  free: {
-    name: "Free",
-    description: "Basic incident monitoring",
-    features: [
-      "Up to 3 users",
-      "PulsePoint integration",
-      "Basic weather alerts",
-      "30-day data retention",
-    ],
-  },
-  starter: {
-    name: "Starter",
-    description: "For small departments",
-    features: [
-      "Up to 10 users",
-      "PulsePoint integration",
-      "Full weather alerts",
-      "60-day data retention",
-      "Incident notes",
-    ],
-  },
-  professional: {
-    name: "Professional",
-    description: "For growing departments",
-    features: [
-      "Up to 50 users",
-      "PulsePoint integration",
-      "Full weather alerts",
-      "90-day data retention",
-      "Incident notes",
-      "Social media integration",
-      "Custom branding",
-    ],
-  },
-  enterprise: {
-    name: "Enterprise",
-    description: "Full platform access",
-    features: [
-      "Unlimited users",
-      "PulsePoint integration",
-      "Full weather alerts",
-      "Unlimited data retention",
-      "Incident notes",
-      "Social media integration",
-      "Custom branding",
-      "API access",
-      "Advanced analytics",
-      "Priority support",
-    ],
-  },
-};
+import { Loader2 } from "lucide-react";
 
 function slugify(text: string): string {
   return text
@@ -82,7 +25,6 @@ export function CreateTenantForm() {
   const [slug, setSlug] = useState("");
   const [slugManuallySet, setSlugManuallySet] = useState(false);
   const [displayName, setDisplayName] = useState("");
-  const [tier, setTier] = useState<TenantTier>("free");
 
   // Optional initial config
   const [weatherZones, setWeatherZones] = useState("");
@@ -124,7 +66,6 @@ export function CreateTenantForm() {
         name: name.trim(),
         slug: slug.trim(),
         displayName: displayName.trim() || undefined,
-        tier,
       });
 
       // Redirect to the new tenant's detail page
@@ -187,51 +128,6 @@ export function CreateTenantForm() {
             <p className="text-xs text-muted-foreground">
               Optional. Shown in the UI instead of the name.
             </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Tier Selection */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Subscription Tier</CardTitle>
-          <CardDescription>
-            Select the features and limits for this tenant
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-2">
-            {(Object.entries(TIER_FEATURES) as [TenantTier, typeof TIER_FEATURES["free"]][]).map(
-              ([tierKey, tierInfo]) => (
-                <button
-                  key={tierKey}
-                  type="button"
-                  onClick={() => setTier(tierKey)}
-                  className={cn(
-                    "flex flex-col h-full p-4 border rounded-lg text-left transition-colors hover:bg-accent",
-                    tier === tierKey && "border-primary ring-1 ring-primary"
-                  )}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-semibold">{tierInfo.name}</span>
-                    {tier === tierKey && (
-                      <Badge variant="default" className="ml-2">Selected</Badge>
-                    )}
-                  </div>
-                  <p className="text-sm text-muted-foreground mb-3">
-                    {tierInfo.description}
-                  </p>
-                  <ul className="text-sm space-y-1">
-                    {tierInfo.features.map((feature) => (
-                      <li key={feature} className="flex items-center gap-2">
-                        <Check className="h-3 w-3 text-green-600" />
-                        {feature}
-                      </li>
-                    ))}
-                  </ul>
-                </button>
-              )
-            )}
           </div>
         </CardContent>
       </Card>

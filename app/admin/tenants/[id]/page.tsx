@@ -10,13 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Table,
   TableBody,
   TableCell,
@@ -40,8 +33,6 @@ import { TenantDetailHeader } from "@/components/admin/TenantDetailHeader";
 import { TenantConfigSection } from "@/components/admin/TenantConfigSection";
 import { DeleteTenantDialog } from "@/components/admin/DeleteTenantDialog";
 
-type TenantTier = "free" | "starter" | "professional" | "enterprise";
-
 export default function TenantDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -60,12 +51,10 @@ export default function TenantDetailPage() {
 
   const [isSuspending, setIsSuspending] = useState(false);
   const [isReactivating, setIsReactivating] = useState(false);
-  const [isChangingTier, setIsChangingTier] = useState(false);
   const [syncingType, setSyncingType] = useState<string | null>(null);
 
   const suspendTenant = useMutation(api.admin.suspendTenant);
   const reactivateTenant = useMutation(api.admin.reactivateTenant);
-  const updateTenantTier = useMutation(api.admin.updateTenantTier);
   const triggerSync = useAction(api.admin.triggerTenantSync);
 
   if (tenant === undefined) {
@@ -105,17 +94,6 @@ export default function TenantDetailPage() {
       console.error("Failed to reactivate tenant:", error);
     } finally {
       setIsReactivating(false);
-    }
-  };
-
-  const handleTierChange = async (newTier: TenantTier) => {
-    setIsChangingTier(true);
-    try {
-      await updateTenantTier({ tenantId: tenant._id, tier: newTier });
-    } catch (error) {
-      console.error("Failed to change tier:", error);
-    } finally {
-      setIsChangingTier(false);
     }
   };
 
@@ -457,33 +435,6 @@ export default function TenantDetailPage() {
                   Sync Unit Legend
                 </Button>
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Change Tier */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Subscription Tier</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <Select
-                value={tenant.tier}
-                onValueChange={(v) => handleTierChange(v as TenantTier)}
-                disabled={isChangingTier}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="free">Free</SelectItem>
-                  <SelectItem value="starter">Starter</SelectItem>
-                  <SelectItem value="professional">Professional</SelectItem>
-                  <SelectItem value="enterprise">Enterprise</SelectItem>
-                </SelectContent>
-              </Select>
-              {isChangingTier && (
-                <p className="text-xs text-muted-foreground">Updating tier...</p>
-              )}
             </CardContent>
           </Card>
 

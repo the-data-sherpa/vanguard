@@ -9,14 +9,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Plus } from "lucide-react";
 import Link from "next/link";
 import { TenantOverviewTable } from "@/components/admin/TenantOverviewTable";
-import { TenantFilters, TenantStatus, TenantTier } from "@/components/admin/TenantFilters";
+import { TenantFilters, TenantStatus, SubscriptionFilter } from "@/components/admin/TenantFilters";
 
 export default function TenantsListPage() {
   const tenants = useQuery(api.admin.listAllTenants);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<TenantStatus>("all");
-  const [tierFilter, setTierFilter] = useState<TenantTier>("all");
+  const [subscriptionFilter, setSubscriptionFilter] = useState<SubscriptionFilter>("all");
 
   // Filter tenants based on search and filters
   const filteredTenants = useMemo(() => {
@@ -39,14 +39,14 @@ export default function TenantsListPage() {
         return false;
       }
 
-      // Tier filter
-      if (tierFilter !== "all" && tenant.tier !== tierFilter) {
+      // Subscription filter
+      if (subscriptionFilter !== "all" && tenant.subscriptionStatus !== subscriptionFilter) {
         return false;
       }
 
       return true;
     });
-  }, [tenants, search, statusFilter, tierFilter]);
+  }, [tenants, search, statusFilter, subscriptionFilter]);
 
   if (tenants === undefined) {
     return <TenantsListSkeleton />;
@@ -78,8 +78,8 @@ export default function TenantsListPage() {
             onSearchChange={setSearch}
             status={statusFilter}
             onStatusChange={setStatusFilter}
-            tier={tierFilter}
-            onTierChange={setTierFilter}
+            subscription={subscriptionFilter}
+            onSubscriptionChange={setSubscriptionFilter}
           />
         </CardContent>
       </Card>

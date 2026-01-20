@@ -11,15 +11,15 @@ import {
 } from "@/components/ui/select";
 
 export type TenantStatus = "all" | "active" | "suspended" | "pending_deletion";
-export type TenantTier = "all" | "free" | "starter" | "professional" | "enterprise";
+export type SubscriptionFilter = "all" | "trialing" | "active" | "past_due" | "canceled" | "expired";
 
 interface TenantFiltersProps {
   search: string;
   onSearchChange: (value: string) => void;
   status: TenantStatus;
   onStatusChange: (value: TenantStatus) => void;
-  tier: TenantTier;
-  onTierChange: (value: TenantTier) => void;
+  subscription: SubscriptionFilter;
+  onSubscriptionChange: (value: SubscriptionFilter) => void;
 }
 
 export function TenantFilters({
@@ -27,8 +27,8 @@ export function TenantFilters({
   onSearchChange,
   status,
   onStatusChange,
-  tier,
-  onTierChange,
+  subscription,
+  onSubscriptionChange,
 }: TenantFiltersProps) {
   return (
     <div className="flex flex-col sm:flex-row gap-4">
@@ -56,17 +56,18 @@ export function TenantFilters({
         </SelectContent>
       </Select>
 
-      {/* Tier Filter */}
-      <Select value={tier} onValueChange={(v) => onTierChange(v as TenantTier)}>
+      {/* Subscription Filter */}
+      <Select value={subscription} onValueChange={(v) => onSubscriptionChange(v as SubscriptionFilter)}>
         <SelectTrigger className="w-[160px]">
-          <SelectValue placeholder="Tier" />
+          <SelectValue placeholder="Subscription" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">All Tiers</SelectItem>
-          <SelectItem value="free">Free</SelectItem>
-          <SelectItem value="starter">Starter</SelectItem>
-          <SelectItem value="professional">Professional</SelectItem>
-          <SelectItem value="enterprise">Enterprise</SelectItem>
+          <SelectItem value="all">All Subscriptions</SelectItem>
+          <SelectItem value="active">Subscribed</SelectItem>
+          <SelectItem value="trialing">Trial</SelectItem>
+          <SelectItem value="past_due">Past Due</SelectItem>
+          <SelectItem value="expired">Expired</SelectItem>
+          <SelectItem value="canceled">Canceled</SelectItem>
         </SelectContent>
       </Select>
     </div>
