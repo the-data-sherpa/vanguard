@@ -412,6 +412,222 @@ export const updateTenantTier = mutation({
 });
 
 /**
+ * Schedule tenant for deletion
+ * Sets status to pending_deletion and schedules permanent deletion for 30 days from now
+ */
+export const scheduleTenantDeletion = mutation({
+  args: {
+    tenantId: v.id("tenants"),
+    reason: v.optional(v.string()),
+  },
+  handler: async (ctx, { tenantId, reason }) => {
+    const admin = await requirePlatformAdmin(ctx);
+
+    const tenant = await ctx.db.get(tenantId);
+    if (!tenant) {
+      throw new Error("Tenant not found");
+    }
+
+    if (tenant.status === "pending_deletion") {
+      throw new Error("Tenant is already scheduled for deletion");
+    }
+
+    const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+    const deletionScheduledAt = Date.now() + THIRTY_DAYS_MS;
+
+    // Store previous status so we can restore if cancelled
+    const previousStatus = tenant.status;
+
+    await ctx.db.patch(tenantId, {
+      status: "pending_deletion",
+      deletionScheduledAt,
+      deactivatedAt: Date.now(),
+      deactivatedReason: reason || `Scheduled for deletion (was: ${previousStatus})`,
+    });
+
+    // Log to audit
+    await ctx.db.insert("auditLogs", {
+      tenantId,
+      actorId: admin._id,
+      actorType: "user",
+      action: "tenant.schedule_deletion",
+      targetType: "tenant",
+      targetId: tenantId,
+      details: { reason, previousStatus, deletionScheduledAt },
+      result: "success",
+    });
+  },
+});
+
+/**
+ * Cancel scheduled tenant deletion
+ * Restores tenant to active status
+ */
+export const cancelTenantDeletion = mutation({
+  args: {
+    tenantId: v.id("tenants"),
+  },
+  handler: async (ctx, { tenantId }) => {
+    const admin = await requirePlatformAdmin(ctx);
+
+    const tenant = await ctx.db.get(tenantId);
+    if (!tenant) {
+      throw new Error("Tenant not found");
+    }
+
+    if (tenant.status !== "pending_deletion") {
+      throw new Error("Tenant is not scheduled for deletion");
+    }
+
+    await ctx.db.patch(tenantId, {
+      status: "active",
+      deletionScheduledAt: undefined,
+      deactivatedAt: undefined,
+      deactivatedReason: undefined,
+    });
+
+    // Log to audit
+    await ctx.db.insert("auditLogs", {
+      tenantId,
+      actorId: admin._id,
+      actorType: "user",
+      action: "tenant.cancel_deletion",
+      targetType: "tenant",
+      targetId: tenantId,
+      result: "success",
+    });
+  },
+});
+
+/**
+ * Update tenant feature flags (platform admin override)
+ */
+export const updateTenantFeatures = mutation({
+  args: {
+    tenantId: v.id("tenants"),
+    features: v.object({
+      facebook: v.optional(v.boolean()),
+      twitter: v.optional(v.boolean()),
+      instagram: v.optional(v.boolean()),
+      discord: v.optional(v.boolean()),
+      weatherAlerts: v.optional(v.boolean()),
+      userSubmissions: v.optional(v.boolean()),
+      forum: v.optional(v.boolean()),
+      customBranding: v.optional(v.boolean()),
+      apiAccess: v.optional(v.boolean()),
+      advancedAnalytics: v.optional(v.boolean()),
+    }),
+  },
+  handler: async (ctx, { tenantId, features }) => {
+    const admin = await requirePlatformAdmin(ctx);
+
+    const tenant = await ctx.db.get(tenantId);
+    if (!tenant) {
+      throw new Error("Tenant not found");
+    }
+
+    // Merge new features with existing
+    const updatedFeatures = {
+      ...tenant.features,
+      ...features,
+    };
+
+    await ctx.db.patch(tenantId, {
+      features: updatedFeatures,
+    });
+
+    // Log to audit
+    await ctx.db.insert("auditLogs", {
+      tenantId,
+      actorId: admin._id,
+      actorType: "user",
+      action: "tenant.features_update",
+      targetType: "tenant",
+      targetId: tenantId,
+      details: { features },
+      result: "success",
+    });
+  },
+});
+
+/**
+ * Get all tenants scheduled for deletion (for cron job)
+ */
+export const getTenantsScheduledForDeletion = query({
+  args: {},
+  handler: async (ctx) => {
+    const admin = await getCurrentPlatformAdmin(ctx);
+    if (!admin) {
+      return [];
+    }
+
+    const now = Date.now();
+
+    // Get tenants that are pending deletion and past their deletion date
+    const tenants = await ctx.db
+      .query("tenants")
+      .withIndex("by_status", (q) => q.eq("status", "pending_deletion"))
+      .collect();
+
+    return tenants.filter(
+      (t) => t.deletionScheduledAt && t.deletionScheduledAt <= now
+    );
+  },
+});
+
+/**
+ * Get users for a specific tenant (admin view)
+ */
+export const getTenantUsers = query({
+  args: { tenantId: v.id("tenants") },
+  handler: async (ctx, { tenantId }) => {
+    const admin = await getCurrentPlatformAdmin(ctx);
+    if (!admin) {
+      return [];
+    }
+
+    const users = await ctx.db
+      .query("users")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId))
+      .collect();
+
+    return users.map((u) => ({
+      _id: u._id,
+      email: u.email,
+      name: u.name,
+      tenantRole: u.tenantRole,
+      isActive: u.isActive,
+      isBanned: u.isBanned,
+      lastLoginAt: u.lastLoginAt,
+    }));
+  },
+});
+
+/**
+ * Get recent audit logs for a tenant
+ */
+export const getTenantAuditLogs = query({
+  args: {
+    tenantId: v.id("tenants"),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, { tenantId, limit = 50 }) => {
+    const admin = await getCurrentPlatformAdmin(ctx);
+    if (!admin) {
+      return [];
+    }
+
+    const logs = await ctx.db
+      .query("auditLogs")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId))
+      .order("desc")
+      .take(limit);
+
+    return logs;
+  },
+});
+
+/**
  * Trigger immediate sync for a tenant
  * This is an action because it calls other actions
  */

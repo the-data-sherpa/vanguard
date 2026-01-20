@@ -116,6 +116,16 @@ export const listActive = query({
 });
 
 /**
+ * List all tenants (for admin/maintenance jobs)
+ */
+export const listAll = query({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.db.query("tenants").collect();
+  },
+});
+
+/**
  * Get tenant stats for dashboard
  */
 export const getStats = query({

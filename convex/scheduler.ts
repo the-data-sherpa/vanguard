@@ -96,6 +96,7 @@ type DailyCleanupTickResult = {
   expiredAlerts: unknown;
   oldIncidents: unknown;
   unitLegends: unknown;
+  scheduledDeletions: unknown;
 };
 
 /**
@@ -105,6 +106,7 @@ type DailyCleanupTickResult = {
  * - Cleanup expired weather alerts (24 hours old)
  * - Delete old incidents (30-day retention)
  * - Sync unit legends from PulsePoint
+ * - Process scheduled tenant deletions (30-day grace period)
  */
 export const dailyCleanupTick = internalAction({
   args: {},
@@ -113,7 +115,7 @@ export const dailyCleanupTick = internalAction({
     console.log("[DAILY_CLEANUP] Tick started");
 
     // Run all daily cleanup tasks in parallel
-    const [expiredAlertsResult, oldIncidentsResult, unitLegendsResult] = await Promise.all([
+    const [expiredAlertsResult, oldIncidentsResult, unitLegendsResult, scheduledDeletionsResult] = await Promise.all([
       // 1. Cleanup expired weather alerts
       ctx.runAction(internal.maintenance.cleanupExpiredAlerts).catch((error) => {
         console.error("[DAILY_CLEANUP] Expired alerts cleanup failed:", error);
@@ -131,6 +133,12 @@ export const dailyCleanupTick = internalAction({
         console.error("[DAILY_CLEANUP] Unit legend sync failed:", error);
         return { error: String(error) };
       }),
+
+      // 4. Process scheduled tenant deletions
+      ctx.runAction(internal.maintenance.processScheduledDeletions).catch((error) => {
+        console.error("[DAILY_CLEANUP] Scheduled deletions failed:", error);
+        return { error: String(error) };
+      }),
     ]);
 
     const duration = Date.now() - startTime;
@@ -141,6 +149,7 @@ export const dailyCleanupTick = internalAction({
       expiredAlerts: expiredAlertsResult,
       oldIncidents: oldIncidentsResult,
       unitLegends: unitLegendsResult,
+      scheduledDeletions: scheduledDeletionsResult,
     };
   },
 });

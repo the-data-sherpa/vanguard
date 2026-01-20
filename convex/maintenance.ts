@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { internalAction, internalMutation } from "./_generated/server";
 import { internal, api } from "./_generated/api";
-import { Doc } from "./_generated/dataModel";
+import { Doc, Id } from "./_generated/dataModel";
 
 /**
  * Close stale incidents for all tenants
@@ -224,5 +224,161 @@ export const cleanupOldIncidents = internalAction({
     console.log(`[Maintenance] 30-day cleanup complete: ${totalIncidentsDeleted} incidents, ${totalNotesDeleted} notes, ${totalGroupsDeleted} groups deleted`);
 
     return { totalIncidentsDeleted, totalNotesDeleted, totalGroupsDeleted };
+  },
+});
+
+/**
+ * Permanently delete a tenant and all associated data
+ * This is irreversible and should only be called after the deletion grace period
+ */
+export const permanentlyDeleteTenant = internalMutation({
+  args: {
+    tenantId: v.id("tenants"),
+  },
+  handler: async (ctx, { tenantId }) => {
+    const tenant = await ctx.db.get(tenantId);
+    if (!tenant) {
+      console.log(`[Maintenance] Tenant ${tenantId} not found, skipping deletion`);
+      return { success: false, reason: "Tenant not found" };
+    }
+
+    // Safety check - only delete if status is pending_deletion
+    if (tenant.status !== "pending_deletion") {
+      console.log(`[Maintenance] Tenant ${tenantId} is not pending deletion (status: ${tenant.status}), skipping`);
+      return { success: false, reason: "Tenant not in pending_deletion status" };
+    }
+
+    console.log(`[Maintenance] Permanently deleting tenant ${tenant.slug} (${tenantId})`);
+
+    let incidentsDeleted = 0;
+    let notesDeleted = 0;
+    let groupsDeleted = 0;
+    let alertsDeleted = 0;
+    let auditLogsDeleted = 0;
+    let usersUpdated = 0;
+
+    // 1. Delete all incident notes
+    const notes = await ctx.db
+      .query("incidentNotes")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId))
+      .collect();
+    for (const note of notes) {
+      await ctx.db.delete(note._id);
+      notesDeleted++;
+    }
+
+    // 2. Delete all incident groups
+    const groups = await ctx.db
+      .query("incidentGroups")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId))
+      .collect();
+    for (const group of groups) {
+      await ctx.db.delete(group._id);
+      groupsDeleted++;
+    }
+
+    // 3. Delete all incidents
+    const incidents = await ctx.db
+      .query("incidents")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId))
+      .collect();
+    for (const incident of incidents) {
+      await ctx.db.delete(incident._id);
+      incidentsDeleted++;
+    }
+
+    // 4. Delete all weather alerts
+    const alerts = await ctx.db
+      .query("weatherAlerts")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId))
+      .collect();
+    for (const alert of alerts) {
+      await ctx.db.delete(alert._id);
+      alertsDeleted++;
+    }
+
+    // 5. Delete audit logs for this tenant
+    const auditLogs = await ctx.db
+      .query("auditLogs")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId))
+      .collect();
+    for (const log of auditLogs) {
+      await ctx.db.delete(log._id);
+      auditLogsDeleted++;
+    }
+
+    // 6. Remove tenantId from users (don't delete users, just disassociate)
+    const users = await ctx.db
+      .query("users")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId))
+      .collect();
+    for (const user of users) {
+      await ctx.db.patch(user._id, {
+        tenantId: undefined,
+        tenantRole: undefined,
+      });
+      usersUpdated++;
+    }
+
+    // 7. Delete the tenant record
+    await ctx.db.delete(tenantId);
+
+    console.log(
+      `[Maintenance] Tenant ${tenant.slug} permanently deleted: ` +
+      `${incidentsDeleted} incidents, ${notesDeleted} notes, ${groupsDeleted} groups, ` +
+      `${alertsDeleted} alerts, ${auditLogsDeleted} audit logs, ${usersUpdated} users disassociated`
+    );
+
+    return {
+      success: true,
+      deleted: {
+        incidents: incidentsDeleted,
+        notes: notesDeleted,
+        groups: groupsDeleted,
+        alerts: alertsDeleted,
+        auditLogs: auditLogsDeleted,
+        usersDisassociated: usersUpdated,
+      },
+    };
+  },
+});
+
+/**
+ * Process all tenants scheduled for deletion
+ * Called by daily cron job
+ */
+export const processScheduledDeletions = internalAction({
+  args: {},
+  handler: async (ctx): Promise<{ processedCount: number; deletedCount: number }> => {
+    const now = Date.now();
+    let deletedCount = 0;
+
+    // Get all tenants in pending_deletion status
+    const allTenants: Doc<"tenants">[] = await ctx.runQuery(api.tenants.listAll);
+    const pendingDeletion: Doc<"tenants">[] = allTenants.filter(
+      (t) =>
+        t.status === "pending_deletion" &&
+        t.deletionScheduledAt &&
+        t.deletionScheduledAt <= now
+    );
+
+    console.log(`[Maintenance] Found ${pendingDeletion.length} tenants ready for permanent deletion`);
+
+    for (const tenant of pendingDeletion) {
+      try {
+        const result = await ctx.runMutation(internal.maintenance.permanentlyDeleteTenant, {
+          tenantId: tenant._id,
+        });
+        if (result.success) {
+          deletedCount++;
+        }
+      } catch (error) {
+        console.error(`[Maintenance] Failed to delete tenant ${tenant._id}:`, error);
+      }
+    }
+
+    console.log(`[Maintenance] Scheduled deletion processing complete: ${deletedCount} tenants deleted`);
+
+    return { processedCount: pendingDeletion.length, deletedCount };
   },
 });

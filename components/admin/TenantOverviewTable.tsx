@@ -13,6 +13,7 @@ import {
   Loader2,
   CloudRain,
   Radio,
+  Settings,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -134,6 +135,8 @@ export function TenantOverviewTable({
         return <Badge variant="secondary">Pending</Badge>;
       case "deactivated":
         return <Badge variant="secondary">Deactivated</Badge>;
+      case "pending_deletion":
+        return <Badge variant="destructive" className="bg-orange-600">Pending Deletion</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -223,9 +226,15 @@ export function TenantOverviewTable({
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem asChild>
+                        <Link href={`/admin/tenants/${tenant._id}`}>
+                          <Settings className="mr-2 h-4 w-4" />
+                          Manage
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
                         <Link href={`/tenant/${tenant.slug}`}>
                           <Eye className="mr-2 h-4 w-4" />
-                          View Tenant
+                          View as User
                         </Link>
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
