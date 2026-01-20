@@ -67,6 +67,7 @@ export default function BillingPage() {
 
   const statusInfo = getSubscriptionStatusInfo(subscriptionStatus?.status);
   const returnUrl = typeof window !== "undefined" ? window.location.href : "";
+  const isProBono = subscriptionStatus?.status === "pro_bono";
 
   const handleSubscribe = async () => {
     if (!tenant?._id) return;
@@ -178,9 +179,17 @@ export default function BillingPage() {
                   ? "secondary"
                   : statusInfo.color === "red"
                   ? "destructive"
+                  : statusInfo.color === "purple"
+                  ? "default"
                   : "outline"
               }
-              className={statusInfo.color === "green" ? "bg-green-600" : ""}
+              className={
+                statusInfo.color === "green"
+                  ? "bg-green-600"
+                  : statusInfo.color === "purple"
+                  ? "bg-purple-600"
+                  : ""
+              }
             >
               {statusInfo.label}
             </Badge>
@@ -188,6 +197,21 @@ export default function BillingPage() {
           <CardDescription>{statusInfo.description}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Pro Bono Status */}
+          {isProBono && (
+            <div className="flex items-center gap-3 p-4 bg-purple-50 dark:bg-purple-950/30 rounded-lg border border-purple-200 dark:border-purple-800">
+              <CheckCircle className="h-5 w-5 text-purple-600" />
+              <div>
+                <p className="font-medium text-purple-900 dark:text-purple-100">
+                  Complimentary Access
+                </p>
+                <p className="text-sm text-purple-700 dark:text-purple-300">
+                  Thank you for your service to the community. Enjoy full access to all Vanguard features.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Trial Status */}
           {subscriptionStatus?.isTrialing && subscriptionStatus.trialDaysRemaining !== null && (
             <div className="flex items-center gap-3 p-4 bg-amber-50 dark:bg-amber-950/30 rounded-lg border border-amber-200 dark:border-amber-800">
@@ -275,7 +299,8 @@ export default function BillingPage() {
         </CardContent>
       </Card>
 
-      {/* Pricing Card */}
+      {/* Pricing Card - Hidden for Pro Bono */}
+      {!isProBono && (
       <Card>
         <CardHeader>
           <CardTitle>Vanguard CAD Pro</CardTitle>
@@ -386,9 +411,10 @@ export default function BillingPage() {
           </div>
         </CardContent>
       </Card>
+      )}
 
-      {/* Invoice History Card */}
-      {subscriptionStatus?.hasStripeCustomer && (
+      {/* Invoice History Card - Hidden for Pro Bono */}
+      {!isProBono && subscriptionStatus?.hasStripeCustomer && (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">

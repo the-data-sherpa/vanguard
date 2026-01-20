@@ -35,7 +35,7 @@ export function getDaysRemaining(endTimestamp: number): number {
  */
 export function getSubscriptionStatusInfo(status: string | undefined): {
   label: string;
-  color: "green" | "yellow" | "red" | "gray";
+  color: "green" | "yellow" | "red" | "gray" | "purple";
   description: string;
 } {
   switch (status) {
@@ -68,6 +68,12 @@ export function getSubscriptionStatusInfo(status: string | undefined): {
         label: "Expired",
         color: "red",
         description: "Your trial has expired. Subscribe to continue using the platform.",
+      };
+    case "pro_bono":
+      return {
+        label: "Pro Bono",
+        color: "purple",
+        description: "Your organization has been granted complimentary access to Vanguard.",
       };
     default:
       return {
