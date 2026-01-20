@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as admin from "../admin.js";
 import type * as cacheHelpers from "../cacheHelpers.js";
 import type * as crons from "../crons.js";
 import type * as exports from "../exports.js";
@@ -31,6 +32,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  admin: typeof admin;
   cacheHelpers: typeof cacheHelpers;
   crons: typeof crons;
   exports: typeof exports;
