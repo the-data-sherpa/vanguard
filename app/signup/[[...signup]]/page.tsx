@@ -23,9 +23,9 @@ export default function SignUpPage() {
             </div>
           </div>
           <div className="space-y-2">
-            <h1 className="text-2xl font-bold">Signups Temporarily Paused</h1>
+            <h1 className="text-2xl font-bold">Invite Only</h1>
             <p className="text-muted-foreground">
-              We&apos;re not accepting new signups at the moment. Please check back soon or contact us for more information.
+              Vanguard is currently invite-only. If you&apos;d like to join, please contact us at support@vanguardalerts.com to request an invitation.
             </p>
           </div>
           <div className="flex flex-col gap-3">
