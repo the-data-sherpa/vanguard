@@ -58,10 +58,11 @@
 | User Preferences | ✅ Done | Timezone, email/push notifications |
 | Data Export | ✅ Done | CSV/JSON export for incidents, weather, audit |
 | Social Media | ⬜ Needed | Schema ready, logic missing |
-| User Submissions | ⬜ Needed | Schema ready, UI missing |
+| User Submissions | 🔮 Deferred | Schema ready, deprioritized |
+| Moderation Queue | 🔮 Deferred | Depends on submissions |
 | Interactive Map | ⬜ Needed | Not started |
 | Analytics | ⬜ Needed | Not started |
-| Platform Admin | ⬜ Needed | Partial - needs full UI |
+| Platform Admin | ✅ Done | Dashboard, tenant overview, health monitoring |
 
 ---
 
@@ -150,43 +151,73 @@
 
 ---
 
-## Phase 2: User-Facing Features
+## Phase 2: Platform Administration
 
-**Goal**: Enable community participation and engagement
+**Goal**: Tools for managing the entire platform
 
-### Block 2A: User Submissions
+### Block 2A: Platform Admin Dashboard ✅ COMPLETE
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Admin route (/admin) with platform_admin role gate | ✅ Done | PlatformAdminGuard checks user.role |
+| All tenants overview (status, tier, last activity) | ✅ Done | TenantOverviewTable with actions |
+| Platform-wide stats (total incidents, users, alerts) | ✅ Done | Stats grid on dashboard |
+| System health monitoring (sync status, error rates) | ✅ Done | SystemHealthCard flags stale syncs |
+| Quick actions (suspend tenant, trigger sync) | ✅ Done | Row actions with confirmation dialogs |
+
+**Files created:**
+- `convex/admin.ts` - Authorization helpers, queries (listAllTenants, getPlatformStats, getSystemHealth, getTenantDetails), mutations (suspendTenant, reactivateTenant, updateTenantTier, triggerTenantSync)
+- `components/admin/PlatformAdminGuard.tsx` - Access guard for platform_admin role
+- `components/admin/TenantOverviewTable.tsx` - Table with suspend/reactivate/sync actions
+- `components/admin/SystemHealthCard.tsx` - Shows operational status or stale syncs
+- `components/admin/index.ts` - Component exports
+- `components/layout/AdminLayout.tsx` - Admin navigation header
+- `app/admin/layout.tsx` - Route layout with guard
+- `app/admin/page.tsx` - Dashboard with stats, health, tenant overview
+
+**Security note:** All admin queries/mutations validate platform_admin role in Convex backend. Admin actions are logged to auditLogs. Platform admins see aggregate stats only (no automatic tenant data access).
+
+**Deferred to Block 2B:** User impersonation, full tenant details page, tenant creation wizard
+
+### Block 2B: Tenant Lifecycle Management
 
 | Task | Priority | Complexity |
 |------|----------|------------|
-| Public incident submission form | 🟠 Medium | Medium |
-| Photo/media upload with Convex file storage | 🟠 Medium | Medium |
-| Location picker (address autocomplete or map pin) | 🟠 Medium | Medium |
-| Submission confirmation & tracking | 🟡 Low | Low |
-| Rate limiting for submissions | 🟡 Low | Low |
+| Tenant creation wizard | 🟠 Medium | Medium |
+| Tenant suspension/reactivation | 🟠 Medium | Low |
+| Tenant deletion (soft delete → scheduled purge) | 🟠 Medium | Medium |
+| Tier upgrades/downgrades | 🟡 Low | Low |
+| Feature flag overrides | 🟡 Low | Low |
 
 **Files to create/modify:**
-- `app/tenant/[slug]/submit/page.tsx`
-- `components/submissions/SubmitIncidentForm.tsx`
-- `components/submissions/LocationPicker.tsx`
-- `convex/submissions.ts`
+- `app/admin/tenants/page.tsx`
+- `app/admin/tenants/new/page.tsx`
+- `app/admin/tenants/[id]/page.tsx`
+- `convex/tenants.ts` (add lifecycle mutations)
 
-### Block 2B: Moderation Queue
+### Block 2C: Billing & Subscriptions
 
 | Task | Priority | Complexity |
 |------|----------|------------|
-| Moderation dashboard (pending submissions list) | 🟠 Medium | Medium |
-| Approve/reject workflow with reasons | 🟠 Medium | Low |
-| Edit before publish capability | 🟡 Low | Medium |
-| Auto-approve rules (trusted users, low-risk types) | 🟡 Low | Medium |
-| Moderation audit log | 🟡 Low | Low |
+| Stripe integration | 🟡 Low | High |
+| Subscription plans (free, starter, pro, enterprise) | 🟡 Low | Medium |
+| Usage tracking against limits | 🟡 Low | Medium |
+| Invoice history | 🟡 Low | Low |
+| Upgrade prompts when hitting limits | 🟡 Low | Low |
 
 **Files to create/modify:**
-- `app/tenant/[slug]/moderation/page.tsx`
-- `components/moderation/ModerationQueue.tsx`
-- `components/moderation/ModerationActions.tsx`
-- `convex/moderation.ts`
+- `app/tenant/[slug]/billing/page.tsx`
+- `app/admin/billing/page.tsx`
+- `convex/billing.ts`
+- `convex/stripe.ts`
 
-### Block 2C: Social Media Integration
+---
+
+## Phase 3: Social Media Integration
+
+**Goal**: Enable automated incident sharing
+
+### Block 3A: Social Media Integration
 
 | Task | Priority | Complexity |
 |------|----------|------------|
@@ -204,16 +235,16 @@
 
 ---
 
-## Phase 3: Visualization & Analytics
+## Phase 4: Visualization & Analytics
 
 **Goal**: Help tenants understand their data
 
-### Block 3A: Interactive Map
+### Block 4A: Interactive Map
 
 | Task | Priority | Complexity |
 |------|----------|------------|
-| Map component (Leaflet or Mapbox) | 🟠 Medium | Medium |
-| Real-time incident markers with clustering | 🟠 Medium | Medium |
+| Map component (Leaflet or Mapbox) | 🟡 Low | Medium |
+| Real-time incident markers with clustering | 🟡 Low | Medium |
 | Weather alert overlays (polygon zones) | 🟡 Low | High |
 | Historical heatmap view | 🟡 Low | Medium |
 | Filter by type/time on map | 🟡 Low | Low |
@@ -224,12 +255,12 @@
 - `components/map/WeatherOverlay.tsx`
 - `components/map/MapFilters.tsx`
 
-### Block 3B: Analytics Dashboard
+### Block 4B: Analytics Dashboard
 
 | Task | Priority | Complexity |
 |------|----------|------------|
-| Incident trends over time (line charts) | 🟠 Medium | Medium |
-| Call type distribution (pie/bar charts) | 🟠 Medium | Low |
+| Incident trends over time (line charts) | 🟡 Low | Medium |
+| Call type distribution (pie/bar charts) | 🟡 Low | Low |
 | Busiest times analysis (hour/day heatmap) | 🟡 Low | Medium |
 | Unit utilization metrics | 🟡 Low | Medium |
 | Response time tracking (if data available) | 🟡 Low | Medium |
@@ -244,58 +275,41 @@
 
 ---
 
-## Phase 4: Platform Administration
+## Far Future: Community Features
 
-**Goal**: Tools for managing the entire platform
+**Goal**: Enable community participation (deferred - not needed for initial launch)
 
-### Block 4A: Platform Admin Dashboard
-
-| Task | Priority | Complexity |
-|------|----------|------------|
-| Admin route (/admin) with platform_admin role gate | 🟢 Low | Low |
-| All tenants overview (status, tier, last activity) | 🟢 Low | Medium |
-| Platform-wide stats (total incidents, users, alerts) | 🟢 Low | Low |
-| System health monitoring (sync status, error rates) | 🟢 Low | Medium |
-| Quick actions (suspend tenant, impersonate user) | 🟢 Low | Medium |
-
-**Files to create/modify:**
-- `app/admin/page.tsx`
-- `app/admin/layout.tsx`
-- `components/admin/TenantOverview.tsx`
-- `components/admin/SystemHealth.tsx`
-- `convex/admin.ts`
-
-### Block 4B: Tenant Lifecycle Management
+### User Submissions
 
 | Task | Priority | Complexity |
 |------|----------|------------|
-| Tenant creation wizard | 🟢 Low | Medium |
-| Tenant suspension/reactivation | 🟢 Low | Low |
-| Tenant deletion (soft delete → scheduled purge) | 🟢 Low | Medium |
-| Tier upgrades/downgrades | 🟢 Low | Low |
-| Feature flag overrides | 🟢 Low | Low |
+| Public incident submission form | 🔮 Deferred | Medium |
+| Photo/media upload with Convex file storage | 🔮 Deferred | Medium |
+| Location picker (address autocomplete or map pin) | 🔮 Deferred | Medium |
+| Submission confirmation & tracking | 🔮 Deferred | Low |
+| Rate limiting for submissions | 🔮 Deferred | Low |
 
 **Files to create/modify:**
-- `app/admin/tenants/page.tsx`
-- `app/admin/tenants/new/page.tsx`
-- `app/admin/tenants/[id]/page.tsx`
-- `convex/tenants.ts` (add lifecycle mutations)
+- `app/tenant/[slug]/submit/page.tsx`
+- `components/submissions/SubmitIncidentForm.tsx`
+- `components/submissions/LocationPicker.tsx`
+- `convex/submissions.ts`
 
-### Block 4C: Billing & Subscriptions
+### Moderation Queue
 
 | Task | Priority | Complexity |
 |------|----------|------------|
-| Stripe integration | 🟢 Low | High |
-| Subscription plans (free, starter, pro, enterprise) | 🟢 Low | Medium |
-| Usage tracking against limits | 🟢 Low | Medium |
-| Invoice history | 🟢 Low | Low |
-| Upgrade prompts when hitting limits | 🟢 Low | Low |
+| Moderation dashboard (pending submissions list) | 🔮 Deferred | Medium |
+| Approve/reject workflow with reasons | 🔮 Deferred | Low |
+| Edit before publish capability | 🔮 Deferred | Medium |
+| Auto-approve rules (trusted users, low-risk types) | 🔮 Deferred | Medium |
+| Moderation audit log | 🔮 Deferred | Low |
 
 **Files to create/modify:**
-- `app/tenant/[slug]/billing/page.tsx`
-- `app/admin/billing/page.tsx`
-- `convex/billing.ts`
-- `convex/stripe.ts`
+- `app/tenant/[slug]/moderation/page.tsx`
+- `components/moderation/ModerationQueue.tsx`
+- `components/moderation/ModerationActions.tsx`
+- `convex/moderation.ts`
 
 ---
 
@@ -305,12 +319,13 @@
 |----------|-------|-----------|
 | 🔴 1 | **1A: Auth & Users** | Can't go live without login |
 | 🔴 2 | **1B: Tenant Settings** | Completes the admin experience |
-| 🟠 3 | **2C: Social Media** | High value for existing ICAW users |
-| 🟠 4 | **1C: Incident Enhancements** | Quality of life improvements |
-| 🟡 5 | **2A + 2B: Submissions** | Community engagement |
-| 🟡 6 | **3A: Map** | Visual appeal, differentiation |
-| 🟢 7 | **3B: Analytics** | Nice-to-have for launch |
-| 🟢 8 | **4A-C: Platform Admin** | Can manage manually initially |
+| 🔴 3 | **1C: Incident Enhancements** | Quality of life improvements |
+| 🟠 4 | **2A: Platform Admin Dashboard** | Needed for tenant management |
+| 🟠 5 | **2B: Tenant Lifecycle** | Create/suspend/delete tenants |
+| 🟠 6 | **3A: Social Media** | High value for existing ICAW users |
+| 🟡 7 | **4A: Map** | Visual appeal, differentiation |
+| 🟡 8 | **4B: Analytics** | Nice-to-have for launch |
+| 🟢 9 | **2C: Billing** | Can invoice manually initially |
 
 ---
 
@@ -345,45 +360,41 @@ Block 1A (Auth)
     │
     ├──► Block 1B (Settings) - needs user context
     │
-    ├──► Block 2A (Submissions) - needs authenticated users
-    │
-    ├──► Block 2B (Moderation) - needs role-based access
-    │
-    └──► Block 4A (Platform Admin) - needs platform_admin role
+    └──► Block 2A (Platform Admin) - needs platform_admin role
+             │
+             └──► Block 2B (Tenant Lifecycle) - needs admin dashboard
 
 Block 1C (Incidents)
     │
-    ├──► Block 2C (Social) - posts incidents to Facebook
+    ├──► Block 3A (Social) - posts incidents to Facebook
     │
-    ├──► Block 3A (Map) - displays incidents on map
+    ├──► Block 4A (Map) - displays incidents on map
     │
-    └──► Block 3B (Analytics) - analyzes incident data
-
-Block 2A (Submissions)
-    │
-    └──► Block 2B (Moderation) - moderates submissions
+    └──► Block 4B (Analytics) - analyzes incident data
 ```
 
 ---
 
 ## Milestones
 
-### MVP Launch (Blocks 1A + 1B)
+### MVP Launch (Blocks 1A + 1B + 1C)
 - Users can log in
 - Admins can configure their tenant
 - Real-time incident and weather display works
-- Basic tenant management
+- Advanced incident filtering and detail views
 
-### Community Launch (+ Blocks 2A, 2B, 2C)
-- User submissions enabled
-- Moderation workflow active
+### Platform Admin Launch (+ Blocks 2A + 2B)
+- Platform admin dashboard
+- Tenant creation/suspension/deletion
+- Full tenant lifecycle management
+
+### Social Launch (+ Block 3A)
 - Social media auto-posting
 - Full tenant self-service
 
-### Full Platform (+ Blocks 3A, 3B, 4A, 4B, 4C)
+### Full Platform (+ Blocks 4A, 4B, 2C)
 - Interactive maps
 - Analytics dashboards
-- Platform admin tools
 - Billing and subscriptions
 
 ---
@@ -395,6 +406,9 @@ Block 2A (Submissions)
 | 1.0.0 | January 2025 | Initial building block plan based on codebase assessment |
 | 1.1.0 | January 2025 | Block 1B complete - tenant settings, branding, feature toggles, preferences, export |
 | 1.2.0 | January 2025 | Block 1C complete - detail page, filtering, notes, manual creation, auto-grouping for related incidents |
+| 1.3.0 | January 2025 | Deferred User Submissions and Moderation Queue to Far Future section |
+| 1.4.0 | January 2025 | Prioritized Platform Administration to Phase 2; Social Media now Phase 3; Visualization now Phase 4 |
+| 1.5.0 | January 2025 | Block 2A complete - Platform Admin Dashboard with tenant overview, stats, health monitoring, suspend/reactivate actions |
 
 ---
 
