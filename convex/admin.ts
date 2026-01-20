@@ -500,6 +500,57 @@ export const cancelTenantDeletion = mutation({
 });
 
 /**
+ * Set or remove pro bono status for a tenant
+ * When enabled, sets subscriptionStatus to "pro_bono"
+ * When disabled, reverts to "active" status
+ */
+export const setProBono = mutation({
+  args: {
+    tenantId: v.id("tenants"),
+    enabled: v.boolean(),
+  },
+  handler: async (ctx, { tenantId, enabled }) => {
+    const admin = await requirePlatformAdmin(ctx);
+
+    const tenant = await ctx.db.get(tenantId);
+    if (!tenant) {
+      throw new Error("Tenant not found");
+    }
+
+    const previousStatus = tenant.subscriptionStatus;
+
+    if (enabled) {
+      // Set to pro_bono
+      await ctx.db.patch(tenantId, {
+        subscriptionStatus: "pro_bono",
+      });
+    } else {
+      // Revert to active (or trialing if they still have trial time)
+      const newStatus = tenant.trialEndsAt && tenant.trialEndsAt > Date.now()
+        ? "trialing"
+        : "active";
+      await ctx.db.patch(tenantId, {
+        subscriptionStatus: newStatus,
+      });
+    }
+
+    // Log to audit
+    await ctx.db.insert("auditLogs", {
+      tenantId,
+      actorId: admin._id,
+      actorType: "user",
+      action: enabled ? "tenant.pro_bono_granted" : "tenant.pro_bono_revoked",
+      targetType: "tenant",
+      targetId: tenantId,
+      details: { previousStatus, enabled },
+      result: "success",
+    });
+
+    return { success: true };
+  },
+});
+
+/**
  * Update tenant feature flags (platform admin override)
  */
 export const updateTenantFeatures = mutation({

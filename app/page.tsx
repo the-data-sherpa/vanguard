@@ -62,8 +62,8 @@ const features = [
 const integrations = [
   { name: 'PulsePoint', description: 'Real-time CAD incident data' },
   { name: 'National Weather Service', description: 'Official weather alerts' },
-  { name: 'Facebook', description: 'Community updates' },
-  { name: 'Discord', description: 'Team coordination' },
+  { name: 'Facebook', description: 'Community updates', comingSoon: true },
+  { name: 'Discord', description: 'Team coordination', comingSoon: true },
 ];
 
 export default function LandingPage() {
@@ -233,7 +233,12 @@ export default function LandingPage() {
                   <div key={integration.name} className="flex items-start gap-3 p-4 rounded-lg bg-muted/50">
                     <Check className="h-5 w-5 text-green-500 mt-0.5" />
                     <div>
-                      <div className="font-medium">{integration.name}</div>
+                      <div className="font-medium flex items-center gap-2">
+                        {integration.name}
+                        {integration.comingSoon && (
+                          <Badge variant="secondary" className="text-xs">Coming Soon</Badge>
+                        )}
+                      </div>
                       <div className="text-sm text-muted-foreground">{integration.description}</div>
                     </div>
                   </div>
@@ -241,10 +246,68 @@ export default function LandingPage() {
               </div>
             </div>
             <div className="relative">
-              <div className="aspect-video rounded-xl bg-gradient-to-br from-muted to-muted/50 border flex items-center justify-center">
-                <div className="text-center p-8">
-                  <MapPin className="h-16 w-16 mx-auto text-muted-foreground/50 mb-4" />
-                  <p className="text-muted-foreground">Live incident map preview</p>
+              <div className="aspect-video rounded-xl bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-800 dark:to-slate-900 border overflow-hidden relative">
+                {/* Mock map grid lines */}
+                <div className="absolute inset-0 opacity-20">
+                  <div className="absolute inset-0" style={{ backgroundImage: 'linear-gradient(to right, currentColor 1px, transparent 1px), linear-gradient(to bottom, currentColor 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
+                </div>
+
+                {/* Mock roads */}
+                <div className="absolute inset-0">
+                  <div className="absolute top-1/3 left-0 right-0 h-1 bg-slate-400/30 dark:bg-slate-600/30" />
+                  <div className="absolute top-2/3 left-0 right-0 h-0.5 bg-slate-400/20 dark:bg-slate-600/20" />
+                  <div className="absolute left-1/4 top-0 bottom-0 w-1 bg-slate-400/30 dark:bg-slate-600/30" />
+                  <div className="absolute left-2/3 top-0 bottom-0 w-0.5 bg-slate-400/20 dark:bg-slate-600/20" />
+                </div>
+
+                {/* Mock incident markers */}
+                <div className="absolute top-[25%] left-[20%] flex flex-col items-center">
+                  <div className="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center shadow-lg animate-pulse">
+                    <span className="text-white text-xs font-bold">🔥</span>
+                  </div>
+                  <div className="w-2 h-2 bg-red-500 rotate-45 -mt-1" />
+                </div>
+
+                <div className="absolute top-[45%] left-[55%] flex flex-col items-center">
+                  <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center shadow-lg">
+                    <span className="text-white text-xs font-bold">🚑</span>
+                  </div>
+                  <div className="w-2 h-2 bg-blue-500 rotate-45 -mt-1" />
+                </div>
+
+                <div className="absolute top-[60%] left-[35%] flex flex-col items-center">
+                  <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center shadow-lg">
+                    <span className="text-white text-xs font-bold">🚗</span>
+                  </div>
+                  <div className="w-2 h-2 bg-orange-500 rotate-45 -mt-1" />
+                </div>
+
+                <div className="absolute top-[30%] left-[75%] flex flex-col items-center">
+                  <div className="w-8 h-8 bg-yellow-500 rounded-full flex items-center justify-center shadow-lg">
+                    <span className="text-white text-xs font-bold">⚠️</span>
+                  </div>
+                  <div className="w-2 h-2 bg-yellow-500 rotate-45 -mt-1" />
+                </div>
+
+                {/* Mini legend */}
+                <div className="absolute bottom-3 left-3 bg-background/90 backdrop-blur-sm rounded-lg p-2 text-xs shadow-lg border">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-3 h-3 bg-red-500 rounded-full" />
+                    <span className="text-muted-foreground">Fire</span>
+                  </div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-3 h-3 bg-blue-500 rounded-full" />
+                    <span className="text-muted-foreground">Medical</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-orange-500 rounded-full" />
+                    <span className="text-muted-foreground">Traffic</span>
+                  </div>
+                </div>
+
+                {/* Coming Soon overlay */}
+                <div className="absolute inset-0 bg-background/60 backdrop-blur-[2px] flex items-center justify-center">
+                  <Badge variant="secondary" className="text-sm px-4 py-1.5">Coming Soon</Badge>
                 </div>
               </div>
             </div>

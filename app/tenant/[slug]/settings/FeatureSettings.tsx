@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Save, Loader2, CloudRain, Users, MessageSquare, Share2, Zap, BarChart3 } from "lucide-react";
 
 interface FeatureSettingsProps {
@@ -35,6 +36,7 @@ interface FeatureToggle {
   description: string;
   icon: React.ReactNode;
   tierRequired?: string[];
+  comingSoon?: boolean;
 }
 
 const FEATURES: FeatureToggle[] = [
@@ -63,6 +65,7 @@ const FEATURES: FeatureToggle[] = [
     description: "Auto-post incidents and alerts to Facebook",
     icon: <Share2 className="h-5 w-5" />,
     tierRequired: ["starter", "professional", "enterprise"],
+    comingSoon: true,
   },
   {
     key: "twitter",
@@ -70,6 +73,7 @@ const FEATURES: FeatureToggle[] = [
     description: "Auto-post incidents and alerts to Twitter",
     icon: <Share2 className="h-5 w-5" />,
     tierRequired: ["professional", "enterprise"],
+    comingSoon: true,
   },
   {
     key: "discord",
@@ -77,6 +81,7 @@ const FEATURES: FeatureToggle[] = [
     description: "Send notifications to Discord channels",
     icon: <Share2 className="h-5 w-5" />,
     tierRequired: ["professional", "enterprise"],
+    comingSoon: true,
   },
   {
     key: "apiAccess",
@@ -170,12 +175,13 @@ export function FeatureSettings({ tenant }: FeatureSettingsProps) {
           {FEATURES.map((feature) => {
             const available = isFeatureAvailable(feature);
             const enabled = features[feature.key];
+            const isDisabled = !available || feature.comingSoon;
 
             return (
               <div
                 key={feature.key}
                 className={`flex items-start justify-between gap-4 p-4 rounded-lg border ${
-                  !available ? "opacity-60 bg-muted/50" : ""
+                  isDisabled ? "opacity-60 bg-muted/50" : ""
                 }`}
               >
                 <div className="flex items-start gap-3">
@@ -184,11 +190,14 @@ export function FeatureSettings({ tenant }: FeatureSettingsProps) {
                     <div className="flex items-center gap-2">
                       <Label
                         htmlFor={feature.key}
-                        className={`font-medium ${!available ? "cursor-not-allowed" : "cursor-pointer"}`}
+                        className={`font-medium ${isDisabled ? "cursor-not-allowed" : "cursor-pointer"}`}
                       >
                         {feature.label}
                       </Label>
-                      {!available && (
+                      {feature.comingSoon && (
+                        <Badge variant="secondary" className="text-xs">Coming Soon</Badge>
+                      )}
+                      {!available && !feature.comingSoon && (
                         <span className="text-xs bg-muted px-2 py-0.5 rounded text-muted-foreground">
                           {feature.tierRequired?.[0]} tier
                         </span>
@@ -201,7 +210,7 @@ export function FeatureSettings({ tenant }: FeatureSettingsProps) {
                   id={feature.key}
                   checked={enabled}
                   onCheckedChange={(checked) => handleToggle(feature.key, checked)}
-                  disabled={!available}
+                  disabled={isDisabled}
                 />
               </div>
             );

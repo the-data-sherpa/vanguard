@@ -28,6 +28,7 @@ import {
   Loader2,
   Calendar,
   Clock,
+  Gift,
 } from "lucide-react";
 import { TenantDetailHeader } from "@/components/admin/TenantDetailHeader";
 import { TenantConfigSection } from "@/components/admin/TenantConfigSection";
@@ -52,9 +53,11 @@ export default function TenantDetailPage() {
   const [isSuspending, setIsSuspending] = useState(false);
   const [isReactivating, setIsReactivating] = useState(false);
   const [syncingType, setSyncingType] = useState<string | null>(null);
+  const [isTogglingProBono, setIsTogglingProBono] = useState(false);
 
   const suspendTenant = useMutation(api.admin.suspendTenant);
   const reactivateTenant = useMutation(api.admin.reactivateTenant);
+  const setProBono = useMutation(api.admin.setProBono);
   const triggerSync = useAction(api.admin.triggerTenantSync);
 
   if (tenant === undefined) {
@@ -105,6 +108,18 @@ export default function TenantDetailPage() {
       console.error("Failed to trigger sync:", error);
     } finally {
       setSyncingType(null);
+    }
+  };
+
+  const handleToggleProBono = async () => {
+    setIsTogglingProBono(true);
+    try {
+      const isCurrentlyProBono = tenant.subscriptionStatus === "pro_bono";
+      await setProBono({ tenantId: tenant._id, enabled: !isCurrentlyProBono });
+    } catch (error) {
+      console.error("Failed to toggle pro bono status:", error);
+    } finally {
+      setIsTogglingProBono(false);
     }
   };
 
@@ -389,6 +404,21 @@ export default function TenantDetailPage() {
                   Suspend Tenant
                 </Button>
               ) : null}
+
+              {/* Pro Bono Toggle */}
+              <Button
+                variant={tenant.subscriptionStatus === "pro_bono" ? "default" : "outline"}
+                className="w-full"
+                onClick={handleToggleProBono}
+                disabled={isTogglingProBono}
+              >
+                {isTogglingProBono ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Gift className="mr-2 h-4 w-4" />
+                )}
+                {tenant.subscriptionStatus === "pro_bono" ? "Remove Pro Bono" : "Grant Pro Bono"}
+              </Button>
 
               {/* Trigger Syncs */}
               <div className="space-y-2">
