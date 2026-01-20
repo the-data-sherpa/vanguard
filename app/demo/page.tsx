@@ -1,16 +1,72 @@
 "use client";
 
+import { useMemo } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import type { CallTypeCategory } from "@/lib/types";
+import type { CallTypeCategory, Incident, WeatherAlert, UnitLegend } from "@/lib/types";
 import type { DemoIncident, DemoWeatherAlert } from "@/lib/demo-types";
 import { DashboardHeader, DashboardStats } from "@/components/dashboard";
+import { IncidentList } from "@/components/incidents";
+import { WeatherAlertList } from "@/components/weather";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
-import { ChevronRight, Flame, Activity, Car, AlertTriangle, Biohazard, HelpCircle, Clock } from "lucide-react";
+import { ChevronRight, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+
+// Adapt demo incidents to the Incident type expected by shared components
+function adaptDemoIncident(demo: DemoIncident): Incident {
+  const now = new Date().toISOString();
+  return {
+    id: demo.id,
+    tenantId: "demo",
+    source: "pulsepoint",
+    callType: demo.callType,
+    callTypeCategory: demo.callTypeCategory,
+    description: demo.description,
+    fullAddress: demo.fullAddress,
+    latitude: demo.latitude,
+    longitude: demo.longitude,
+    units: demo.units,
+    status: demo.status,
+    callReceivedTime: new Date(demo.callReceivedTime).toISOString(),
+    callClosedTime: demo.callClosedTime
+      ? new Date(demo.callClosedTime).toISOString()
+      : undefined,
+    created: now,
+    updated: now,
+  };
+}
+
+// Adapt demo weather alerts to the WeatherAlert type expected by shared components
+function adaptDemoWeatherAlert(demo: DemoWeatherAlert): WeatherAlert {
+  const now = new Date().toISOString();
+  return {
+    id: demo.id,
+    tenantId: "demo",
+    nwsId: demo.id,
+    event: demo.event,
+    headline: demo.headline,
+    description: demo.description,
+    instruction: demo.instruction,
+    severity: demo.severity,
+    urgency: demo.urgency,
+    certainty: demo.certainty,
+    onset: demo.onset ? new Date(demo.onset).toISOString() : undefined,
+    expires: new Date(demo.expires).toISOString(),
+    status: demo.status,
+    created: now,
+    updated: now,
+  };
+}
+
+// Adapt demo unit legend to the UnitLegend type
+function adaptDemoUnitLegend(
+  legend: Array<{ UnitKey: string; Description: string }> | undefined
+): UnitLegend | undefined {
+  return legend;
+}
 
 export default function DemoPage() {
   const demoTenant = useQuery(api.demo.getDemoTenant);
@@ -18,6 +74,25 @@ export default function DemoPage() {
   const demoIncidents = useQuery(api.demo.getDemoIncidents);
   const demoWeatherAlerts = useQuery(api.demo.getDemoWeatherAlerts);
   const demoUnitLegend = useQuery(api.demo.getDemoUnitLegend);
+
+  // Adapt data for shared components
+  const { activeIncidents, activeAlerts, unitLegend } = useMemo(() => {
+    const incidents = demoIncidents
+      ? demoIncidents
+          .filter((i: DemoIncident) => i.status === "active")
+          .map(adaptDemoIncident)
+      : [];
+    const alerts = demoWeatherAlerts
+      ? demoWeatherAlerts
+          .filter((a: DemoWeatherAlert) => a.status === "active")
+          .map(adaptDemoWeatherAlert)
+      : [];
+    return {
+      activeIncidents: incidents,
+      activeAlerts: alerts,
+      unitLegend: adaptDemoUnitLegend(demoUnitLegend),
+    };
+  }, [demoIncidents, demoWeatherAlerts, demoUnitLegend]);
 
   // Loading state
   if (!demoTenant || !demoStats || demoIncidents === undefined || demoWeatherAlerts === undefined) {
@@ -40,9 +115,6 @@ export default function DemoPage() {
     byCategory,
     activeUnits: demoStats.activeUnitCount,
   };
-
-  const activeIncidents = demoIncidents.filter((i: DemoIncident) => i.status === "active");
-  const activeAlerts = demoWeatherAlerts.filter((a: DemoWeatherAlert) => a.status === "active");
 
   return (
     <div className="space-y-6">
@@ -104,15 +176,11 @@ export default function DemoPage() {
             </CardHeader>
             <CardContent>
               {activeIncidents.length > 0 ? (
-                <div className="space-y-3">
-                  {activeIncidents.slice(0, 6).map((incident: DemoIncident) => (
-                    <DemoIncidentCard
-                      key={incident.id}
-                      incident={incident}
-                      unitLegend={demoUnitLegend || []}
-                    />
-                  ))}
-                </div>
+                <IncidentList
+                  incidents={activeIncidents.slice(0, 6)}
+                  unitLegend={unitLegend}
+                  showStatusBadge={false}
+                />
               ) : (
                 <div className="py-8 text-center text-muted-foreground">
                   <p>No active incidents</p>
@@ -136,17 +204,10 @@ export default function DemoPage() {
               </Button>
             </CardHeader>
             <CardContent>
-              {activeAlerts.length > 0 ? (
-                <div className="space-y-3">
-                  {activeAlerts.slice(0, 3).map((alert: DemoWeatherAlert) => (
-                    <DemoAlertCard key={alert.id} alert={alert} />
-                  ))}
-                </div>
-              ) : (
-                <div className="py-4 text-center text-muted-foreground text-sm">
-                  No active weather alerts
-                </div>
-              )}
+              <WeatherAlertList
+                alerts={activeAlerts.slice(0, 3)}
+                compact
+              />
             </CardContent>
           </Card>
 
@@ -174,106 +235,6 @@ export default function DemoPage() {
               </div>
             </CardContent>
           </Card>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function DemoIncidentCard({
-  incident,
-  unitLegend,
-}: {
-  incident: {
-    id: string;
-    callType: string;
-    callTypeCategory: string;
-    description?: string;
-    fullAddress: string;
-    units: string[];
-    callReceivedTime: number;
-  };
-  unitLegend: Array<{ UnitKey: string; Description: string }>;
-}) {
-  const getCategoryIcon = (category: string) => {
-    switch (category) {
-      case "fire":
-        return <Flame className="h-4 w-4 text-red-500" />;
-      case "medical":
-        return <Activity className="h-4 w-4 text-blue-500" />;
-      case "traffic":
-        return <Car className="h-4 w-4 text-orange-500" />;
-      case "hazmat":
-        return <Biohazard className="h-4 w-4 text-purple-500" />;
-      default:
-        return <HelpCircle className="h-4 w-4 text-gray-500" />;
-    }
-  };
-
-  const getUnitDescription = (unitKey: string) => {
-    const entry = unitLegend.find((u) => u.UnitKey === unitKey);
-    return entry?.Description || unitKey;
-  };
-
-  const timeAgo = Math.floor((Date.now() - incident.callReceivedTime) / 60000);
-  const timeDisplay = timeAgo < 60 ? `${timeAgo}m ago` : `${Math.floor(timeAgo / 60)}h ago`;
-
-  return (
-    <div className="p-4 rounded-lg border hover:bg-muted/50 transition-colors">
-      <div className="flex items-start gap-3">
-        <div className="mt-0.5">{getCategoryIcon(incident.callTypeCategory)}</div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="font-medium truncate">{incident.callType}</span>
-            <Badge variant="secondary" className="text-xs">
-              <Clock className="h-3 w-3 mr-1" />
-              {timeDisplay}
-            </Badge>
-          </div>
-          <p className="text-sm text-muted-foreground truncate">{incident.fullAddress}</p>
-          <div className="flex flex-wrap gap-1 mt-2">
-            {incident.units.map((unit) => (
-              <Badge key={unit} variant="outline" className="text-xs" title={getUnitDescription(unit)}>
-                {unit}
-              </Badge>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function DemoAlertCard({
-  alert,
-}: {
-  alert: {
-    id: string;
-    event: string;
-    headline: string;
-    severity: string;
-  };
-}) {
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case "Extreme":
-        return "bg-red-500";
-      case "Severe":
-        return "bg-orange-500";
-      case "Moderate":
-        return "bg-yellow-500";
-      default:
-        return "bg-blue-500";
-    }
-  };
-
-  return (
-    <div className="p-3 rounded-lg border">
-      <div className="flex items-start gap-2">
-        <div className={`h-2 w-2 rounded-full mt-2 ${getSeverityColor(alert.severity)}`} />
-        <div>
-          <p className="font-medium text-sm">{alert.event}</p>
-          <p className="text-xs text-muted-foreground line-clamp-2">{alert.headline}</p>
         </div>
       </div>
     </div>
@@ -312,9 +273,9 @@ function DashboardSkeleton() {
               <Skeleton className="h-6 w-32" />
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {[...Array(4)].map((_, i) => (
-                  <Skeleton key={i} className="h-24" />
+                  <Skeleton key={i} className="h-32" />
                 ))}
               </div>
             </CardContent>

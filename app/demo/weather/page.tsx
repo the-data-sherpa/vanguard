@@ -1,172 +1,118 @@
 "use client";
 
+import { useMemo } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { DemoWeatherAlert } from "@/lib/demo-types";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import type { WeatherAlert } from "@/lib/types";
+import { WeatherAlertList } from "@/components/weather";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CloudRain, AlertTriangle, Clock, Info } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+// Adapt demo weather alerts to the WeatherAlert type expected by shared components
+function adaptDemoWeatherAlert(demo: DemoWeatherAlert): WeatherAlert {
+  const now = new Date().toISOString();
+  return {
+    id: demo.id,
+    tenantId: "demo",
+    nwsId: demo.id,
+    event: demo.event,
+    headline: demo.headline,
+    description: demo.description,
+    instruction: demo.instruction,
+    severity: demo.severity,
+    urgency: demo.urgency,
+    certainty: demo.certainty,
+    onset: demo.onset ? new Date(demo.onset).toISOString() : undefined,
+    expires: new Date(demo.expires).toISOString(),
+    status: demo.status,
+    created: now,
+    updated: now,
+  };
+}
 
 export default function DemoWeatherPage() {
   const demoWeatherAlerts = useQuery(api.demo.getDemoWeatherAlerts);
+
+  // Adapt and filter alerts
+  const { activeAlerts, expiredAlerts } = useMemo(() => {
+    if (!demoWeatherAlerts) return { activeAlerts: [], expiredAlerts: [] };
+
+    const adapted = demoWeatherAlerts.map(adaptDemoWeatherAlert);
+    return {
+      activeAlerts: adapted.filter((a) => a.status === "active"),
+      expiredAlerts: adapted.filter((a) => a.status === "expired"),
+    };
+  }, [demoWeatherAlerts]);
 
   if (demoWeatherAlerts === undefined) {
     return <WeatherPageSkeleton />;
   }
 
-  const activeAlerts = demoWeatherAlerts.filter((a: DemoWeatherAlert) => a.status === "active");
-
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Weather Alerts</h1>
-        <p className="text-muted-foreground">
-          Active weather alerts and warnings (demo data)
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Weather Alerts</h1>
+          <p className="text-muted-foreground">
+            Active weather alerts for your area
+          </p>
+        </div>
+        <Badge variant="outline" className="text-xs">
+          <span className="relative flex h-2 w-2 mr-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+          </span>
+          Demo Mode
+        </Badge>
       </div>
 
-      {activeAlerts.length > 0 ? (
-        <div className="grid gap-4">
-          {activeAlerts.map((alert: DemoWeatherAlert) => (
-            <WeatherAlertCard key={alert.id} alert={alert} />
-          ))}
-        </div>
-      ) : (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <CloudRain className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">No active weather alerts</p>
-          </CardContent>
-        </Card>
-      )}
+      <Tabs defaultValue="active" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="active">
+            Active ({activeAlerts.length})
+          </TabsTrigger>
+          <TabsTrigger value="expired">
+            Expired ({expiredAlerts.length})
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="active" className="space-y-4">
+          <WeatherAlertList alerts={activeAlerts} />
+        </TabsContent>
+
+        <TabsContent value="expired" className="space-y-4">
+          <WeatherAlertList alerts={expiredAlerts} />
+        </TabsContent>
+      </Tabs>
+
+      {/* Info about weather zones (demo) */}
+      <div className="rounded-lg border bg-muted/50 p-4 text-sm">
+        <p className="font-medium mb-1">Monitored Weather Zones</p>
+        <p className="text-muted-foreground">TXC439, TXC085, TXC453 (Demo)</p>
+      </div>
     </div>
-  );
-}
-
-function WeatherAlertCard({
-  alert,
-}: {
-  alert: {
-    id: string;
-    event: string;
-    headline: string;
-    description: string;
-    instruction?: string;
-    severity: string;
-    urgency: string;
-    certainty: string;
-    onset?: number;
-    expires: number;
-  };
-}) {
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case "Extreme":
-        return "bg-red-500 text-white";
-      case "Severe":
-        return "bg-orange-500 text-white";
-      case "Moderate":
-        return "bg-yellow-500 text-black";
-      default:
-        return "bg-blue-500 text-white";
-    }
-  };
-
-  const getSeverityBorder = (severity: string) => {
-    switch (severity) {
-      case "Extreme":
-        return "border-l-red-500";
-      case "Severe":
-        return "border-l-orange-500";
-      case "Moderate":
-        return "border-l-yellow-500";
-      default:
-        return "border-l-blue-500";
-    }
-  };
-
-  const formatTime = (timestamp: number) => {
-    return new Date(timestamp).toLocaleString("en-US", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    });
-  };
-
-  return (
-    <Card className={`border-l-4 ${getSeverityBorder(alert.severity)}`}>
-      <CardHeader>
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <AlertTriangle className="h-6 w-6 text-amber-500" />
-            <div>
-              <CardTitle>{alert.event}</CardTitle>
-              <CardDescription className="mt-1">{alert.headline}</CardDescription>
-            </div>
-          </div>
-          <Badge className={getSeverityColor(alert.severity)}>
-            {alert.severity}
-          </Badge>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Timing */}
-        <div className="flex flex-wrap gap-4 text-sm">
-          {alert.onset && (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Clock className="h-4 w-4" />
-              <span>Starts: {formatTime(alert.onset)}</span>
-            </div>
-          )}
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Clock className="h-4 w-4" />
-            <span>Expires: {formatTime(alert.expires)}</span>
-          </div>
-        </div>
-
-        {/* Properties */}
-        <div className="flex flex-wrap gap-2">
-          <Badge variant="outline">Urgency: {alert.urgency}</Badge>
-          <Badge variant="outline">Certainty: {alert.certainty}</Badge>
-        </div>
-
-        {/* Description */}
-        <div>
-          <p className="text-sm font-medium mb-1">Description</p>
-          <p className="text-sm text-muted-foreground">{alert.description}</p>
-        </div>
-
-        {/* Instructions */}
-        {alert.instruction && (
-          <div className="p-3 bg-muted rounded-lg">
-            <div className="flex items-start gap-2">
-              <Info className="h-4 w-4 mt-0.5 text-blue-500" />
-              <div>
-                <p className="text-sm font-medium">Recommended Actions</p>
-                <p className="text-sm text-muted-foreground">{alert.instruction}</p>
-              </div>
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
   );
 }
 
 function WeatherPageSkeleton() {
   return (
     <div className="space-y-6">
-      <div className="space-y-2">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-4 w-80" />
+      <div className="flex items-center justify-between">
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-40" />
+          <Skeleton className="h-4 w-56" />
+        </div>
+        <Skeleton className="h-6 w-24" />
       </div>
-      <div className="grid gap-4">
-        {[...Array(3)].map((_, i) => (
-          <Skeleton key={i} className="h-64" />
-        ))}
+      <div className="space-y-4">
+        <Skeleton className="h-10 w-48" />
+        <div className="space-y-4">
+          {[...Array(3)].map((_, i) => (
+            <Skeleton key={i} className="h-24 w-full" />
+          ))}
+        </div>
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useRouter } from "next/navigation";
@@ -8,7 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Loader2, Gift, UserPlus } from "lucide-react";
 
 function slugify(text: string): string {
   return text
@@ -26,6 +27,10 @@ export function CreateTenantForm() {
   const [slugManuallySet, setSlugManuallySet] = useState(false);
   const [displayName, setDisplayName] = useState("");
 
+  // Admin options
+  const [proBono, setProBono] = useState(false);
+  const [ownerEmail, setOwnerEmail] = useState("");
+
   // Optional initial config
   const [weatherZones, setWeatherZones] = useState("");
   const [pulsepointAgency, setPulsepointAgency] = useState("");
@@ -33,12 +38,13 @@ export function CreateTenantForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Auto-generate slug from name
-  useEffect(() => {
-    if (!slugManuallySet && name) {
-      setSlug(slugify(name));
+  // Handle name change and auto-generate slug
+  const handleNameChange = (value: string) => {
+    setName(value);
+    if (!slugManuallySet) {
+      setSlug(slugify(value));
     }
-  }, [name, slugManuallySet]);
+  };
 
   const handleSlugChange = (value: string) => {
     setSlugManuallySet(true);
@@ -58,14 +64,33 @@ export function CreateTenantForm() {
       return;
     }
 
+    // Validate email format if provided
+    if (ownerEmail.trim()) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(ownerEmail.trim())) {
+        setError("Please enter a valid email address for the owner");
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     setError(null);
 
     try {
+      // Parse weather zones
+      const zones = weatherZones
+        .split(",")
+        .map((z) => z.trim().toUpperCase())
+        .filter((z) => z.length > 0);
+
       const tenantId = await createTenant({
         name: name.trim(),
         slug: slug.trim(),
         displayName: displayName.trim() || undefined,
+        proBono: proBono || undefined,
+        ownerEmail: ownerEmail.trim() || undefined,
+        pulsepointAgencyId: pulsepointAgency.trim() || undefined,
+        weatherZones: zones.length > 0 ? zones : undefined,
       });
 
       // Redirect to the new tenant's detail page
@@ -92,7 +117,7 @@ export function CreateTenantForm() {
             <Input
               id="name"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => handleNameChange(e.target.value)}
               placeholder="Fire Department Name"
             />
             <p className="text-xs text-muted-foreground">
@@ -127,6 +152,56 @@ export function CreateTenantForm() {
             />
             <p className="text-xs text-muted-foreground">
               Optional. Shown in the UI instead of the name.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Admin Options */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Admin Options</CardTitle>
+          <CardDescription>
+            Special settings only available to platform administrators
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Pro Bono Toggle */}
+          <div className="flex items-center justify-between rounded-lg border p-4">
+            <div className="flex items-start gap-3">
+              <Gift className="h-5 w-5 text-muted-foreground mt-0.5" />
+              <div className="space-y-1">
+                <Label htmlFor="proBono" className="font-medium">
+                  Pro Bono Tenant
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Exempt this tenant from billing requirements. No trial period or subscription needed.
+                </p>
+              </div>
+            </div>
+            <Switch
+              id="proBono"
+              checked={proBono}
+              onCheckedChange={setProBono}
+            />
+          </div>
+
+          {/* Owner Email */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <UserPlus className="h-4 w-4 text-muted-foreground" />
+              <Label htmlFor="ownerEmail">Initial Owner Email</Label>
+            </div>
+            <Input
+              id="ownerEmail"
+              type="email"
+              value={ownerEmail}
+              onChange={(e) => setOwnerEmail(e.target.value)}
+              placeholder="owner@example.com"
+            />
+            <p className="text-xs text-muted-foreground">
+              The email address of the tenant owner. If they already have an account, they&apos;ll be assigned immediately.
+              Otherwise, a pending invitation will be created.
             </p>
           </div>
         </CardContent>

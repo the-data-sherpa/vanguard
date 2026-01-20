@@ -12,6 +12,7 @@ export default function LoginPage() {
         </Link>
       </div>
       <SignIn
+        forceRedirectUrl="/"
         appearance={{
           elements: {
             rootBox: "w-full max-w-md",

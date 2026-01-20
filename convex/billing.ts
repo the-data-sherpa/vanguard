@@ -80,6 +80,8 @@ export const getSubscriptionStatus = query({
       ? Math.max(0, Math.ceil((trialEndsAt - now) / (24 * 60 * 60 * 1000)))
       : null;
 
+    const isProBono = tenant.subscriptionStatus === "pro_bono";
+
     return {
       status: tenant.subscriptionStatus || "expired",
       trialEndsAt: tenant.trialEndsAt,
@@ -87,10 +89,12 @@ export const getSubscriptionStatus = query({
       currentPeriodEnd: tenant.currentPeriodEnd,
       cancelAtPeriodEnd: tenant.cancelAtPeriodEnd,
       hasStripeCustomer: !!tenant.billingCustomerId,
-      hasActiveSubscription: tenant.subscriptionStatus === "active",
+      // Pro bono tenants are treated as having active subscription (full access)
+      hasActiveSubscription: tenant.subscriptionStatus === "active" || isProBono,
       isTrialing: tenant.subscriptionStatus === "trialing",
       isExpired: tenant.subscriptionStatus === "expired",
       isPastDue: tenant.subscriptionStatus === "past_due",
+      isProBono,
     };
   },
 });
@@ -123,6 +127,7 @@ export const getBillingStats = query({
     let trialsInProgress = 0;
     let pastDueAccounts = 0;
     let expiredTrials = 0;
+    let proBonoTenants = 0;
 
     for (const tenant of tenants) {
       switch (tenant.subscriptionStatus) {
@@ -138,10 +143,13 @@ export const getBillingStats = query({
         case "expired":
           expiredTrials++;
           break;
+        case "pro_bono":
+          proBonoTenants++;
+          break;
       }
     }
 
-    // MRR = active subscribers * monthly price
+    // MRR = active subscribers * monthly price (pro bono doesn't contribute)
     const mrr = activeSubscribers * MONTHLY_PRICE_CENTS;
 
     // Calculate trial conversion rate (converted / (converted + expired))
@@ -156,6 +164,7 @@ export const getBillingStats = query({
       trialsInProgress,
       pastDueAccounts,
       expiredTrials,
+      proBonoTenants,
       mrr,
       mrrFormatted: `$${(mrr / 100).toFixed(2)}`,
       conversionRate: conversionRate.toFixed(1),

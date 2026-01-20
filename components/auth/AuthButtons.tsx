@@ -2,11 +2,108 @@
 
 import { SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
 import Link from "next/link";
+import { useQuery } from "convex/react";
+import { api } from "@/convex/_generated/api";
 import { Button } from "@/components/ui/button";
-import { ArrowRight } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ArrowRight, Building2, ChevronDown, Plus, Shield } from "lucide-react";
 
 interface AuthButtonsProps {
   variant?: "nav" | "hero" | "cta";
+}
+
+function SignedInNav() {
+  const currentUser = useQuery(api.users.getCurrentUser);
+  const userTenant = useQuery(api.users.getCurrentUserTenant);
+
+  const isPlatformAdmin = currentUser?.role === "platform_admin";
+  const hasTenant = !!userTenant?.tenant;
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" className="gap-2">
+            <Building2 className="h-4 w-4" />
+            Dashboard
+            <ChevronDown className="h-4 w-4 opacity-50" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          {hasTenant && userTenant?.tenant && (
+            <>
+              <div className="px-2 py-1.5">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Your Organization
+                </p>
+              </div>
+              <DropdownMenuItem asChild>
+                <Link
+                  href={`/tenant/${userTenant.tenant.slug}`}
+                  className="flex items-center gap-2"
+                >
+                  <Building2 className="h-4 w-4" />
+                  {userTenant.tenant.displayName || userTenant.tenant.name}
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
+          {!hasTenant && (
+            <>
+              <DropdownMenuItem asChild>
+                <Link href="/onboarding" className="flex items-center gap-2">
+                  <Plus className="h-4 w-4" />
+                  Create Organization
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
+          {isPlatformAdmin && (
+            <DropdownMenuItem asChild>
+              <Link href="/admin" className="flex items-center gap-2">
+                <Shield className="h-4 w-4" />
+                Admin Panel
+              </Link>
+            </DropdownMenuItem>
+          )}
+          {!isPlatformAdmin && !hasTenant && (
+            <div className="px-2 py-1.5 text-xs text-muted-foreground">
+              No organizations yet
+            </div>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <UserButton afterSignOutUrl="/" />
+    </>
+  );
+}
+
+function SignedInHeroOrCta({ variant }: { variant: "hero" | "cta" }) {
+  const userTenant = useQuery(api.users.getCurrentUserTenant);
+  const hasTenant = !!userTenant?.tenant;
+
+  const buttonVariant = variant === "cta" ? "secondary" : "default";
+  const href = hasTenant && userTenant?.tenant
+    ? `/tenant/${userTenant.tenant.slug}`
+    : "/onboarding";
+  const label = hasTenant ? "Go to Dashboard" : "Create Organization";
+
+  return (
+    <Button size="lg" variant={buttonVariant} asChild>
+      <Link href={href}>
+        {label}
+        <ArrowRight className="ml-2 h-4 w-4" />
+      </Link>
+    </Button>
+  );
 }
 
 export function AuthButtons({ variant = "nav" }: AuthButtonsProps) {
@@ -39,10 +136,7 @@ export function AuthButtons({ variant = "nav" }: AuthButtonsProps) {
           </Button>
         </SignedOut>
         <SignedIn>
-          <Button variant="ghost" asChild>
-            <Link href="/tenant">Dashboard</Link>
-          </Button>
-          <UserButton afterSignOutUrl="/" />
+          <SignedInNav />
         </SignedIn>
       </>
     );
@@ -63,12 +157,7 @@ export function AuthButtons({ variant = "nav" }: AuthButtonsProps) {
           </Button>
         </SignedOut>
         <SignedIn>
-          <Button size="lg" asChild>
-            <Link href="/tenant">
-              Go to Dashboard
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Link>
-          </Button>
+          <SignedInHeroOrCta variant="hero" />
         </SignedIn>
       </>
     );
@@ -94,12 +183,7 @@ export function AuthButtons({ variant = "nav" }: AuthButtonsProps) {
           </Button>
         </SignedOut>
         <SignedIn>
-          <Button size="lg" variant="secondary" asChild>
-            <Link href="/tenant">
-              Go to Dashboard
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Link>
-          </Button>
+          <SignedInHeroOrCta variant="cta" />
         </SignedIn>
       </>
     );
