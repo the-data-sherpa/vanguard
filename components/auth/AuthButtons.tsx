@@ -18,6 +18,8 @@ interface AuthButtonsProps {
   variant?: "nav" | "hero" | "cta";
 }
 
+const SIGNUPS_DISABLED = process.env.NEXT_PUBLIC_SIGNUPS_DISABLED === "true";
+
 function SignedInNav() {
   const currentUser = useQuery(api.users.getCurrentUser);
   const userTenant = useQuery(api.users.getCurrentUserTenant);
@@ -131,9 +133,11 @@ export function AuthButtons({ variant = "nav" }: AuthButtonsProps) {
           <Button variant="ghost" asChild>
             <Link href="/login">Sign In</Link>
           </Button>
-          <Button asChild>
-            <Link href="/signup">Get Started</Link>
-          </Button>
+          {!SIGNUPS_DISABLED && (
+            <Button asChild>
+              <Link href="/signup">Get Started</Link>
+            </Button>
+          )}
         </SignedOut>
         <SignedIn>
           <SignedInNav />
@@ -146,15 +150,26 @@ export function AuthButtons({ variant = "nav" }: AuthButtonsProps) {
     return (
       <>
         <SignedOut>
-          <Button size="lg" asChild>
-            <Link href="/signup">
-              Get Started Free
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Link>
-          </Button>
-          <Button size="lg" variant="outline" asChild>
-            <Link href="/login">Sign In</Link>
-          </Button>
+          {SIGNUPS_DISABLED ? (
+            <Button size="lg" asChild>
+              <Link href="/login">
+                Sign In
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+          ) : (
+            <>
+              <Button size="lg" asChild>
+                <Link href="/signup">
+                  Get Started Free
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+              <Button size="lg" variant="outline" asChild>
+                <Link href="/login">Sign In</Link>
+              </Button>
+            </>
+          )}
         </SignedOut>
         <SignedIn>
           <SignedInHeroOrCta variant="hero" />
@@ -167,20 +182,31 @@ export function AuthButtons({ variant = "nav" }: AuthButtonsProps) {
     return (
       <>
         <SignedOut>
-          <Button size="lg" variant="secondary" asChild>
-            <Link href="/signup">
-              Get Started Free
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Link>
-          </Button>
-          <Button
-            size="lg"
-            variant="outline"
-            className="bg-transparent border-primary-foreground/30 hover:bg-primary-foreground/10"
-            asChild
-          >
-            <Link href="/login">Sign In</Link>
-          </Button>
+          {SIGNUPS_DISABLED ? (
+            <Button size="lg" variant="secondary" asChild>
+              <Link href="/login">
+                Sign In
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+          ) : (
+            <>
+              <Button size="lg" variant="secondary" asChild>
+                <Link href="/signup">
+                  Get Started Free
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
+              <Button
+                size="lg"
+                variant="outline"
+                className="bg-transparent border-primary-foreground/30 hover:bg-primary-foreground/10"
+                asChild
+              >
+                <Link href="/login">Sign In</Link>
+              </Button>
+            </>
+          )}
         </SignedOut>
         <SignedIn>
           <SignedInHeroOrCta variant="cta" />
@@ -194,6 +220,10 @@ export function AuthButtons({ variant = "nav" }: AuthButtonsProps) {
 
 export function HeroTagline() {
   const isClerkConfigured = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+  if (SIGNUPS_DISABLED) {
+    return null;
+  }
 
   if (!isClerkConfigured) {
     return (
