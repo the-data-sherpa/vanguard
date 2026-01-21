@@ -521,7 +521,7 @@ export const syncNewIncidents = internalAction({
     // Get incidents to sync
     const incidents = await ctx.runQuery(internal.facebookSync.getIncidentsToSync, {
       tenantId,
-      limit: 5, // Process in small batches
+      limit: 20, // Process in larger batches for faster sync
     });
 
     if (incidents.length === 0) {
@@ -638,7 +638,7 @@ export const syncIncidentUpdates = internalAction({
     // Get incidents needing update
     const incidents = await ctx.runQuery(internal.facebookSync.getIncidentsNeedingUpdate, {
       tenantId,
-      limit: 5,
+      limit: 20,
     });
 
     if (incidents.length === 0) {

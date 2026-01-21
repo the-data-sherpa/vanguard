@@ -14,7 +14,7 @@ const crons = cronJobs();
  */
 crons.interval(
   "master-tick",
-  { seconds: 120 }, // 2 minutes
+  { seconds: 30 }, // 30 seconds
   internal.scheduler.tick
 );
 
