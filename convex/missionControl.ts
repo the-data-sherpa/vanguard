@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { query, QueryCtx } from "./_generated/server";
 import { Id, Doc } from "./_generated/dataModel";
+import { getCallTypeCategory, isMedicalCallType } from "./callTypes";
 
 // ===================
 // Authorization Helper
@@ -125,13 +126,74 @@ function groupIncidents<T extends Doc<"incidents">>(incidents: T[]): (T & { _gro
   return result;
 }
 
+/**
+ * Check if an incident passes the auto-post rules filter
+ * This determines if an incident should appear in Mission Control
+ */
+function passesAutoPostRulesFilter(
+  incident: Doc<"incidents">,
+  rules: Doc<"autoPostRules"> | null
+): boolean {
+  // If no rules exist, use default behavior (show non-medical)
+  if (!rules) {
+    return incident.callTypeCategory !== "medical";
+  }
+
+  // If auto-posting is disabled, use default behavior (show non-medical)
+  // This allows manual posting of any non-medical incidents
+  if (!rules.enabled) {
+    return incident.callTypeCategory !== "medical";
+  }
+
+  // Get the incident's category using proper call type lookup
+  const incidentCategory = getCallTypeCategory(incident.callType);
+  const incidentDescription = incident.callType.toLowerCase();
+
+  // Check call type filter - if user has selected specific types, only show those
+  if (rules.callTypes.length > 0) {
+    const matchesCallType = rules.callTypes.some((ct) => {
+      const ctLower = ct.toLowerCase();
+      // Match by category (e.g., "fire", "medical", "rescue")
+      if (ctLower === incidentCategory) return true;
+      // Match by specific call type code
+      if (ctLower === incident.callType.toLowerCase()) return true;
+      // Match if the category name contains the filter
+      if (incidentCategory.includes(ctLower)) return true;
+      // Match by description
+      if (incidentDescription.includes(ctLower)) return true;
+      return false;
+    });
+
+    if (!matchesCallType) {
+      return false;
+    }
+  }
+
+  // Check medical exclusion
+  if (rules.excludeMedical) {
+    if (isMedicalCallType(incident.callType)) {
+      return false;
+    }
+  }
+
+  // Check minimum units threshold
+  if (rules.minUnits && rules.minUnits > 0) {
+    const unitCount = incident.units?.length || 0;
+    if (unitCount < rules.minUnits) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 // ===================
 // Queries
 // ===================
 
 /**
  * Get incidents pending Facebook sync
- * Returns active non-medical incidents that haven't been synced yet
+ * Returns active incidents that haven't been synced yet and pass auto-post rules
  * Grouped by groupId to consolidate related incidents
  */
 export const getPendingPosts = query({
@@ -142,28 +204,35 @@ export const getPendingPosts = query({
   handler: async (ctx, { tenantId, limit = 50 }) => {
     await requireTenantMember(ctx, tenantId);
 
-    // Get active incidents that are not synced and not medical
+    // Get auto-post rules for filtering
+    const rules = await ctx.db
+      .query("autoPostRules")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId))
+      .first();
+
+    // Get active incidents that are not synced
     const allIncidents = await ctx.db
       .query("incidents")
       .withIndex("by_tenant_status", (q) =>
         q.eq("tenantId", tenantId).eq("status", "active")
       )
       .filter((q) =>
-        q.and(
-          // Not synced to Facebook
-          q.or(
-            q.eq(q.field("isSyncedToFacebook"), false),
-            q.eq(q.field("isSyncedToFacebook"), undefined)
-          ),
-          // Not medical calls
-          q.neq(q.field("callTypeCategory"), "medical")
+        // Not synced to Facebook
+        q.or(
+          q.eq(q.field("isSyncedToFacebook"), false),
+          q.eq(q.field("isSyncedToFacebook"), undefined)
         )
       )
       .order("desc")
       .collect();
 
+    // Filter by auto-post rules
+    const filteredIncidents = allIncidents.filter((incident) =>
+      passesAutoPostRulesFilter(incident, rules)
+    );
+
     // Group incidents by groupId
-    const groupedIncidents = groupIncidents(allIncidents);
+    const groupedIncidents = groupIncidents(filteredIncidents);
 
     // Take the limit after grouping
     const incidents = groupedIncidents.slice(0, limit);
@@ -191,7 +260,7 @@ export const getPendingPosts = query({
 
 /**
  * Get recently posted incidents
- * Returns non-medical incidents that have been synced to Facebook
+ * Returns incidents that have been synced to Facebook and pass auto-post rules
  * Grouped by groupId to consolidate related incidents
  */
 export const getPostedIncidents = query({
@@ -202,21 +271,27 @@ export const getPostedIncidents = query({
   handler: async (ctx, { tenantId, limit = 50 }) => {
     await requireTenantMember(ctx, tenantId);
 
-    // Get incidents that have been synced and not medical
+    // Get auto-post rules for filtering
+    const rules = await ctx.db
+      .query("autoPostRules")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId))
+      .first();
+
+    // Get incidents that have been synced
     const allIncidents = await ctx.db
       .query("incidents")
       .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId))
-      .filter((q) =>
-        q.and(
-          q.eq(q.field("isSyncedToFacebook"), true),
-          q.neq(q.field("callTypeCategory"), "medical")
-        )
-      )
+      .filter((q) => q.eq(q.field("isSyncedToFacebook"), true))
       .order("desc")
       .collect();
 
+    // Filter by auto-post rules
+    const filteredIncidents = allIncidents.filter((incident) =>
+      passesAutoPostRulesFilter(incident, rules)
+    );
+
     // Group incidents by groupId
-    const groupedIncidents = groupIncidents(allIncidents);
+    const groupedIncidents = groupIncidents(filteredIncidents);
 
     // Take the limit after grouping
     const incidents = groupedIncidents.slice(0, limit);
@@ -244,7 +319,7 @@ export const getPostedIncidents = query({
 
 /**
  * Get incidents with sync failures
- * Returns non-medical incidents where sync failed
+ * Returns incidents where sync failed and pass auto-post rules
  * Grouped by groupId to consolidate related incidents
  */
 export const getFailedPosts = query({
@@ -255,7 +330,13 @@ export const getFailedPosts = query({
   handler: async (ctx, { tenantId, limit = 50 }) => {
     await requireTenantMember(ctx, tenantId);
 
-    // Get incidents with sync errors and not medical
+    // Get auto-post rules for filtering
+    const rules = await ctx.db
+      .query("autoPostRules")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId))
+      .first();
+
+    // Get incidents with sync errors
     const allIncidents = await ctx.db
       .query("incidents")
       .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId))
@@ -263,15 +344,19 @@ export const getFailedPosts = query({
         q.and(
           q.neq(q.field("syncError"), undefined),
           q.neq(q.field("syncError"), null),
-          q.neq(q.field("syncError"), ""),
-          q.neq(q.field("callTypeCategory"), "medical")
+          q.neq(q.field("syncError"), "")
         )
       )
       .order("desc")
       .collect();
 
+    // Filter by auto-post rules
+    const filteredIncidents = allIncidents.filter((incident) =>
+      passesAutoPostRulesFilter(incident, rules)
+    );
+
     // Group incidents by groupId
-    const groupedIncidents = groupIncidents(allIncidents);
+    const groupedIncidents = groupIncidents(filteredIncidents);
 
     // Take the limit after grouping
     const incidents = groupedIncidents.slice(0, limit);
@@ -299,7 +384,7 @@ export const getFailedPosts = query({
 
 /**
  * Get Mission Control dashboard stats
- * Only counts non-medical incidents
+ * Only counts incidents that pass auto-post rules
  */
 export const getDashboardStats = query({
   args: {
@@ -311,25 +396,33 @@ export const getDashboardStats = query({
     // Get tenant for Facebook connection status
     const tenant = await ctx.db.get(tenantId);
 
-    // Count active non-medical incidents (qualifying for posting)
+    // Get auto-post rules for filtering
+    const rules = await ctx.db
+      .query("autoPostRules")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId))
+      .first();
+
+    // Count active incidents (qualifying for posting)
     const activeIncidents = await ctx.db
       .query("incidents")
       .withIndex("by_tenant_status", (q) =>
         q.eq("tenantId", tenantId).eq("status", "active")
       )
       .filter((q) =>
-        q.and(
-          q.neq(q.field("callTypeCategory"), "medical"),
-          q.or(
-            q.eq(q.field("isSyncedToFacebook"), false),
-            q.eq(q.field("isSyncedToFacebook"), undefined)
-          )
+        q.or(
+          q.eq(q.field("isSyncedToFacebook"), false),
+          q.eq(q.field("isSyncedToFacebook"), undefined)
         )
       )
       .collect();
 
+    // Filter by auto-post rules
+    const filteredActiveIncidents = activeIncidents.filter((incident) =>
+      passesAutoPostRulesFilter(incident, rules)
+    );
+
     // Group incidents to get accurate count after consolidation
-    const groupedActiveIncidents = groupIncidents(activeIncidents);
+    const groupedActiveIncidents = groupIncidents(filteredActiveIncidents);
 
     // Count active incidents needing update (posted but has pending updates)
     const activeNeedingUpdate = await ctx.db
@@ -340,13 +433,17 @@ export const getDashboardStats = query({
       .filter((q) =>
         q.and(
           q.eq(q.field("isSyncedToFacebook"), true),
-          q.eq(q.field("needsFacebookUpdate"), true),
-          q.neq(q.field("callTypeCategory"), "medical")
+          q.eq(q.field("needsFacebookUpdate"), true)
         )
       )
       .collect();
 
-    const groupedActiveNeedingUpdate = groupIncidents(activeNeedingUpdate);
+    // Filter by auto-post rules
+    const filteredActiveNeedingUpdate = activeNeedingUpdate.filter((incident) =>
+      passesAutoPostRulesFilter(incident, rules)
+    );
+
+    const groupedActiveNeedingUpdate = groupIncidents(filteredActiveNeedingUpdate);
 
     // Count closed incidents needing update
     const closedNeedingUpdate = await ctx.db
@@ -357,13 +454,17 @@ export const getDashboardStats = query({
       .filter((q) =>
         q.and(
           q.eq(q.field("isSyncedToFacebook"), true),
-          q.eq(q.field("needsFacebookUpdate"), true),
-          q.neq(q.field("callTypeCategory"), "medical")
+          q.eq(q.field("needsFacebookUpdate"), true)
         )
       )
       .collect();
 
-    const groupedClosedNeedingUpdate = groupIncidents(closedNeedingUpdate);
+    // Filter by auto-post rules
+    const filteredClosedNeedingUpdate = closedNeedingUpdate.filter((incident) =>
+      passesAutoPostRulesFilter(incident, rules)
+    );
+
+    const groupedClosedNeedingUpdate = groupIncidents(filteredClosedNeedingUpdate);
 
     return {
       activeQualifying: groupedActiveIncidents.length,
@@ -387,6 +488,12 @@ export const getActiveIncidentsNeedingUpdate = query({
   handler: async (ctx, { tenantId, limit = 50 }) => {
     await requireTenantMember(ctx, tenantId);
 
+    // Get auto-post rules for filtering
+    const rules = await ctx.db
+      .query("autoPostRules")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId))
+      .first();
+
     // Get active incidents that are synced but need updates
     const allIncidents = await ctx.db
       .query("incidents")
@@ -396,15 +503,19 @@ export const getActiveIncidentsNeedingUpdate = query({
       .filter((q) =>
         q.and(
           q.eq(q.field("isSyncedToFacebook"), true),
-          q.eq(q.field("needsFacebookUpdate"), true),
-          q.neq(q.field("callTypeCategory"), "medical")
+          q.eq(q.field("needsFacebookUpdate"), true)
         )
       )
       .order("desc")
       .collect();
 
+    // Filter by auto-post rules
+    const filteredIncidents = allIncidents.filter((incident) =>
+      passesAutoPostRulesFilter(incident, rules)
+    );
+
     // Group incidents by groupId
-    const groupedIncidents = groupIncidents(allIncidents);
+    const groupedIncidents = groupIncidents(filteredIncidents);
     const incidents = groupedIncidents.slice(0, limit);
 
     // Enrich with update counts
@@ -439,6 +550,12 @@ export const getClosedIncidentsNeedingUpdate = query({
   handler: async (ctx, { tenantId, limit = 50 }) => {
     await requireTenantMember(ctx, tenantId);
 
+    // Get auto-post rules for filtering
+    const rules = await ctx.db
+      .query("autoPostRules")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId))
+      .first();
+
     // Get closed incidents that need Facebook update
     const allIncidents = await ctx.db
       .query("incidents")
@@ -448,15 +565,19 @@ export const getClosedIncidentsNeedingUpdate = query({
       .filter((q) =>
         q.and(
           q.eq(q.field("isSyncedToFacebook"), true),
-          q.eq(q.field("needsFacebookUpdate"), true),
-          q.neq(q.field("callTypeCategory"), "medical")
+          q.eq(q.field("needsFacebookUpdate"), true)
         )
       )
       .order("desc")
       .collect();
 
+    // Filter by auto-post rules
+    const filteredIncidents = allIncidents.filter((incident) =>
+      passesAutoPostRulesFilter(incident, rules)
+    );
+
     // Group incidents by groupId
-    const groupedIncidents = groupIncidents(allIncidents);
+    const groupedIncidents = groupIncidents(filteredIncidents);
     const incidents = groupedIncidents.slice(0, limit);
 
     // Enrich with update counts
@@ -483,8 +604,8 @@ export const getClosedIncidentsNeedingUpdate = query({
 /**
  * Get ALL incidents for Mission Control
  * Returns:
- * - All active incidents (any sync status)
- * - Closed incidents that still need Facebook update
+ * - All active incidents that pass auto-post rules
+ * - Closed incidents that still need Facebook update and pass auto-post rules
  * Each incident has a posting status for display
  */
 export const getAllMissionControlIncidents = query({
@@ -494,6 +615,12 @@ export const getAllMissionControlIncidents = query({
   },
   handler: async (ctx, { tenantId, limit = 100 }) => {
     await requireTenantMember(ctx, tenantId);
+
+    // Get auto-post rules for filtering
+    const rules = await ctx.db
+      .query("autoPostRules")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId))
+      .first();
 
     // Get ALL active incidents
     const activeIncidents = await ctx.db
@@ -519,9 +646,14 @@ export const getAllMissionControlIncidents = query({
       .order("desc")
       .collect();
 
-    // Combine and group
+    // Combine and filter by auto-post rules
     const allIncidents = [...activeIncidents, ...closedNeedingUpdate];
-    const groupedIncidents = groupIncidents(allIncidents);
+    const filteredIncidents = allIncidents.filter((incident) =>
+      passesAutoPostRulesFilter(incident, rules)
+    );
+
+    // Group filtered incidents
+    const groupedIncidents = groupIncidents(filteredIncidents);
     const incidents = groupedIncidents.slice(0, limit);
 
     // Determine posting status for each incident
