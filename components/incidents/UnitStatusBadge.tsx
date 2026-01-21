@@ -3,7 +3,12 @@
 import { Badge } from '@/components/ui/badge';
 import type { UnitLegend, UnitStatusesField } from '@/lib/types';
 import { getUnitStatusByUnitId } from '@/lib/types';
-import { extractDepartment, groupUnitsByDepartment } from '@/lib/utils';
+import {
+  extractDepartment,
+  groupUnitsByDepartment,
+  FIRE_UNIT_SUFFIXES,
+  EMS_UNIT_SUFFIXES,
+} from '@/lib/utils';
 
 // Re-export for backward compatibility
 export { extractDepartment, groupUnitsByDepartment };
@@ -130,20 +135,14 @@ export function UnitStatusDetail({ units, unitStatuses, unitLegend }: UnitStatus
     const desc = getDescription(unitKey);
     if (!desc) return null;
     const upper = desc.toUpperCase().trim();
-    
+
     // Strip trailing numbers first (e.g., "ALEXANDER ENGINE 1" → "ALEXANDER ENGINE")
     const trailingNumberMatch = upper.match(/^(.+?)\s+\d+$/);
     const normalizedUpper = trailingNumberMatch ? trailingNumberMatch[1] : upper;
-    
+
     // Check both fire and EMS suffixes
-    const FIRE_UNIT_SUFFIXES = [
-      'ENGINE', 'LADDER', 'TRUCK', 'TANKER', 'BRUSH', 'RESCUE',
-      'BATTALION', 'CHIEF', 'CAPTAIN', 'UTILITY', 'SQUAD',
-      'HAZMAT', 'SPECIAL', 'PUMPER', 'QUINT', 'TOWER', 'FIRE',
-    ];
-    const EMS_UNIT_SUFFIXES = ['AMBULANCE', 'EMS', 'MEDIC'];
     const allSuffixes = [...FIRE_UNIT_SUFFIXES, ...EMS_UNIT_SUFFIXES];
-    
+
     for (const suffix of allSuffixes) {
       if (normalizedUpper.endsWith(` ${suffix}`)) {
         return suffix.charAt(0) + suffix.slice(1).toLowerCase();

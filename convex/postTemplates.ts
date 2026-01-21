@@ -558,7 +558,8 @@ function formatUnitStatus(status: string): string {
 // ===================
 // NOTE: This logic is duplicated in lib/utils.ts for frontend use.
 // Both implementations must stay in sync to ensure consistent grouping
-// across UI and Facebook posts.
+// across UI and Facebook posts. See lib/__tests__/unit-grouping.test.ts
+// for parity tests that verify both implementations produce identical output.
 
 // Fire/Rescue unit type suffixes - these get stripped to show department name
 const FIRE_UNIT_SUFFIXES = [
