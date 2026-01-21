@@ -1,9 +1,19 @@
 import { v } from "convex/values";
 import { internalAction, internalMutation, internalQuery } from "./_generated/server";
 import { internal, api } from "./_generated/api";
-import { Doc } from "./_generated/dataModel";
+import { Doc, Id } from "./_generated/dataModel";
 import { applyTemplate, getDefaultTemplateObject, DEFAULT_TEMPLATE_STRING, UnitLegendEntry } from "./postTemplates";
 import { getCallTypeDescription, getCallTypeCategory, isMedicalCallType, formatUnitStatusCode } from "./callTypes";
+
+// ===================
+// Constants
+// ===================
+
+/**
+ * Maximum number of Facebook sync attempts before giving up
+ * Prevents infinite retry loops for permanent failures (e.g., invalid tokens)
+ */
+const MAX_SYNC_ATTEMPTS = 3;
 
 // ===================
 // Types
@@ -243,6 +253,10 @@ function shouldAutoPost(
 
 /**
  * Get incidents that need to be synced to Facebook
+ *
+ * Handles:
+ * - Retry limits: Skips incidents that have exceeded MAX_SYNC_ATTEMPTS
+ * - Grouped incidents: Only returns one representative per group to avoid duplicate posts
  */
 export const getIncidentsToSync = internalQuery({
   args: {
@@ -250,21 +264,49 @@ export const getIncidentsToSync = internalQuery({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, { tenantId, limit = 10 }) => {
-    // Get active incidents that haven't been synced
-    const incidents = await ctx.db
+    // Get active incidents that haven't been synced and haven't exceeded retry limit
+    const allIncidents = await ctx.db
       .query("incidents")
       .withIndex("by_tenant_status", (q) =>
         q.eq("tenantId", tenantId).eq("status", "active")
       )
       .filter((q) =>
-        q.or(
-          q.eq(q.field("isSyncedToFacebook"), false),
-          q.eq(q.field("isSyncedToFacebook"), undefined)
+        q.and(
+          q.or(
+            q.eq(q.field("isSyncedToFacebook"), false),
+            q.eq(q.field("isSyncedToFacebook"), undefined)
+          ),
+          // Skip incidents that have exceeded retry limit
+          q.or(
+            q.eq(q.field("facebookSyncAttempts"), undefined),
+            q.lt(q.field("facebookSyncAttempts"), MAX_SYNC_ATTEMPTS)
+          )
         )
       )
-      .take(limit);
+      .collect();
 
-    return incidents;
+    // Handle grouped incidents: only return one representative per group
+    // This prevents duplicate Facebook posts for the same incident group
+    const seenGroups = new Set<Id<"incidentGroups">>();
+    const result: typeof allIncidents = [];
+
+    for (const incident of allIncidents) {
+      if (incident.groupId) {
+        // Check if we've already seen this group
+        if (seenGroups.has(incident.groupId)) {
+          continue; // Skip - another incident in this group will be posted
+        }
+        seenGroups.add(incident.groupId);
+      }
+
+      result.push(incident);
+
+      if (result.length >= limit) {
+        break;
+      }
+    }
+
+    return result;
   },
 });
 
@@ -314,6 +356,8 @@ export const getIncidentUpdates = internalQuery({
 
 /**
  * Mark incident as synced to Facebook
+ * If the incident is part of a group, marks ALL incidents in the group as synced
+ * to prevent duplicate posts
  */
 export const markIncidentSynced = internalMutation({
   args: {
@@ -321,18 +365,43 @@ export const markIncidentSynced = internalMutation({
     facebookPostId: v.string(),
   },
   handler: async (ctx, { incidentId, facebookPostId }) => {
-    await ctx.db.patch(incidentId, {
+    const incident = await ctx.db.get(incidentId);
+    if (!incident) return;
+
+    const syncData = {
       isSyncedToFacebook: true,
       facebookPostId,
       needsFacebookUpdate: false,
       lastSyncAttempt: Date.now(),
       syncError: undefined,
-    });
+      facebookSyncAttempts: 0, // Reset on success
+    };
+
+    // Mark the primary incident
+    await ctx.db.patch(incidentId, syncData);
+
+    // If this incident is part of a group, mark ALL incidents in the group
+    if (incident.groupId) {
+      const groupedIncidents = await ctx.db
+        .query("incidents")
+        .withIndex("by_tenant", (q) => q.eq("tenantId", incident.tenantId))
+        .filter((q) => q.eq(q.field("groupId"), incident.groupId))
+        .collect();
+
+      for (const grouped of groupedIncidents) {
+        if (grouped._id !== incidentId) {
+          await ctx.db.patch(grouped._id, syncData);
+        }
+      }
+
+      console.log(`[Facebook Sync] Marked ${groupedIncidents.length} grouped incidents as synced`);
+    }
   },
 });
 
 /**
- * Mark incident sync as failed
+ * Mark incident sync as failed and increment retry counter
+ * After MAX_SYNC_ATTEMPTS, the incident will no longer be retried
  */
 export const markIncidentSyncFailed = internalMutation({
   args: {
@@ -340,10 +409,20 @@ export const markIncidentSyncFailed = internalMutation({
     error: v.string(),
   },
   handler: async (ctx, { incidentId, error }) => {
+    const incident = await ctx.db.get(incidentId);
+    const currentAttempts = incident?.facebookSyncAttempts ?? 0;
+    const newAttempts = currentAttempts + 1;
+
     await ctx.db.patch(incidentId, {
       lastSyncAttempt: Date.now(),
       syncError: error,
+      facebookSyncAttempts: newAttempts,
     });
+
+    // Log if max attempts reached
+    if (newAttempts >= MAX_SYNC_ATTEMPTS) {
+      console.log(`[Facebook Sync] Incident ${incidentId} exceeded max retry attempts (${MAX_SYNC_ATTEMPTS}), will not retry`);
+    }
   },
 });
 
@@ -387,20 +466,23 @@ export const markUpdatesSynced = internalMutation({
 
 /**
  * Post a message to Facebook
+ * @param pageId - Facebook page ID
+ * @param pageToken - Facebook page access token
+ * @param message - Message content to post
+ * @param tenantSlug - Tenant slug for logging (helps identify which tenant has issues)
  */
 async function postToFacebook(
   pageId: string,
   pageToken: string,
-  message: string
+  message: string,
+  tenantSlug?: string
 ): Promise<{ id: string } | null> {
-  try {
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/87cf2615-bb0c-477f-a417-058eda363708',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'facebookSync.ts:396',message:'Before Facebook post attempt',data:{pageId,hasToken:!!pageToken,tokenPrefix:pageToken?.substring(0,10),messageLength:message?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1'})}).catch(()=>{});
-    // #endregion
+  const logPrefix = tenantSlug ? `[Facebook:${tenantSlug}]` : "[Facebook]";
 
+  try {
     // Use v24.0 API version
     const url = `https://graph.facebook.com/v24.0/${pageId}/feed`;
-    console.log(`[Facebook] Posting to page ${pageId}...`);
+    console.log(`${logPrefix} Posting to page ${pageId}...`);
 
     const response = await fetch(url, {
       method: "POST",
@@ -415,18 +497,15 @@ async function postToFacebook(
 
     if (!response.ok) {
       const errorText = await response.text();
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/87cf2615-bb0c-477f-a417-058eda363708',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'facebookSync.ts:414',message:'Facebook post failed with error',data:{status:response.status,errorText,pageId},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1'})}).catch(()=>{});
-      // #endregion
-      console.error(`[Facebook] Post failed (${response.status}):`, errorText);
+      console.error(`${logPrefix} Post failed (${response.status}):`, errorText);
       return null;
     }
 
     const result = await response.json();
-    console.log(`[Facebook] Post successful: ${result.id}`);
+    console.log(`${logPrefix} Post successful: ${result.id}`);
     return result;
   } catch (error) {
-    console.error("[Facebook] Post error:", error);
+    console.error(`${logPrefix} Post error:`, error);
     return null;
   }
 }
@@ -501,19 +580,21 @@ export const syncNewIncidents = internalAction({
     tenantId: v.id("tenants"),
   },
   handler: async (ctx, { tenantId }) => {
+    // Get tenant first for logging context
+    const tenant = await ctx.runQuery(internal.tenants.getByIdInternal, { tenantId });
+    const tenantSlug = tenant?.slug || tenantId;
+    const logPrefix = `[Facebook Sync:${tenantSlug}]`;
+    const timezone = tenant?.timezone || "America/New_York";
+
     // Get page token
     const credentials = await ctx.runMutation(internal.facebook.getPageToken, {
       tenantId,
     });
 
     if (!credentials || !credentials.pageToken || !credentials.pageId) {
-      console.log(`[Facebook Sync] No Facebook credentials for tenant ${tenantId}`);
+      console.log(`${logPrefix} No Facebook credentials configured`);
       return { synced: 0, failed: 0, skipped: 0 };
     }
-
-    // Get tenant to get timezone
-    const tenant = await ctx.runQuery(internal.tenants.getByIdInternal, { tenantId });
-    const timezone = tenant?.timezone || "America/New_York";
 
     // Get auto-post rules
     const rules = await ctx.runQuery(internal.autoPostRules.getInternal, { tenantId });
@@ -521,7 +602,7 @@ export const syncNewIncidents = internalAction({
     // Get incidents to sync
     const incidents = await ctx.runQuery(internal.facebookSync.getIncidentsToSync, {
       tenantId,
-      limit: 5, // Process in small batches
+      limit: 20, // Process in larger batches for faster sync
     });
 
     if (incidents.length === 0) {
@@ -537,9 +618,9 @@ export const syncNewIncidents = internalAction({
       const { shouldPost, reason } = shouldAutoPost(incident, rules);
 
       if (!shouldPost) {
-        console.log(`[Facebook Sync] Skipping incident ${incident._id}: ${reason}`);
+        console.log(`${logPrefix} Skipping incident ${incident._id}: ${reason}`);
         skipped++;
-        // Mark as synced but with no post ID to prevent retrying
+        // Mark as failed to increment retry counter (will stop after MAX_SYNC_ATTEMPTS)
         await ctx.runMutation(internal.facebookSync.markIncidentSyncFailed, {
           incidentId: incident._id,
           error: `Skipped: ${reason}`,
@@ -551,7 +632,7 @@ export const syncNewIncidents = internalAction({
       if (rules?.delaySeconds && rules.delaySeconds > 0) {
         const incidentAge = Date.now() - incident.callReceivedTime;
         if (incidentAge < rules.delaySeconds * 1000) {
-          console.log(`[Facebook Sync] Delaying incident ${incident._id}: waiting for ${rules.delaySeconds}s delay`);
+          console.log(`${logPrefix} Delaying incident ${incident._id}: waiting for ${rules.delaySeconds}s delay`);
           skipped++;
           continue;
         }
@@ -577,15 +658,16 @@ export const syncNewIncidents = internalAction({
         tenant?.unitLegend || undefined
       );
 
-      // Post to Facebook
+      // Post to Facebook (pass tenant slug for logging)
       const result = await postToFacebook(
         credentials.pageId,
         credentials.pageToken,
-        message
+        message,
+        tenantSlug
       );
 
       if (result?.id) {
-        // Mark as synced
+        // Mark as synced (also marks grouped incidents)
         await ctx.runMutation(internal.facebookSync.markIncidentSynced, {
           incidentId: incident._id,
           facebookPostId: result.id,
@@ -599,14 +681,15 @@ export const syncNewIncidents = internalAction({
         }
 
         synced++;
-        console.log(`[Facebook Sync] Posted incident ${incident._id} as ${result.id}`);
+        console.log(`${logPrefix} Posted incident ${incident._id} as ${result.id}`);
       } else {
-        // Mark as failed
+        // Mark as failed (increments retry counter)
         await ctx.runMutation(internal.facebookSync.markIncidentSyncFailed, {
           incidentId: incident._id,
-          error: "Failed to post to Facebook",
+          error: "Failed to post to Facebook - check page token permissions",
         });
         failed++;
+        console.error(`${logPrefix} Failed to post incident ${incident._id}`);
       }
     }
 
@@ -638,7 +721,7 @@ export const syncIncidentUpdates = internalAction({
     // Get incidents needing update
     const incidents = await ctx.runQuery(internal.facebookSync.getIncidentsNeedingUpdate, {
       tenantId,
-      limit: 5,
+      limit: 20,
     });
 
     if (incidents.length === 0) {

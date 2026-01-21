@@ -29,9 +29,9 @@ export const tick = internalAction({
     const startTime = Date.now();
     console.log("[SCHEDULER] Tick started");
 
-    // 1. Fetch external data (PulsePoint & Weather) and sync to Facebook in parallel
-    // These are the primary data sources that need frequent polling
-    const [incidentResult, weatherResult, facebookResult, weatherFacebookResult] = await Promise.all([
+    // 1. Fetch external data (PulsePoint & Weather) first
+    // Run these in parallel since they're independent data sources
+    const [incidentResult, weatherResult] = await Promise.all([
       ctx.runAction(internal.sync.syncAllTenantIncidents).catch((error) => {
         console.error("[SCHEDULER] Incident sync failed:", error);
         return { error: String(error) };
@@ -40,7 +40,11 @@ export const tick = internalAction({
         console.error("[SCHEDULER] Weather sync failed:", error);
         return { error: String(error) };
       }),
-      // Sync incidents/updates to Facebook for all tenants
+    ]);
+
+    // 2. After incidents are synced, sync to Facebook (sequential to ensure new incidents are available)
+    // This ensures newly created incidents are immediately available for Facebook posting
+    const [facebookResult, weatherFacebookResult] = await Promise.all([
       ctx.runAction(internal.facebookSync.syncAllTenants).catch((error) => {
         console.error("[SCHEDULER] Facebook sync failed:", error);
         return { error: String(error) };
