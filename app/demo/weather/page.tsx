@@ -41,8 +41,8 @@ export default function DemoWeatherPage() {
 
     const adapted = demoWeatherAlerts.map(adaptDemoWeatherAlert);
     return {
-      activeAlerts: adapted.filter((a) => a.status === "active"),
-      expiredAlerts: adapted.filter((a) => a.status === "expired"),
+      activeAlerts: adapted.filter((a: WeatherAlert) => a.status === "active"),
+      expiredAlerts: adapted.filter((a: WeatherAlert) => a.status === "expired"),
     };
   }, [demoWeatherAlerts]);
 

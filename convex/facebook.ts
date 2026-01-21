@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { query, mutation, action, internalMutation, MutationCtx, ActionCtx } from "./_generated/server";
 import { internal, api } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
+import { getCallTypeDescription } from "./callTypes";
 
 // ===================
 // Authorization Helper
@@ -187,5 +188,125 @@ export const getPageToken = internalMutation({
       pageId: tenant.facebookPageId,
       pageToken: tenant.facebookPageToken,
     };
+  },
+});
+
+// ===================
+// Actions
+// ===================
+
+/**
+ * Send a test post to Facebook
+ * Allows users to verify their connection is working
+ */
+export const sendTestPost = action({
+  args: {
+    tenantId: v.id("tenants"),
+    callType: v.optional(v.string()),
+  },
+  handler: async (ctx, { tenantId, callType }): Promise<{
+    success: boolean;
+    postId?: string;
+    postUrl?: string;
+    error?: string;
+  }> => {
+    // Get page credentials
+    const credentials = await ctx.runMutation(internal.facebook.getPageToken, {
+      tenantId,
+    });
+
+    if (!credentials || !credentials.pageToken || !credentials.pageId) {
+      return {
+        success: false,
+        error: "Facebook not connected or token expired",
+      };
+    }
+
+    // Get tenant info for the post
+    const tenant = await ctx.runQuery(api.tenants.get, { id: tenantId });
+    if (!tenant) {
+      return {
+        success: false,
+        error: "Tenant not found",
+      };
+    }
+
+    // Build test post message
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+    const dateStr = now.toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+
+    const callTypeDesc = callType ? getCallTypeDescription(callType) : "Structure Fire";
+    const callTypeCode = callType || "SF";
+
+    const message = `🧪 TEST POST - PLEASE IGNORE
+
+🚨 ACTIVE INCIDENT
+
+📋 Type: ${callTypeDesc}
+
+📍 123 Test Street, Anytown, NC
+
+🚒 Units:
+• E1 - En Route
+• T1 - Dispatched
+• M1 - On Scene
+
+⏰ Dispatch Time: ${timeStr}
+
+---
+This is a test post from ${tenant.displayName || tenant.name} to verify the Facebook integration is working correctly.
+
+Posted: ${dateStr} at ${timeStr}
+
+#TestPost #Vanguard`;
+
+    try {
+      // Post to Facebook using v21.0 API
+      const url = `https://graph.facebook.com/v21.0/${credentials.pageId}/feed`;
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message,
+          access_token: credentials.pageToken,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("[Facebook] Test post failed:", errorText);
+        return {
+          success: false,
+          error: `Facebook API error: ${errorText}`,
+        };
+      }
+
+      const result = await response.json();
+      console.log(`[Facebook] Test post created: ${result.id}`);
+
+      return {
+        success: true,
+        postId: result.id,
+        postUrl: `https://facebook.com/${result.id}`,
+      };
+    } catch (error) {
+      console.error("[Facebook] Test post error:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
   },
 });

@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle, Clock, AlertCircle, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type SyncStatus = "pending" | "posted" | "failed" | "needs_update";
+export type SyncStatus = "pending" | "posted" | "failed" | "needs_update" | "pending_update" | "pending_close";
 
 interface SyncStatusBadgeProps {
   status: SyncStatus;
@@ -44,13 +44,24 @@ export function SyncStatusBadge({ status, className }: SyncStatusBadgeProps) {
         </Badge>
       );
     case "needs_update":
+    case "pending_update":
       return (
         <Badge
           variant="outline"
           className={cn("text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-950", className)}
         >
           <RefreshCw className="mr-1 h-3 w-3" />
-          Needs Update
+          Pending Update
+        </Badge>
+      );
+    case "pending_close":
+      return (
+        <Badge
+          variant="outline"
+          className={cn("text-green-600 dark:text-green-400 border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-950", className)}
+        >
+          <CheckCircle className="mr-1 h-3 w-3" />
+          Pending Close
         </Badge>
       );
     default:

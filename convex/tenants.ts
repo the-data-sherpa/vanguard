@@ -783,3 +783,27 @@ export const updateFeatures = mutation({
     });
   },
 });
+
+/**
+ * Update tenant timezone
+ * Requires owner role
+ */
+export const updateTimezone = mutation({
+  args: {
+    tenantId: v.id("tenants"),
+    timezone: v.string(),
+  },
+  handler: async (ctx, { tenantId, timezone }) => {
+    // Verify user has admin access to this tenant
+    await requireTenantAccess(ctx, tenantId, "owner");
+
+    // Validate timezone is a valid IANA timezone
+    try {
+      Intl.DateTimeFormat(undefined, { timeZone: timezone });
+    } catch {
+      throw new Error(`Invalid timezone: ${timezone}`);
+    }
+
+    await ctx.db.patch(tenantId, { timezone });
+  },
+});

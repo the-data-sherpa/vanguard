@@ -1,7 +1,9 @@
 import { v } from "convex/values";
-import { action, internalAction, internalMutation, internalQuery } from "./_generated/server";
+import { internalAction, internalMutation, internalQuery } from "./_generated/server";
 import { internal, api } from "./_generated/api";
-import { Id, Doc } from "./_generated/dataModel";
+import { Doc } from "./_generated/dataModel";
+import { applyTemplate, getDefaultTemplateObject, DEFAULT_TEMPLATE_STRING } from "./postTemplates";
+import { getCallTypeDescription, getCallTypeCategory, isMedicalCallType, formatUnitStatusCode } from "./callTypes";
 
 // ===================
 // Types
@@ -18,34 +20,38 @@ interface UnitStatus {
 }
 
 // ===================
-// Post Formatting
+// Post Formatting (Fallback when no template)
 // ===================
 
 /**
- * Format an incident for Facebook posting
+ * Format an incident for Facebook posting using default formatting
+ * Used as fallback when no template is configured
  */
-function formatIncidentPost(
+function formatIncidentPostDefault(
   incident: Doc<"incidents">,
-  updates: Array<{ content: string; createdAt: number }> = []
+  updates: Array<{ content: string; createdAt: number }> = [],
+  timezone?: string
 ): string {
   const lines: string[] = [];
+  const tz = timezone || "America/New_York";
 
   // Header with status indicator
   const statusEmoji = incident.status === "active" ? "🚨" : "✅";
-  const statusText = incident.status === "active" ? "ACTIVE CALL" : "CLEARED";
+  const statusText = incident.status === "active" ? "ACTIVE INCIDENT" : "INCIDENT CLOSED";
   lines.push(`${statusEmoji} ${statusText}`);
   lines.push("");
 
-  // Call type
-  lines.push(`Type: ${incident.callType}`);
+  // Call type - expand code to description
+  const callTypeDescription = getCallTypeDescription(incident.callType);
+  lines.push(`📋 Type: ${callTypeDescription}`);
 
   // Address
-  lines.push(`Location: ${incident.fullAddress}`);
+  lines.push(`📍 ${incident.fullAddress}`);
   lines.push("");
 
   // Units - grouped by status if available
   if (incident.units && incident.units.length > 0) {
-    lines.push("Units:");
+    lines.push("🚒 Units:");
 
     // If we have detailed unit statuses, group by status
     if (incident.unitStatuses && Array.isArray(incident.unitStatuses)) {
@@ -76,14 +82,15 @@ function formatIncidentPost(
     lines.push("");
   }
 
-  // Time
+  // Time - use tenant timezone
   const time = new Date(incident.callReceivedTime);
   const timeStr = time.toLocaleTimeString("en-US", {
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
+    timeZone: tz,
   });
-  lines.push(`Time: ${timeStr}`);
+  lines.push(`⏰ ${timeStr}`);
 
   // Include updates if any
   if (updates.length > 0) {
@@ -96,6 +103,7 @@ function formatIncidentPost(
         hour: "numeric",
         minute: "2-digit",
         hour12: true,
+        timeZone: tz,
       });
       lines.push(`• [${updateTimeStr}] ${update.content}`);
     }
@@ -115,15 +123,87 @@ function formatIncidentPost(
  * Format unit status for display
  */
 function formatUnitStatus(status: string): string {
-  const statusMap: Record<string, string> = {
-    dispatched: "Dispatched",
-    enroute: "En Route",
-    onscene: "On Scene",
-    available: "Available",
-    cleared: "Cleared",
-    // Add more as needed
-  };
-  return statusMap[status.toLowerCase()] || status;
+  return formatUnitStatusCode(status);
+}
+
+/**
+ * Format incident post using template system
+ */
+function formatIncidentPost(
+  incident: Doc<"incidents">,
+  updates: Array<{ content: string; createdAt: number }> = [],
+  template: Doc<"postTemplates"> | null,
+  timezone?: string
+): string {
+  // If we have a template, use the template engine
+  if (template) {
+    return applyTemplate(template, incident, updates, timezone);
+  }
+
+  // Fall back to default formatting
+  return formatIncidentPostDefault(incident, updates, timezone);
+}
+
+// ===================
+// Auto-Post Rule Checking
+// ===================
+
+/**
+ * Check if an incident should be auto-posted based on rules
+ */
+function shouldAutoPost(
+  incident: Doc<"incidents">,
+  rules: Doc<"autoPostRules"> | null
+): { shouldPost: boolean; reason?: string } {
+  // If no rules exist or auto-posting is disabled, don't auto-post
+  if (!rules || !rules.enabled) {
+    return { shouldPost: false, reason: "Auto-posting disabled" };
+  }
+
+  // Get the incident's category using proper call type lookup
+  const incidentCategory = getCallTypeCategory(incident.callType);
+  const incidentDescription = getCallTypeDescription(incident.callType).toLowerCase();
+
+  // Check call type filter - if user has selected specific types, only post those
+  if (rules.callTypes.length > 0) {
+    // Check if incident matches any of the enabled call types/categories
+    const matchesCallType = rules.callTypes.some((ct) => {
+      const ctLower = ct.toLowerCase();
+      // Match by category (e.g., "fire", "medical", "rescue")
+      if (ctLower === incidentCategory) return true;
+      // Match by specific call type code
+      if (ctLower === incident.callType.toLowerCase()) return true;
+      // Match if the category name contains the filter (e.g., "traffic" matches "traffic")
+      if (incidentCategory.includes(ctLower)) return true;
+      // Match by description (e.g., "Medical Emergency" contains "medical")
+      if (incidentDescription.includes(ctLower)) return true;
+      return false;
+    });
+
+    if (!matchesCallType) {
+      return {
+        shouldPost: false,
+        reason: `Call type ${incident.callType} (${incidentCategory}) not in filter [${rules.callTypes.join(", ")}]`
+      };
+    }
+  }
+
+  // Check medical exclusion - uses proper call type lookup
+  if (rules.excludeMedical) {
+    if (isMedicalCallType(incident.callType)) {
+      return { shouldPost: false, reason: "Medical calls excluded" };
+    }
+  }
+
+  // Check minimum units threshold
+  if (rules.minUnits && rules.minUnits > 0) {
+    const unitCount = incident.units?.length || 0;
+    if (unitCount < rules.minUnits) {
+      return { shouldPost: false, reason: `Only ${unitCount} units, minimum is ${rules.minUnits}` };
+    }
+  }
+
+  return { shouldPost: true };
 }
 
 // ===================
@@ -283,7 +363,8 @@ async function postToFacebook(
   message: string
 ): Promise<{ id: string } | null> {
   try {
-    const url = `https://graph.facebook.com/v18.0/${pageId}/feed`;
+    // Use v21.0 API version (same as ICAW)
+    const url = `https://graph.facebook.com/v21.0/${pageId}/feed`;
     const response = await fetch(url, {
       method: "POST",
       headers: {
@@ -310,14 +391,17 @@ async function postToFacebook(
 
 /**
  * Update an existing Facebook post
+ * If update fails due to permissions, returns info to create a new post instead
  */
 async function updateFacebookPost(
   postId: string,
+  pageId: string,
   pageToken: string,
   message: string
-): Promise<boolean> {
+): Promise<{ success: boolean; newPostId?: string }> {
   try {
-    const url = `https://graph.facebook.com/v18.0/${postId}`;
+    // Use v21.0 API version (same as ICAW)
+    const url = `https://graph.facebook.com/v21.0/${postId}`;
     const response = await fetch(url, {
       method: "POST",
       headers: {
@@ -330,15 +414,28 @@ async function updateFacebookPost(
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      console.error("[Facebook] Update failed:", error);
-      return false;
+      const errorText = await response.text();
+      console.error("[Facebook] Update failed:", errorText);
+
+      // Check if this is a permissions error - if so, create new post as fallback
+      if (errorText.includes("permission") || errorText.includes("Permission")) {
+        console.log("[Facebook] Cannot update existing post due to permissions, creating new post instead");
+
+        // Create a new post as fallback
+        const newPostResult = await postToFacebook(pageId, pageToken, message);
+        if (newPostResult?.id) {
+          console.log(`[Facebook] Created new post ${newPostResult.id} as fallback`);
+          return { success: true, newPostId: newPostResult.id };
+        }
+      }
+
+      return { success: false };
     }
 
-    return true;
+    return { success: true };
   } catch (error) {
     console.error("[Facebook] Update error:", error);
-    return false;
+    return { success: false };
   }
 }
 
@@ -357,8 +454,15 @@ export const syncNewIncidents = internalAction({
 
     if (!credentials || !credentials.pageToken || !credentials.pageId) {
       console.log(`[Facebook Sync] No Facebook credentials for tenant ${tenantId}`);
-      return { synced: 0, failed: 0 };
+      return { synced: 0, failed: 0, skipped: 0 };
     }
+
+    // Get tenant to get timezone
+    const tenant = await ctx.runQuery(internal.tenants.getByIdInternal, { tenantId });
+    const timezone = tenant?.timezone || "America/New_York";
+
+    // Get auto-post rules
+    const rules = await ctx.runQuery(internal.autoPostRules.getInternal, { tenantId });
 
     // Get incidents to sync
     const incidents = await ctx.runQuery(internal.facebookSync.getIncidentsToSync, {
@@ -367,22 +471,55 @@ export const syncNewIncidents = internalAction({
     });
 
     if (incidents.length === 0) {
-      return { synced: 0, failed: 0 };
+      return { synced: 0, failed: 0, skipped: 0 };
     }
 
     let synced = 0;
     let failed = 0;
+    let skipped = 0;
 
     for (const incident of incidents) {
+      // Check auto-post rules
+      const { shouldPost, reason } = shouldAutoPost(incident, rules);
+
+      if (!shouldPost) {
+        console.log(`[Facebook Sync] Skipping incident ${incident._id}: ${reason}`);
+        skipped++;
+        // Mark as synced but with no post ID to prevent retrying
+        await ctx.runMutation(internal.facebookSync.markIncidentSyncFailed, {
+          incidentId: incident._id,
+          error: `Skipped: ${reason}`,
+        });
+        continue;
+      }
+
+      // Check delay if configured
+      if (rules?.delaySeconds && rules.delaySeconds > 0) {
+        const incidentAge = Date.now() - incident.callReceivedTime;
+        if (incidentAge < rules.delaySeconds * 1000) {
+          console.log(`[Facebook Sync] Delaying incident ${incident._id}: waiting for ${rules.delaySeconds}s delay`);
+          skipped++;
+          continue;
+        }
+      }
+
+      // Get template for this incident
+      const template = await ctx.runQuery(internal.postTemplates.getForCallTypeInternal, {
+        tenantId,
+        callType: incident.callType,
+      });
+
       // Get updates for this incident
       const updates = await ctx.runQuery(internal.facebookSync.getIncidentUpdates, {
         incidentId: incident._id,
       });
 
-      // Format the post
+      // Format the post using template or default
       const message = formatIncidentPost(
         incident,
-        updates.map((u) => ({ content: u.content, createdAt: u.createdAt }))
+        updates.map((u) => ({ content: u.content, createdAt: u.createdAt })),
+        template,
+        timezone
       );
 
       // Post to Facebook
@@ -418,7 +555,7 @@ export const syncNewIncidents = internalAction({
       }
     }
 
-    return { synced, failed };
+    return { synced, failed, skipped };
   },
 });
 
@@ -439,6 +576,10 @@ export const syncIncidentUpdates = internalAction({
       return { updated: 0, failed: 0 };
     }
 
+    // Get tenant to get timezone
+    const tenant = await ctx.runQuery(internal.tenants.getByIdInternal, { tenantId });
+    const timezone = tenant?.timezone || "America/New_York";
+
     // Get incidents needing update
     const incidents = await ctx.runQuery(internal.facebookSync.getIncidentsNeedingUpdate, {
       tenantId,
@@ -457,6 +598,12 @@ export const syncIncidentUpdates = internalAction({
         continue;
       }
 
+      // Get template for this incident
+      const template = await ctx.runQuery(internal.postTemplates.getForCallTypeInternal, {
+        tenantId,
+        callType: incident.callType,
+      });
+
       // Get updates
       const updates = await ctx.runQuery(internal.facebookSync.getIncidentUpdates, {
         incidentId: incident._id,
@@ -465,21 +612,33 @@ export const syncIncidentUpdates = internalAction({
       // Format the updated post
       const message = formatIncidentPost(
         incident,
-        updates.map((u) => ({ content: u.content, createdAt: u.createdAt }))
+        updates.map((u) => ({ content: u.content, createdAt: u.createdAt })),
+        template,
+        timezone
       );
 
       // Update Facebook post
-      const success = await updateFacebookPost(
+      const result = await updateFacebookPost(
         incident.facebookPostId,
+        credentials.pageId,
         credentials.pageToken,
         message
       );
 
-      if (success) {
-        // Clear the update flag
-        await ctx.runMutation(internal.facebookSync.clearUpdateFlag, {
-          incidentId: incident._id,
-        });
+      if (result.success) {
+        // If a new post was created as fallback, update the incident's facebookPostId
+        if (result.newPostId) {
+          await ctx.runMutation(internal.facebookSync.markIncidentSynced, {
+            incidentId: incident._id,
+            facebookPostId: result.newPostId,
+          });
+          console.log(`[Facebook Sync] Updated incident ${incident._id} with new post ID ${result.newPostId}`);
+        } else {
+          // Clear the update flag
+          await ctx.runMutation(internal.facebookSync.clearUpdateFlag, {
+            incidentId: incident._id,
+          });
+        }
 
         // Mark new updates as synced
         const unsyncedUpdates = updates.filter((u) => !u.isSyncedToFacebook);
@@ -513,6 +672,7 @@ export const syncAllTenants = internalAction({
     let totalSynced = 0;
     let totalUpdated = 0;
     let totalFailed = 0;
+    let totalSkipped = 0;
 
     for (const tenant of tenants) {
       // Skip tenants without Facebook
@@ -526,6 +686,7 @@ export const syncAllTenants = internalAction({
       });
       totalSynced += syncResult.synced;
       totalFailed += syncResult.failed;
+      totalSkipped += syncResult.skipped;
 
       // Sync updates
       const updateResult = await ctx.runAction(internal.facebookSync.syncIncidentUpdates, {
@@ -535,8 +696,8 @@ export const syncAllTenants = internalAction({
       totalFailed += updateResult.failed;
     }
 
-    console.log(`[Facebook Sync] Complete: ${totalSynced} new posts, ${totalUpdated} updates, ${totalFailed} failed`);
+    console.log(`[Facebook Sync] Complete: ${totalSynced} new posts, ${totalUpdated} updates, ${totalSkipped} skipped, ${totalFailed} failed`);
 
-    return { totalSynced, totalUpdated, totalFailed };
+    return { totalSynced, totalUpdated, totalSkipped, totalFailed };
   },
 });

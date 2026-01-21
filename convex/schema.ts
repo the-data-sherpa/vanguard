@@ -97,6 +97,7 @@ export default defineSchema({
     description: v.optional(v.string()),
     logoUrl: v.optional(v.string()),
     primaryColor: v.optional(v.string()),
+    timezone: v.optional(v.string()), // IANA timezone (e.g., "America/New_York")
     status: tenantStatus,
     tier: tenantTier,
 

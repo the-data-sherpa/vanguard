@@ -57,7 +57,7 @@
 | Feature Toggles | ✅ Done | Enable/disable features with tier gating |
 | User Preferences | ✅ Done | Timezone, email/push notifications |
 | Data Export | ✅ Done | CSV/JSON export for incidents, weather, audit |
-| Social Media | ✅ Done | Mission Control, Facebook integration |
+| Social Media | 🔄 In Progress | Mission Control, Facebook integration, auto-post rules, templates |
 | User Submissions | 🔮 Deferred | Schema ready, deprioritized |
 | Moderation Queue | 🔮 Deferred | Depends on submissions |
 | Interactive Map | ⬜ Needed | Not started |
@@ -270,6 +270,52 @@
 - `components/mission-control/IncidentPostCard.tsx` - Incident card with post controls
 - `components/mission-control/SyncStatusBadge.tsx` - Post status indicator
 - `components/mission-control/UpdatesList.tsx` - List of incident updates
+
+### Block 3B: Auto-Post Rules Configuration ⬜ PENDING
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Auto-post rules UI (enable/disable toggle, call type filters) | ⬜ Pending | Settings > Social page |
+| Backend mutations (save, get, delete rules) | ⬜ Pending | convex/autoPostRules.ts |
+| Call type filter with multi-select | ⬜ Pending | Fire, EMS, Traffic, etc. |
+| Exclude medical calls toggle | ⬜ Pending | Privacy filter option |
+| Minimum units threshold | ⬜ Pending | Only post if N+ units respond |
+| Delay before posting setting | ⬜ Pending | Wait X seconds before auto-post |
+
+**Files to create:**
+- `convex/autoPostRules.ts` - CRUD mutations for auto-post rules
+
+**Files to modify:**
+- `app/tenant/[slug]/settings/social/page.tsx` - Add rules configuration UI
+
+### Block 3C: Post Templates ⬜ PENDING
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Template list UI with create/edit/delete | ⬜ Pending | Settings > Social page |
+| Template CRUD mutations | ⬜ Pending | convex/postTemplates.ts |
+| Placeholder system ({{callType}}, {{address}}, etc.) | ⬜ Pending | Dynamic content replacement |
+| Call type assignment for templates | ⬜ Pending | Match template to incident type |
+| Default template designation | ⬜ Pending | Fallback when no match |
+| Template preview | ⬜ Pending | Show sample output |
+
+**Files to create:**
+- `convex/postTemplates.ts` - CRUD mutations for templates
+
+**Files to modify:**
+- `app/tenant/[slug]/settings/social/page.tsx` - Add template management UI
+
+### Block 3D: Template Engine Integration ⬜ PENDING
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Template-aware post formatting | ⬜ Pending | Replace hardcoded formatIncidentPost |
+| Rule-based filtering in sync jobs | ⬜ Pending | Check rules before posting |
+| Template selection by call type | ⬜ Pending | Match incident to template |
+| Fallback to default template | ⬜ Pending | When no specific match |
+
+**Files to modify:**
+- `convex/facebookSync.ts` - Integrate template engine and rule checking
 
 ---
 

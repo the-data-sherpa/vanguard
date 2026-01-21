@@ -381,7 +381,7 @@ export default function DemoMissionControlPage() {
               </CardContent>
             </Card>
           ) : (
-            pendingPosts.map((incident) => (
+            pendingPosts.map((incident: DemoIncident) => (
               <DemoIncidentPostCard key={incident._id} incident={incident} />
             ))
           )}
@@ -405,7 +405,7 @@ export default function DemoMissionControlPage() {
               </CardContent>
             </Card>
           ) : (
-            postedIncidents.map((incident) => (
+            postedIncidents.map((incident: DemoIncident) => (
               <DemoIncidentPostCard key={incident._id} incident={incident} />
             ))
           )}
@@ -429,7 +429,7 @@ export default function DemoMissionControlPage() {
               </CardContent>
             </Card>
           ) : (
-            failedPosts.map((incident) => (
+            failedPosts.map((incident: DemoIncident) => (
               <DemoIncidentPostCard key={incident._id} incident={incident} />
             ))
           )}
