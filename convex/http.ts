@@ -282,8 +282,34 @@ http.route({
 });
 
 // ===================
+// CORS Helper
+// ===================
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+
+function corsResponse(body: string | null, status: number, extraHeaders: Record<string, string> = {}) {
+  return new Response(body, {
+    status,
+    headers: { ...corsHeaders, ...extraHeaders },
+  });
+}
+
+// ===================
 // Facebook OAuth Callback
 // ===================
+
+// OPTIONS handler for CORS preflight
+http.route({
+  path: "/facebook/connect",
+  method: "OPTIONS",
+  handler: httpAction(async () => {
+    return corsResponse(null, 204);
+  }),
+});
 
 http.route({
   path: "/facebook/connect",
@@ -294,7 +320,7 @@ http.route({
       const { tenantId, pageId, pageName, pageToken, connectedBy } = body;
 
       if (!tenantId || !pageId || !pageName || !pageToken || !connectedBy) {
-        return new Response("Missing required fields", { status: 400 });
+        return corsResponse("Missing required fields", 400);
       }
 
       await ctx.runMutation(internal.facebook.saveConnection, {
@@ -305,13 +331,10 @@ http.route({
         connectedBy,
       });
 
-      return new Response(JSON.stringify({ success: true }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+      return corsResponse(JSON.stringify({ success: true }), 200, { "Content-Type": "application/json" });
     } catch (error) {
       console.error("[Facebook Connect] Error:", error);
-      return new Response("Internal server error", { status: 500 });
+      return corsResponse("Internal server error", 500);
     }
   }),
 });
@@ -322,6 +345,14 @@ http.route({
  */
 http.route({
   path: "/facebook/connect-pages",
+  method: "OPTIONS",
+  handler: httpAction(async () => {
+    return corsResponse(null, 204);
+  }),
+});
+
+http.route({
+  path: "/facebook/connect-pages",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
     try {
@@ -329,13 +360,13 @@ http.route({
       const { tenantId, pages, connectedBy } = body;
 
       if (!tenantId || !pages || !Array.isArray(pages) || pages.length === 0 || !connectedBy) {
-        return new Response("Missing required fields", { status: 400 });
+        return corsResponse("Missing required fields", 400);
       }
 
       // Validate each page has required fields
       for (const page of pages) {
         if (!page.pageId || !page.pageName || !page.pageToken) {
-          return new Response("Invalid page data: missing pageId, pageName, or pageToken", { status: 400 });
+          return corsResponse("Invalid page data: missing pageId, pageName, or pageToken", 400);
         }
       }
 
@@ -350,13 +381,10 @@ http.route({
         connectedBy,
       });
 
-      return new Response(JSON.stringify({ success: true, pagesAdded: pages.length }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+      return corsResponse(JSON.stringify({ success: true, pagesAdded: pages.length }), 200, { "Content-Type": "application/json" });
     } catch (error) {
       console.error("[Facebook Connect Pages] Error:", error);
-      return new Response("Internal server error", { status: 500 });
+      return corsResponse("Internal server error", 500);
     }
   }),
 });
@@ -367,6 +395,14 @@ http.route({
  */
 http.route({
   path: "/facebook/reset-sync-state",
+  method: "OPTIONS",
+  handler: httpAction(async () => {
+    return corsResponse(null, 204);
+  }),
+});
+
+http.route({
+  path: "/facebook/reset-sync-state",
   method: "POST",
   handler: httpAction(async (ctx, request) => {
     try {
@@ -374,20 +410,17 @@ http.route({
       const { tenantId } = body;
 
       if (!tenantId) {
-        return new Response("Missing tenantId", { status: 400 });
+        return corsResponse("Missing tenantId", 400);
       }
 
       const result = await ctx.runMutation(internal.facebookSync.resetSyncState, {
         tenantId: tenantId as Id<"tenants">,
       });
 
-      return new Response(JSON.stringify({ success: true, resetCount: result.resetCount }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+      return corsResponse(JSON.stringify({ success: true, resetCount: result.resetCount }), 200, { "Content-Type": "application/json" });
     } catch (error) {
       console.error("[Facebook Reset Sync State] Error:", error);
-      return new Response("Internal server error", { status: 500 });
+      return corsResponse("Internal server error", 500);
     }
   }),
 });
