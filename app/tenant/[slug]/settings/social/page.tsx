@@ -2,9 +2,10 @@
 
 import { use, useState, useEffect } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { api } from "@/convex/_generated/api";
 import { Id, Doc } from "@/convex/_generated/dataModel";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, format } from "date-fns";
 import {
   Facebook,
   Settings,
@@ -20,6 +21,8 @@ import {
   Eye,
   Send,
   ExternalLink,
+  Circle,
+  RefreshCw,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -72,9 +75,18 @@ export default function SocialSettingsPage({ params }: SocialSettingsPageProps) 
   );
 }
 
+// Type for pending pages from OAuth
+interface PendingPage {
+  id: string;
+  name: string;
+  token: string;
+}
+
 function SocialSettingsContent({ params }: SocialSettingsPageProps) {
   const resolvedParams = use(params);
   const slug = resolvedParams.slug;
+  const searchParams = useSearchParams();
+  const router = useRouter();
 
   const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [showDisconnectDialog, setShowDisconnectDialog] = useState(false);
@@ -85,6 +97,20 @@ function SocialSettingsContent({ params }: SocialSettingsPageProps) {
     error?: string;
   } | null>(null);
 
+  // Multi-page state
+  const [pendingPages, setPendingPages] = useState<PendingPage[]>([]);
+  const [selectedPendingPages, setSelectedPendingPages] = useState<Set<string>>(new Set());
+  const [showPageSelectionModal, setShowPageSelectionModal] = useState(false);
+  const [isSavingPages, setIsSavingPages] = useState(false);
+  const [connectedByUserId, setConnectedByUserId] = useState<string>("");
+  const [showSwitchPageDialog, setShowSwitchPageDialog] = useState(false);
+  const [pageToSwitchTo, setPageToSwitchTo] = useState<string | null>(null);
+  const [switchPageOption, setSwitchPageOption] = useState<"new_only" | "repost_active">("new_only");
+  const [isSwitchingPage, setIsSwitchingPage] = useState(false);
+  const [isRemovingPage, setIsRemovingPage] = useState(false);
+  const [pageToRemove, setPageToRemove] = useState<string | null>(null);
+  const [showRemovePageDialog, setShowRemovePageDialog] = useState(false);
+
   const tenant = useQuery(api.tenants.getBySlug, { slug });
   const facebookStatus = useQuery(
     api.missionControl.getFacebookStatus,
@@ -92,7 +118,34 @@ function SocialSettingsContent({ params }: SocialSettingsPageProps) {
   );
 
   const disconnectFacebook = useMutation(api.facebook.disconnect);
+  const setActivePage = useMutation(api.facebook.setActivePage);
+  const removePage = useMutation(api.facebook.removePage);
   const sendTestPost = useAction(api.facebook.sendTestPost);
+
+  // Parse pending pages from URL params on mount
+  useEffect(() => {
+    const encodedPages = searchParams.get("pendingPages");
+    const connectedBy = searchParams.get("connectedBy");
+
+    if (encodedPages && connectedBy) {
+      try {
+        const decoded = JSON.parse(atob(encodedPages)) as PendingPage[];
+        setPendingPages(decoded);
+        setConnectedByUserId(connectedBy);
+        // Pre-select all pages by default
+        setSelectedPendingPages(new Set(decoded.map((p) => p.id)));
+        setShowPageSelectionModal(true);
+
+        // Clear URL params without navigation
+        const url = new URL(window.location.href);
+        url.searchParams.delete("pendingPages");
+        url.searchParams.delete("connectedBy");
+        window.history.replaceState({}, "", url.toString());
+      } catch (e) {
+        console.error("Failed to parse pending pages:", e);
+      }
+    }
+  }, [searchParams]);
 
   // Loading state
   if (tenant === undefined || facebookStatus === undefined) {
@@ -163,6 +216,124 @@ function SocialSettingsContent({ params }: SocialSettingsPageProps) {
     }
   };
 
+  // Save selected pages from the page selection modal
+  const handleSaveSelectedPages = async () => {
+    if (!tenant || selectedPendingPages.size === 0) return;
+
+    setIsSavingPages(true);
+    try {
+      // Get selected pages data
+      const pagesToSave = pendingPages
+        .filter((p) => selectedPendingPages.has(p.id))
+        .map((p) => ({
+          pageId: p.id,
+          pageName: p.name,
+          pageToken: p.token,
+        }));
+
+      // Call the HTTP endpoint to save pages
+      const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
+      if (!convexUrl) {
+        throw new Error("Convex URL not configured");
+      }
+
+      const httpUrl = convexUrl.replace(".convex.cloud", ".convex.site");
+      const response = await fetch(`${httpUrl}/facebook/connect-pages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tenantId: tenant._id,
+          pages: pagesToSave,
+          connectedBy: connectedByUserId,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to save pages");
+      }
+
+      setShowPageSelectionModal(false);
+      setPendingPages([]);
+      setSelectedPendingPages(new Set());
+    } catch (error) {
+      console.error("Failed to save selected pages:", error);
+    } finally {
+      setIsSavingPages(false);
+    }
+  };
+
+  // Toggle page selection
+  const togglePageSelection = (pageId: string) => {
+    setSelectedPendingPages((prev) => {
+      const next = new Set(prev);
+      if (next.has(pageId)) {
+        next.delete(pageId);
+      } else {
+        next.add(pageId);
+      }
+      return next;
+    });
+  };
+
+  // Handle switching active page
+  const handleSwitchActivePage = async () => {
+    if (!tenant || !pageToSwitchTo) return;
+
+    setIsSwitchingPage(true);
+    try {
+      // If "repost_active" is selected, reset sync state first
+      if (switchPageOption === "repost_active") {
+        // Call the reset sync state mutation
+        const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
+        if (convexUrl) {
+          const httpUrl = convexUrl.replace(".convex.cloud", ".convex.site");
+          await fetch(`${httpUrl}/facebook/reset-sync-state`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ tenantId: tenant._id }),
+          });
+        }
+      }
+
+      await setActivePage({ tenantId: tenant._id, pageId: pageToSwitchTo });
+      setShowSwitchPageDialog(false);
+      setPageToSwitchTo(null);
+      setSwitchPageOption("new_only");
+    } catch (error) {
+      console.error("Failed to switch active page:", error);
+    } finally {
+      setIsSwitchingPage(false);
+    }
+  };
+
+  // Initiate page switch
+  const initiatePageSwitch = (pageId: string) => {
+    setPageToSwitchTo(pageId);
+    setShowSwitchPageDialog(true);
+  };
+
+  // Handle removing a page
+  const handleRemovePage = async () => {
+    if (!tenant || !pageToRemove) return;
+
+    setIsRemovingPage(true);
+    try {
+      await removePage({ tenantId: tenant._id, pageId: pageToRemove });
+      setShowRemovePageDialog(false);
+      setPageToRemove(null);
+    } catch (error) {
+      console.error("Failed to remove page:", error);
+    } finally {
+      setIsRemovingPage(false);
+    }
+  };
+
+  // Initiate page removal
+  const initiatePageRemoval = (pageId: string) => {
+    setPageToRemove(pageId);
+    setShowRemovePageDialog(true);
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -190,24 +361,99 @@ function SocialSettingsContent({ params }: SocialSettingsPageProps) {
         <CardContent className="space-y-4">
           {facebookStatus?.isConnected ? (
             <>
-              {/* Connected state */}
-              <div className="flex items-center justify-between p-4 bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-800 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full bg-blue-600 flex items-center justify-center">
-                    <Facebook className="h-5 w-5 text-white" />
+              {/* Connected Pages List */}
+              {facebookStatus.pages && facebookStatus.pages.length > 0 ? (
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Connected Pages</Label>
+                  <div className="border rounded-lg divide-y">
+                    {facebookStatus.pages.map((page) => (
+                      <div
+                        key={page.pageId}
+                        className={`flex items-center justify-between p-4 ${
+                          page.isActive
+                            ? "bg-green-50 dark:bg-green-950/50"
+                            : "bg-background"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          {/* Radio-style indicator for active page */}
+                          <button
+                            onClick={() => {
+                              if (!page.isActive) {
+                                initiatePageSwitch(page.pageId);
+                              }
+                            }}
+                            className="flex-shrink-0"
+                            disabled={page.isActive}
+                          >
+                            {page.isActive ? (
+                              <div className="h-5 w-5 rounded-full border-2 border-green-600 bg-green-600 flex items-center justify-center">
+                                <div className="h-2 w-2 rounded-full bg-white" />
+                              </div>
+                            ) : (
+                              <div className="h-5 w-5 rounded-full border-2 border-muted-foreground hover:border-primary transition-colors" />
+                            )}
+                          </button>
+                          <div className="h-10 w-10 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
+                            <Facebook className="h-5 w-5 text-white" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium truncate">{page.pageName}</p>
+                              {page.isActive && (
+                                <Badge variant="secondary" className="text-xs flex-shrink-0">
+                                  Active
+                                </Badge>
+                              )}
+                              {page.isExpired && (
+                                <Badge variant="destructive" className="text-xs flex-shrink-0">
+                                  Expired
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-sm text-muted-foreground">
+                              Connected {formatDistanceToNow(page.connectedAt, { addSuffix: true })}
+                              {page.tokenExpiresAt && !page.isExpired && (
+                                <> · Expires {format(page.tokenExpiresAt, "MMM d, yyyy")}</>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/50 flex-shrink-0"
+                          onClick={() => initiatePageRemoval(page.pageId)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
                   </div>
-                  <div>
-                    <p className="font-medium text-green-900 dark:text-green-100">{facebookStatus.pageName}</p>
-                    <p className="text-sm text-green-700 dark:text-green-300">
-                      Connected {facebookStatus.connectedAt && formatDistanceToNow(facebookStatus.connectedAt, { addSuffix: true })}
-                    </p>
-                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Click the radio button to switch active page. Only the active page receives posts.
+                  </p>
                 </div>
-                <Badge variant="outline" className="text-green-600 dark:text-green-400 border-green-300 dark:border-green-700">
-                  <CheckCircle className="mr-1 h-3 w-3" />
-                  Connected
-                </Badge>
-              </div>
+              ) : (
+                /* Legacy single-page display (backward compatibility) */
+                <div className="flex items-center justify-between p-4 bg-green-50 dark:bg-green-950/50 border border-green-200 dark:border-green-800 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-full bg-blue-600 flex items-center justify-center">
+                      <Facebook className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-green-900 dark:text-green-100">{facebookStatus.pageName}</p>
+                      <p className="text-sm text-green-700 dark:text-green-300">
+                        Connected {facebookStatus.connectedAt && formatDistanceToNow(facebookStatus.connectedAt, { addSuffix: true })}
+                      </p>
+                    </div>
+                  </div>
+                  <Badge variant="outline" className="text-green-600 dark:text-green-400 border-green-300 dark:border-green-700">
+                    <CheckCircle className="mr-1 h-3 w-3" />
+                    Connected
+                  </Badge>
+                </div>
+              )}
 
               {/* Token expiration warning */}
               {facebookStatus.isExpired && (
@@ -286,8 +532,12 @@ function SocialSettingsContent({ params }: SocialSettingsPageProps) {
               {/* Actions */}
               <div className="flex items-center gap-3 border-t pt-4">
                 <Button variant="outline" onClick={handleConnectFacebook}>
-                  <Link2 className="mr-2 h-4 w-4" />
-                  Reconnect
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add More Pages
+                </Button>
+                <Button variant="outline" onClick={handleConnectFacebook}>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Refresh Tokens
                 </Button>
                 <Button
                   variant="outline"
@@ -295,7 +545,7 @@ function SocialSettingsContent({ params }: SocialSettingsPageProps) {
                   onClick={() => setShowDisconnectDialog(true)}
                 >
                   <Unlink className="mr-2 h-4 w-4" />
-                  Disconnect
+                  Disconnect All
                 </Button>
               </div>
             </>
@@ -381,9 +631,9 @@ function SocialSettingsContent({ params }: SocialSettingsPageProps) {
       <AlertDialog open={showDisconnectDialog} onOpenChange={setShowDisconnectDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Disconnect Facebook Page?</AlertDialogTitle>
+            <AlertDialogTitle>Disconnect All Facebook Pages?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will stop all automatic posting to your Facebook page. You can reconnect at any time.
+              This will disconnect all Facebook pages and stop all automatic posting. You can reconnect at any time.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -393,7 +643,166 @@ function SocialSettingsContent({ params }: SocialSettingsPageProps) {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {isDisconnecting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Disconnect
+              Disconnect All
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Page Selection Modal (shown after OAuth with multiple pages) */}
+      <Dialog open={showPageSelectionModal} onOpenChange={setShowPageSelectionModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Select Facebook Pages to Connect</DialogTitle>
+            <DialogDescription>
+              Choose which pages you want to connect for posting incident updates.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-4">
+            {pendingPages.map((page) => (
+              <div
+                key={page.id}
+                className={`flex items-center space-x-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                  selectedPendingPages.has(page.id)
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-primary/50"
+                }`}
+                onClick={() => togglePageSelection(page.id)}
+              >
+                <Checkbox
+                  id={`page-${page.id}`}
+                  checked={selectedPendingPages.has(page.id)}
+                  onCheckedChange={() => togglePageSelection(page.id)}
+                />
+                <div className="flex items-center gap-3 flex-1">
+                  <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center flex-shrink-0">
+                    <Facebook className="h-4 w-4 text-white" />
+                  </div>
+                  <Label htmlFor={`page-${page.id}`} className="cursor-pointer font-medium">
+                    {page.name}
+                  </Label>
+                </div>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPageSelectionModal(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveSelectedPages}
+              disabled={selectedPendingPages.size === 0 || isSavingPages}
+            >
+              {isSavingPages && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Connect {selectedPendingPages.size} Page{selectedPendingPages.size !== 1 ? "s" : ""}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Switch Active Page Confirmation Dialog */}
+      <Dialog open={showSwitchPageDialog} onOpenChange={setShowSwitchPageDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Switch Active Page?</DialogTitle>
+            <DialogDescription>
+              Choose how to handle existing incidents when switching to a new page.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-muted-foreground">
+              Switching to:{" "}
+              <span className="font-medium text-foreground">
+                {facebookStatus?.pages?.find((p) => p.pageId === pageToSwitchTo)?.pageName}
+              </span>
+            </p>
+            <div className="space-y-3">
+              <div
+                className={`flex items-start space-x-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                  switchPageOption === "new_only"
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-primary/50"
+                }`}
+                onClick={() => setSwitchPageOption("new_only")}
+              >
+                <div className="pt-0.5">
+                  {switchPageOption === "new_only" ? (
+                    <div className="h-4 w-4 rounded-full border-2 border-primary bg-primary flex items-center justify-center">
+                      <div className="h-1.5 w-1.5 rounded-full bg-white" />
+                    </div>
+                  ) : (
+                    <Circle className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </div>
+                <div>
+                  <p className="font-medium">Only post NEW incidents</p>
+                  <p className="text-sm text-muted-foreground">
+                    Existing incidents stay synced to the old page. New incidents will post to the new page.
+                  </p>
+                </div>
+              </div>
+              <div
+                className={`flex items-start space-x-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                  switchPageOption === "repost_active"
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-primary/50"
+                }`}
+                onClick={() => setSwitchPageOption("repost_active")}
+              >
+                <div className="pt-0.5">
+                  {switchPageOption === "repost_active" ? (
+                    <div className="h-4 w-4 rounded-full border-2 border-primary bg-primary flex items-center justify-center">
+                      <div className="h-1.5 w-1.5 rounded-full bg-white" />
+                    </div>
+                  ) : (
+                    <Circle className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </div>
+                <div>
+                  <p className="font-medium">Post active incidents to new page</p>
+                  <p className="text-sm text-muted-foreground">
+                    Resets sync state. Active incidents will be re-posted to the new page on next sync.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSwitchPageDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSwitchActivePage} disabled={isSwitchingPage}>
+              {isSwitchingPage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Switch Page
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Remove Page Confirmation Dialog */}
+      <AlertDialog open={showRemovePageDialog} onOpenChange={setShowRemovePageDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Facebook Page?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove &quot;
+              {facebookStatus?.pages?.find((p) => p.pageId === pageToRemove)?.pageName}
+              &quot; from your connected pages.
+              {facebookStatus?.pages?.find((p) => p.pageId === pageToRemove)?.isActive && (
+                <span className="block mt-2 text-amber-600 dark:text-amber-400">
+                  This is your active page. Another page will be set as active, or you&apos;ll need to reconnect.
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleRemovePage}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isRemovingPage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Remove Page
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
