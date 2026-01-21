@@ -112,7 +112,7 @@ async function exchangeCodeForToken(code: string, requestUrl: string) {
   const appSecret = process.env.FACEBOOK_APP_SECRET!;
   const redirectUri = new URL("/api/auth/facebook/callback", requestUrl).origin + "/api/auth/facebook/callback";
 
-  const url = new URL("https://graph.facebook.com/v18.0/oauth/access_token");
+  const url = new URL("https://graph.facebook.com/v21.0/oauth/access_token");
   url.searchParams.set("client_id", appId);
   url.searchParams.set("client_secret", appSecret);
   url.searchParams.set("redirect_uri", redirectUri);
@@ -132,7 +132,7 @@ async function getLongLivedToken(shortLivedToken: string) {
   const appId = process.env.FACEBOOK_APP_ID!;
   const appSecret = process.env.FACEBOOK_APP_SECRET!;
 
-  const url = new URL("https://graph.facebook.com/v18.0/oauth/access_token");
+  const url = new URL("https://graph.facebook.com/v21.0/oauth/access_token");
   url.searchParams.set("grant_type", "fb_exchange_token");
   url.searchParams.set("client_id", appId);
   url.searchParams.set("client_secret", appSecret);
@@ -149,7 +149,7 @@ async function getLongLivedToken(shortLivedToken: string) {
 }
 
 async function getUserPages(accessToken: string) {
-  const url = new URL("https://graph.facebook.com/v18.0/me/accounts");
+  const url = new URL("https://graph.facebook.com/v21.0/me/accounts");
   url.searchParams.set("access_token", accessToken);
   url.searchParams.set("fields", "id,name,access_token");
 

@@ -379,6 +379,11 @@ interface UnitStatus {
   timeCleared?: number;
 }
 
+export interface UnitLegendEntry {
+  UnitKey: string;
+  Description: string;
+}
+
 interface IncidentData {
   status: string;
   callType: string;
@@ -394,7 +399,8 @@ interface IncidentData {
  * - {{status}} - Current status with emoji (🚨 ACTIVE CALL or ✅ CLEARED)
  * - {{callType}} - Type of incident
  * - {{address}} - Location
- * - {{units}} - Responding units (formatted list)
+ * - {{units}} - Responding units (flat list with descriptions)
+ * - {{unitsGrouped}} - Responding units grouped by department/station
  * - {{unitCount}} - Number of units
  * - {{time}} - Incident time
  * - {{updates}} - Recent updates
@@ -404,7 +410,8 @@ export function applyTemplate(
   template: Doc<"postTemplates">,
   incident: IncidentData,
   updates: Array<{ content: string; createdAt: number }> = [],
-  timezone?: string
+  timezone?: string,
+  unitLegend?: UnitLegendEntry[]
 ): string {
   let result = template.template;
   const tz = timezone || "America/New_York";
@@ -421,12 +428,20 @@ export function applyTemplate(
   // Address
   result = result.replace(/\{\{address\}\}/gi, incident.fullAddress);
 
-  // Units
+  // Units (flat list with descriptions)
   if (template.includeUnits && incident.units && incident.units.length > 0) {
-    const unitsList = formatUnits(incident.units, incident.unitStatuses);
+    const unitsList = formatUnits(incident.units, incident.unitStatuses, unitLegend);
     result = result.replace(/\{\{units\}\}/gi, unitsList);
   } else {
     result = result.replace(/\{\{units\}\}/gi, "");
+  }
+
+  // Units grouped by department
+  if (template.includeUnits && incident.units && incident.units.length > 0) {
+    const unitsGrouped = formatUnitsGrouped(incident.units, incident.unitStatuses, unitLegend);
+    result = result.replace(/\{\{unitsGrouped\}\}/gi, unitsGrouped);
+  } else {
+    result = result.replace(/\{\{unitsGrouped\}\}/gi, "");
   }
 
   // Unit count
@@ -467,11 +482,34 @@ export function applyTemplate(
 }
 
 /**
+ * Look up unit description from legend
+ * Returns the description if found, otherwise returns the original unit ID
+ */
+function getUnitDisplayName(unitId: string, unitLegend?: UnitLegendEntry[]): string {
+  if (!unitLegend || unitLegend.length === 0) {
+    return unitId;
+  }
+
+  // Look up the unit in the legend (case-insensitive match)
+  const entry = unitLegend.find(
+    (e) => e.UnitKey.toLowerCase() === unitId.toLowerCase()
+  );
+
+  if (entry && entry.Description) {
+    // Return "UnitID (Description)" format for clarity
+    return `${unitId} (${entry.Description})`;
+  }
+
+  return unitId;
+}
+
+/**
  * Format units for display
  */
 function formatUnits(
   units: string[],
-  unitStatuses?: UnitStatus[] | Record<string, { unit: string; status: string; timestamp: number }>
+  unitStatuses?: UnitStatus[] | Record<string, { unit: string; status: string; timestamp: number }>,
+  unitLegend?: UnitLegendEntry[]
 ): string {
   const lines: string[] = [];
 
@@ -489,13 +527,15 @@ function formatUnits(
     for (const [status, statusUnits] of Object.entries(statusGroups)) {
       const displayStatus = formatUnitStatus(status);
       for (const unit of statusUnits) {
-        lines.push(`• ${unit} - ${displayStatus}`);
+        const displayName = getUnitDisplayName(unit, unitLegend);
+        lines.push(`• ${displayName} - ${displayStatus}`);
       }
     }
   } else {
     // Simple list
     for (const unit of units) {
-      lines.push(`• ${unit}`);
+      const displayName = getUnitDisplayName(unit, unitLegend);
+      lines.push(`• ${displayName}`);
     }
   }
 
@@ -507,6 +547,156 @@ function formatUnits(
  */
 function formatUnitStatus(status: string): string {
   return formatUnitStatusCode(status);
+}
+
+// ===================
+// Unit Grouping by Department
+// ===================
+
+// Fire/Rescue unit type suffixes - these get stripped to show department name
+const FIRE_UNIT_SUFFIXES = [
+  'ENGINE', 'LADDER', 'TRUCK', 'TANKER', 'BRUSH', 'RESCUE',
+  'BATTALION', 'CHIEF', 'CAPTAIN', 'UTILITY', 'SQUAD',
+  'HAZMAT', 'SPECIAL', 'PUMPER', 'QUINT', 'TOWER',
+];
+
+// EMS unit type suffixes - these keep "EMS" in the group name
+const EMS_UNIT_SUFFIXES = ['AMBULANCE', 'EMS', 'MEDIC'];
+
+// EMS-related prefixes for descriptions that start with EMS
+const EMS_PREFIXES = ['EMS ', 'MEDIC ', 'AMBULANCE '];
+
+/**
+ * Extract department/service name from unit description
+ *
+ * Fire units: "MOORESVILLE ENGINE" → "Mooresville"
+ * EMS units: "MOORESVILLE EMS" → "Mooresville EMS"
+ * Generic EMS: "EMS SUPERVISOR" → "EMS"
+ */
+function extractDepartment(description: string): string {
+  const upper = description.toUpperCase().trim();
+
+  // Helper to title case a string
+  const titleCase = (str: string) => str
+    .toLowerCase()
+    .split(' ')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+
+  // Check if description starts with EMS-related prefix (e.g., "EMS SUPERVISOR", "EMS CONVALESCENT")
+  for (const prefix of EMS_PREFIXES) {
+    if (upper.startsWith(prefix) || upper === prefix.trim()) {
+      return 'EMS';
+    }
+  }
+
+  // Check for EMS suffixes - keep "EMS" in the group name
+  for (const suffix of EMS_UNIT_SUFFIXES) {
+    if (upper.endsWith(` ${suffix}`)) {
+      const dept = description.slice(0, -(suffix.length + 1)).trim();
+      if (dept) {
+        return `${titleCase(dept)} EMS`;
+      }
+      return 'EMS';
+    }
+  }
+
+  // Check for fire/rescue suffixes - strip suffix, return department name
+  for (const suffix of FIRE_UNIT_SUFFIXES) {
+    if (upper.endsWith(` ${suffix}`)) {
+      const dept = description.slice(0, -(suffix.length + 1)).trim();
+      if (dept) {
+        return titleCase(dept);
+      }
+    }
+  }
+
+  // If no suffix found, return the whole description title-cased
+  return titleCase(description);
+}
+
+/**
+ * Group units by their department
+ * Uses legend descriptions if available, otherwise groups under "Other"
+ */
+function groupUnitsByDepartment(
+  units: string[],
+  unitLegend?: UnitLegendEntry[]
+): Map<string, string[]> {
+  const groups = new Map<string, string[]>();
+
+  for (const unit of units) {
+    // Skip VTAC (radio channel) units
+    if (unit.toUpperCase().includes('VTAC')) continue;
+
+    let department: string = 'Other';
+
+    // Try to get department from legend
+    if (unitLegend && unitLegend.length > 0) {
+      const entry = unitLegend.find((u) => u.UnitKey.toLowerCase() === unit.toLowerCase());
+      if (entry?.Description) {
+        department = extractDepartment(entry.Description);
+      }
+    }
+
+    if (!groups.has(department)) {
+      groups.set(department, []);
+    }
+    groups.get(department)!.push(unit);
+  }
+
+  return groups;
+}
+
+/**
+ * Format units grouped by department for display
+ */
+function formatUnitsGrouped(
+  units: string[],
+  unitStatuses?: UnitStatus[] | Record<string, { unit: string; status: string; timestamp: number }>,
+  unitLegend?: UnitLegendEntry[]
+): string {
+  const lines: string[] = [];
+  const groups = groupUnitsByDepartment(units, unitLegend);
+
+  // Sort departments alphabetically, but put "Other" last
+  const sortedDepts = Array.from(groups.keys()).sort((a, b) => {
+    if (a === 'Other') return 1;
+    if (b === 'Other') return -1;
+    return a.localeCompare(b);
+  });
+
+  // Build status lookup map for array format
+  const statusMap = new Map<string, string>();
+  if (unitStatuses && Array.isArray(unitStatuses)) {
+    for (const us of unitStatuses) {
+      statusMap.set(us.unitId.toLowerCase(), us.status || 'Unknown');
+    }
+  }
+
+  for (const dept of sortedDepts) {
+    const deptUnits = groups.get(dept)!;
+
+    // Add department header
+    lines.push(`${dept}:`);
+
+    // Add each unit under this department
+    for (const unit of deptUnits) {
+      let status = 'Unknown';
+      if (unitStatuses && Array.isArray(unitStatuses)) {
+        status = statusMap.get(unit.toLowerCase()) || 'Unknown';
+      }
+      const displayStatus = formatUnitStatus(status);
+      lines.push(`• ${unit} - ${displayStatus}`);
+    }
+
+    // Add blank line between departments (except after last one)
+    if (dept !== sortedDepts[sortedDepts.length - 1]) {
+      lines.push('');
+    }
+  }
+
+  return lines.join('\n');
 }
 
 /**

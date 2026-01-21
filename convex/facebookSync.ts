@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { internalAction, internalMutation, internalQuery } from "./_generated/server";
 import { internal, api } from "./_generated/api";
 import { Doc } from "./_generated/dataModel";
-import { applyTemplate, getDefaultTemplateObject, DEFAULT_TEMPLATE_STRING } from "./postTemplates";
+import { applyTemplate, getDefaultTemplateObject, DEFAULT_TEMPLATE_STRING, UnitLegendEntry } from "./postTemplates";
 import { getCallTypeDescription, getCallTypeCategory, isMedicalCallType, formatUnitStatusCode } from "./callTypes";
 
 // ===================
@@ -24,13 +24,36 @@ interface UnitStatus {
 // ===================
 
 /**
+ * Look up unit description from legend
+ * Returns the description if found, otherwise returns the original unit ID
+ */
+function getUnitDisplayName(unitId: string, unitLegend?: UnitLegendEntry[]): string {
+  if (!unitLegend || unitLegend.length === 0) {
+    return unitId;
+  }
+
+  // Look up the unit in the legend (case-insensitive match)
+  const entry = unitLegend.find(
+    (e) => e.UnitKey.toLowerCase() === unitId.toLowerCase()
+  );
+
+  if (entry && entry.Description) {
+    // Return "UnitID (Description)" format for clarity
+    return `${unitId} (${entry.Description})`;
+  }
+
+  return unitId;
+}
+
+/**
  * Format an incident for Facebook posting using default formatting
  * Used as fallback when no template is configured
  */
 function formatIncidentPostDefault(
   incident: Doc<"incidents">,
   updates: Array<{ content: string; createdAt: number }> = [],
-  timezone?: string
+  timezone?: string,
+  unitLegend?: UnitLegendEntry[]
 ): string {
   const lines: string[] = [];
   const tz = timezone || "America/New_York";
@@ -70,13 +93,15 @@ function formatIncidentPostDefault(
       for (const [status, units] of Object.entries(statusGroups)) {
         const displayStatus = formatUnitStatus(status);
         for (const unit of units) {
-          lines.push(`• ${unit} - ${displayStatus}`);
+          const displayName = getUnitDisplayName(unit, unitLegend);
+          lines.push(`• ${displayName} - ${displayStatus}`);
         }
       }
     } else {
       // Simple list
       for (const unit of incident.units) {
-        lines.push(`• ${unit}`);
+        const displayName = getUnitDisplayName(unit, unitLegend);
+        lines.push(`• ${displayName}`);
       }
     }
     lines.push("");
@@ -133,15 +158,16 @@ function formatIncidentPost(
   incident: Doc<"incidents">,
   updates: Array<{ content: string; createdAt: number }> = [],
   template: Doc<"postTemplates"> | null,
-  timezone?: string
+  timezone?: string,
+  unitLegend?: UnitLegendEntry[]
 ): string {
   // If we have a template, use the template engine
   if (template) {
-    return applyTemplate(template, incident, updates, timezone);
+    return applyTemplate(template, incident, updates, timezone, unitLegend);
   }
 
   // Fall back to default formatting
-  return formatIncidentPostDefault(incident, updates, timezone);
+  return formatIncidentPostDefault(incident, updates, timezone, unitLegend);
 }
 
 // ===================
@@ -535,12 +561,13 @@ export const syncNewIncidents = internalAction({
         incidentId: incident._id,
       });
 
-      // Format the post using template or default
+      // Format the post using template or default (pass unit legend for translations)
       const message = formatIncidentPost(
         incident,
         updates.map((u) => ({ content: u.content, createdAt: u.createdAt })),
         template,
-        timezone
+        timezone,
+        tenant?.unitLegend || undefined
       );
 
       // Post to Facebook
@@ -630,12 +657,13 @@ export const syncIncidentUpdates = internalAction({
         incidentId: incident._id,
       });
 
-      // Format the updated post
+      // Format the updated post (pass unit legend for translations)
       const message = formatIncidentPost(
         incident,
         updates.map((u) => ({ content: u.content, createdAt: u.createdAt })),
         template,
-        timezone
+        timezone,
+        tenant?.unitLegend || undefined
       );
 
       // Update Facebook post
