@@ -1,17 +1,18 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-import { UserButton } from '@clerk/nextjs';
-import { LayoutDashboard, Building2, Activity, Settings, User, ClipboardCheck } from 'lucide-react';
+import { SignOutButton } from '@clerk/nextjs';
+import { LayoutDashboard, Building2, Activity, Settings, User, ClipboardCheck, LogOut, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/theme-toggle';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -25,10 +26,15 @@ interface AdminLayoutProps {
 
 export function AdminLayout({ children }: AdminLayoutProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const currentUser = useQuery(api.users.getCurrentUser);
   const pendingApprovals = useQuery(api.admin.getPendingApprovals);
+  const userTenant = useQuery(api.users.getCurrentUserTenant);
 
   const pendingCount = pendingApprovals?.length ?? 0;
+
+  // User's tenants for switching
+  const userTenants = userTenant?.tenant ? [userTenant.tenant] : [];
 
   const navItems = [
     {
@@ -122,7 +128,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                   </Avatar>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuContent align="end" className="w-64">
                 <div className="flex items-center gap-2 p-2">
                   <Avatar className="h-8 w-8">
                     <AvatarImage src={currentUser?.avatar} />
@@ -146,18 +152,35 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                     Settings
                   </Link>
                 </DropdownMenuItem>
+
+                {/* Organizations Section */}
+                {userTenants.length > 0 && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel className="text-xs text-muted-foreground">
+                      Organizations
+                    </DropdownMenuLabel>
+                    {userTenants.map((t) => (
+                      <DropdownMenuItem
+                        key={t._id}
+                        onClick={() => router.push(`/tenant/${t.slug}`)}
+                        className="flex items-center"
+                      >
+                        <Building2 className="mr-2 h-4 w-4" />
+                        <span className="truncate max-w-[160px]">{t.displayName || t.name}</span>
+                      </DropdownMenuItem>
+                    ))}
+                  </>
+                )}
+
+                {/* Sign Out */}
                 <DropdownMenuSeparator />
-                <div className="p-2">
-                  <UserButton
-                    afterSignOutUrl="/"
-                    appearance={{
-                      elements: {
-                        rootBox: 'w-full',
-                        userButtonTrigger: 'w-full justify-start',
-                      },
-                    }}
-                  />
-                </div>
+                <SignOutButton redirectUrl="/">
+                  <DropdownMenuItem className="flex items-center text-red-600 dark:text-red-400 cursor-pointer">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Sign out
+                  </DropdownMenuItem>
+                </SignOutButton>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
