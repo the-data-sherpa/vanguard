@@ -271,51 +271,57 @@
 - `components/mission-control/SyncStatusBadge.tsx` - Post status indicator
 - `components/mission-control/UpdatesList.tsx` - List of incident updates
 
-### Block 3B: Auto-Post Rules Configuration ⬜ PENDING
+### Block 3B: Auto-Post Rules Configuration ✅ COMPLETE
 
 | Task | Status | Notes |
 |------|--------|-------|
-| Auto-post rules UI (enable/disable toggle, call type filters) | ⬜ Pending | Settings > Social page |
-| Backend mutations (save, get, delete rules) | ⬜ Pending | convex/autoPostRules.ts |
-| Call type filter with multi-select | ⬜ Pending | Fire, EMS, Traffic, etc. |
-| Exclude medical calls toggle | ⬜ Pending | Privacy filter option |
-| Minimum units threshold | ⬜ Pending | Only post if N+ units respond |
-| Delay before posting setting | ⬜ Pending | Wait X seconds before auto-post |
+| Auto-post rules UI (enable/disable toggle, call type filters) | ✅ Done | Settings > Social page |
+| Backend mutations (save, get, delete rules) | ✅ Done | convex/autoPostRules.ts |
+| Call type filter with multi-select | ✅ Done | Fire, EMS, Traffic, Rescue, HazMat, Other |
+| Exclude medical calls toggle | ✅ Done | Privacy filter option |
+| Minimum units threshold | ✅ Done | Only post if N+ units respond |
+| Delay before posting setting | ✅ Done | Wait X seconds before auto-post |
 
-**Files to create:**
+**Files created:**
 - `convex/autoPostRules.ts` - CRUD mutations for auto-post rules
+- `convex/callTypes.ts` - 90+ call type code mappings, unit status codes
 
-**Files to modify:**
-- `app/tenant/[slug]/settings/social/page.tsx` - Add rules configuration UI
+**Files modified:**
+- `app/tenant/[slug]/settings/social/page.tsx` - Full rules configuration UI
 
-### Block 3C: Post Templates ⬜ PENDING
-
-| Task | Status | Notes |
-|------|--------|-------|
-| Template list UI with create/edit/delete | ⬜ Pending | Settings > Social page |
-| Template CRUD mutations | ⬜ Pending | convex/postTemplates.ts |
-| Placeholder system ({{callType}}, {{address}}, etc.) | ⬜ Pending | Dynamic content replacement |
-| Call type assignment for templates | ⬜ Pending | Match template to incident type |
-| Default template designation | ⬜ Pending | Fallback when no match |
-| Template preview | ⬜ Pending | Show sample output |
-
-**Files to create:**
-- `convex/postTemplates.ts` - CRUD mutations for templates
-
-**Files to modify:**
-- `app/tenant/[slug]/settings/social/page.tsx` - Add template management UI
-
-### Block 3D: Template Engine Integration ⬜ PENDING
+### Block 3C: Post Templates ✅ COMPLETE
 
 | Task | Status | Notes |
 |------|--------|-------|
-| Template-aware post formatting | ⬜ Pending | Replace hardcoded formatIncidentPost |
-| Rule-based filtering in sync jobs | ⬜ Pending | Check rules before posting |
-| Template selection by call type | ⬜ Pending | Match incident to template |
-| Fallback to default template | ⬜ Pending | When no specific match |
+| Template list UI with create/edit/delete | ✅ Done | Settings > Social page |
+| Template CRUD mutations | ✅ Done | convex/postTemplates.ts |
+| Placeholder system ({{callType}}, {{address}}, etc.) | ✅ Done | Dynamic content replacement |
+| Call type assignment for templates | ✅ Done | Match template to incident type |
+| Default template designation | ✅ Done | Fallback when no match |
+| Template preview | ✅ Done | Live preview with sample data |
 
-**Files to modify:**
-- `convex/facebookSync.ts` - Integrate template engine and rule checking
+**Files created:**
+- `convex/postTemplates.ts` - CRUD mutations, template engine, applyTemplate()
+- `lib/callTypes.ts` - Frontend call type definitions for UI
+
+**Files modified:**
+- `app/tenant/[slug]/settings/social/page.tsx` - Full template management UI
+
+### Block 3D: Template Engine Integration ✅ COMPLETE
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Template-aware post formatting | ✅ Done | applyTemplate() replaces hardcoded formatting |
+| Rule-based filtering in sync jobs | ✅ Done | shouldAutoPost() checks rules before posting |
+| Template selection by call type | ✅ Done | getForCallTypeInternal() matches templates |
+| Fallback to default template | ✅ Done | Uses default when no specific match |
+| Tenant timezone support | ✅ Done | All times use tenant's configured timezone |
+
+**Files modified:**
+- `convex/facebookSync.ts` - Integrated template engine and rule checking
+- `convex/schema.ts` - Added timezone field to tenants
+- `convex/tenants.ts` - Added updateTimezone mutation
+- `app/tenant/[slug]/settings/GeneralSettings.tsx` - Timezone selector UI
 
 ---
 
@@ -499,6 +505,7 @@ Block 1C (Incidents)
 | 1.6.0 | January 2025 | Block 2B complete - Tenant Lifecycle Management with creation wizard, suspension, deletion, tier upgrades |
 | 1.7.0 | January 2025 | Block 2C complete - Billing & Subscriptions with Stripe integration, 14-day trials, demo tenant, billing portal |
 | 1.8.0 | January 2025 | Block 3A complete - Mission Control, Facebook integration, auto-posting, sync status tracking |
+| 1.9.0 | January 2025 | Blocks 3B, 3C, 3D complete - Auto-post rules, post templates with placeholder system, template engine integration, tenant timezone support, call type/unit status mappings, searchable call type selector |
 
 ---
 
