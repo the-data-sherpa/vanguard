@@ -2,8 +2,48 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { AlertTriangle, Clock, Info } from 'lucide-react';
+import { AlertTriangle, Clock, Info, TrendingUp } from 'lucide-react';
 import type { WeatherAlert } from '@/lib/types';
+
+/**
+ * Threat score calculation (matches backend logic from weatherFacebookSync.ts)
+ */
+const SEVERITY_SCORES: Record<string, number> = {
+  Extreme: 40,
+  Severe: 30,
+  Moderate: 20,
+  Minor: 10,
+  Unknown: 5,
+};
+
+const URGENCY_SCORES: Record<string, number> = {
+  Immediate: 30,
+  Expected: 20,
+  Future: 10,
+  Unknown: 5,
+};
+
+const CERTAINTY_SCORES: Record<string, number> = {
+  Observed: 30,
+  Likely: 25,
+  Possible: 15,
+  Unlikely: 5,
+  Unknown: 5,
+};
+
+function calculateThreatScore(alert: WeatherAlert): number {
+  const severityScore = SEVERITY_SCORES[alert.severity] || 5;
+  const urgencyScore = URGENCY_SCORES[alert.urgency || "Unknown"] || 5;
+  const certaintyScore = CERTAINTY_SCORES[alert.certainty || "Unknown"] || 5;
+  return severityScore + urgencyScore + certaintyScore;
+}
+
+function getThreatScoreColor(score: number): string {
+  if (score >= 80) return 'text-red-600 bg-red-50 border-red-200';
+  if (score >= 60) return 'text-orange-600 bg-orange-50 border-orange-200';
+  if (score >= 40) return 'text-yellow-600 bg-yellow-50 border-yellow-200';
+  return 'text-blue-600 bg-blue-50 border-blue-200';
+}
 
 /**
  * Get Tailwind classes for severity badge styling
@@ -39,6 +79,8 @@ export function WeatherAlertCard({ alert, onClick, compact = false }: WeatherAle
   });
 
   const severityClass = getSeverityColor(alert.severity);
+  const threatScore = calculateThreatScore(alert);
+  const threatScoreClass = getThreatScoreColor(threatScore);
 
   if (compact) {
     return (
@@ -95,6 +137,35 @@ export function WeatherAlertCard({ alert, onClick, compact = false }: WeatherAle
             <Badge variant="outline">Certainty: {alert.certainty}</Badge>
           </div>
         )}
+
+        {/* Threat Score Calculation */}
+        <div className={`rounded-lg border p-3 ${threatScoreClass}`}>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4" />
+              <span className="font-medium text-sm">Threat Score: {threatScore}/100</span>
+            </div>
+            {threatScore >= 60 && (
+              <Badge variant="outline" className="text-xs">
+                Auto-Post Eligible
+              </Badge>
+            )}
+          </div>
+          <div className="text-xs space-y-1 text-muted-foreground">
+            <div className="flex justify-between">
+              <span>Severity ({alert.severity}):</span>
+              <span className="font-medium">{SEVERITY_SCORES[alert.severity] || 5} pts</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Urgency ({alert.urgency || "Unknown"}):</span>
+              <span className="font-medium">{URGENCY_SCORES[alert.urgency || "Unknown"] || 5} pts</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Certainty ({alert.certainty || "Unknown"}):</span>
+              <span className="font-medium">{CERTAINTY_SCORES[alert.certainty || "Unknown"] || 5} pts</span>
+            </div>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );

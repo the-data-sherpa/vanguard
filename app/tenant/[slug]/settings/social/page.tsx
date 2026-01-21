@@ -123,9 +123,9 @@ function SocialSettingsContent({ params }: SocialSettingsPageProps) {
     const redirectUri = `${window.location.origin}/api/auth/facebook/callback`;
     // Include both tenant ID and slug in state for redirect after OAuth
     const state = JSON.stringify({ tenantId: tenant._id, slug: tenant.slug });
-    const scope = "pages_show_list,pages_manage_posts";
+    const scope = "pages_show_list,pages_manage_posts,pages_manage_metadata";
 
-    const authUrl = new URL("https://www.facebook.com/v21.0/dialog/oauth");
+    const authUrl = new URL("https://www.facebook.com/v24.0/dialog/oauth");
     authUrl.searchParams.set("client_id", appId);
     authUrl.searchParams.set("redirect_uri", redirectUri);
     authUrl.searchParams.set("state", state);

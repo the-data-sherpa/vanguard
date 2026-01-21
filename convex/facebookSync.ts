@@ -394,8 +394,12 @@ async function postToFacebook(
   message: string
 ): Promise<{ id: string } | null> {
   try {
-    // Use v21.0 API version
-    const url = `https://graph.facebook.com/v21.0/${pageId}/feed`;
+    // #region agent log
+    fetch('http://127.0.0.1:7243/ingest/87cf2615-bb0c-477f-a417-058eda363708',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'facebookSync.ts:396',message:'Before Facebook post attempt',data:{pageId,hasToken:!!pageToken,tokenPrefix:pageToken?.substring(0,10),messageLength:message?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1'})}).catch(()=>{});
+    // #endregion
+
+    // Use v24.0 API version
+    const url = `https://graph.facebook.com/v24.0/${pageId}/feed`;
     console.log(`[Facebook] Posting to page ${pageId}...`);
 
     const response = await fetch(url, {
@@ -411,6 +415,9 @@ async function postToFacebook(
 
     if (!response.ok) {
       const errorText = await response.text();
+      // #region agent log
+      fetch('http://127.0.0.1:7243/ingest/87cf2615-bb0c-477f-a417-058eda363708',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'facebookSync.ts:414',message:'Facebook post failed with error',data:{status:response.status,errorText,pageId},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1'})}).catch(()=>{});
+      // #endregion
       console.error(`[Facebook] Post failed (${response.status}):`, errorText);
       return null;
     }
@@ -436,8 +443,8 @@ async function updateFacebookPost(
   message: string
 ): Promise<{ success: boolean; newPostId?: string; error?: string }> {
   try {
-    // Use v21.0 API version
-    const url = `https://graph.facebook.com/v21.0/${postId}`;
+    // Use v24.0 API version
+    const url = `https://graph.facebook.com/v24.0/${postId}`;
     const response = await fetch(url, {
       method: "POST",
       headers: {
