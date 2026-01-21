@@ -11,17 +11,17 @@ export function cn(...inputs: ClassValue[]) {
 // ===================
 
 // Fire/Rescue unit type suffixes - these get stripped to show department name
-const FIRE_UNIT_SUFFIXES = [
+export const FIRE_UNIT_SUFFIXES = [
   'ENGINE', 'LADDER', 'TRUCK', 'TANKER', 'BRUSH', 'RESCUE',
   'BATTALION', 'CHIEF', 'CAPTAIN', 'UTILITY', 'SQUAD',
   'HAZMAT', 'SPECIAL', 'PUMPER', 'QUINT', 'TOWER', 'FIRE',
 ];
 
 // EMS unit type suffixes - these keep "EMS" in the group name
-const EMS_UNIT_SUFFIXES = ['AMBULANCE', 'EMS', 'MEDIC'];
+export const EMS_UNIT_SUFFIXES = ['AMBULANCE', 'EMS', 'MEDIC'];
 
 // EMS-related prefixes for descriptions that start with EMS
-const EMS_PREFIXES = ['EMS ', 'MEDIC ', 'AMBULANCE '];
+export const EMS_PREFIXES = ['EMS ', 'MEDIC ', 'AMBULANCE '];
 
 /**
  * Extract department/service name from unit description
@@ -89,10 +89,9 @@ export function extractDepartment(description: string): string {
 
 /**
  * Group units by their department name
- * 
- * Uses legend descriptions if available, otherwise attempts to extract department
- * from unit ID itself as a fallback.
- * 
+ *
+ * Uses legend descriptions if available, otherwise groups under "Other".
+ *
  * @param units - Array of unit IDs (e.g., ["F70T1", "F12BR1"])
  * @param unitLegend - Optional unit legend with descriptions
  * @returns Map of department name to array of unit IDs
@@ -109,7 +108,7 @@ export function groupUnitsByDepartment(
 
     let department: string = 'Other';
 
-    // Try to get department from legend first
+    // Try to get department from legend
     if (unitLegend && unitLegend.length > 0) {
       const entry = unitLegend.find(
         (u) => u.UnitKey.toLowerCase() === unit.toLowerCase()
@@ -117,14 +116,6 @@ export function groupUnitsByDepartment(
       if (entry?.Description) {
         department = extractDepartment(entry.Description);
       }
-    }
-
-    // Fallback: If no legend entry, try to extract department from unit ID
-    // This handles cases where legend might be missing or incomplete
-    if (department === 'Other' && unit) {
-      // Try common patterns in unit IDs (e.g., "F70T1" might indicate department)
-      // For now, we'll keep it as "Other" if no legend entry exists
-      // This could be enhanced with user-configured mappings in the future
     }
 
     if (!groups.has(department)) {
