@@ -123,9 +123,9 @@ function SocialSettingsContent({ params }: SocialSettingsPageProps) {
     const redirectUri = `${window.location.origin}/api/auth/facebook/callback`;
     // Include both tenant ID and slug in state for redirect after OAuth
     const state = JSON.stringify({ tenantId: tenant._id, slug: tenant.slug });
-    const scope = "pages_show_list,pages_read_engagement,pages_manage_posts,pages_manage_engagement";
+    const scope = "pages_show_list,pages_manage_posts";
 
-    const authUrl = new URL("https://www.facebook.com/v18.0/dialog/oauth");
+    const authUrl = new URL("https://www.facebook.com/v21.0/dialog/oauth");
     authUrl.searchParams.set("client_id", appId);
     authUrl.searchParams.set("redirect_uri", redirectUri);
     authUrl.searchParams.set("state", state);
@@ -761,6 +761,7 @@ function PostTemplatesCard({ tenantId }: { tenantId: Id<"tenants"> }) {
     preview = preview.replace(/\{\{callType\}\}/gi, "Structure Fire");
     preview = preview.replace(/\{\{address\}\}/gi, "123 Main Street");
     preview = preview.replace(/\{\{units\}\}/gi, "• E1 - On Scene\n• T1 - En Route\n• BC1 - Dispatched");
+    preview = preview.replace(/\{\{unitsGrouped\}\}/gi, "Mooresville:\n• E1 - On Scene\n• T1 - En Route\n\nIredell County:\n• BC1 - Dispatched");
     preview = preview.replace(/\{\{unitCount\}\}/gi, "3");
     preview = preview.replace(/\{\{time\}\}/gi, "2:30 PM");
     preview = preview.replace(/\{\{updates\}\}/gi, "• [2:35 PM] Fire under control");
@@ -906,7 +907,8 @@ function PostTemplatesCard({ tenantId }: { tenantId: Id<"tenants"> }) {
               <div><code>{"{{status}}"}</code> - Status with emoji</div>
               <div><code>{"{{callType}}"}</code> - Incident type</div>
               <div><code>{"{{address}}"}</code> - Location</div>
-              <div><code>{"{{units}}"}</code> - Unit list</div>
+              <div><code>{"{{units}}"}</code> - Unit list (flat)</div>
+              <div><code>{"{{unitsGrouped}}"}</code> - Units by department</div>
               <div><code>{"{{unitCount}}"}</code> - Number of units</div>
               <div><code>{"{{time}}"}</code> - Incident time</div>
               <div><code>{"{{updates}}"}</code> - Recent updates</div>
