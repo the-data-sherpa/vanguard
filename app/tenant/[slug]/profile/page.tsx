@@ -135,10 +135,7 @@ export default function ProfilePage() {
     switch (role) {
       case "owner":
         return "default";
-      case "admin":
-        return "destructive";
-      case "moderator":
-        return "secondary";
+      case "user":
       default:
         return "outline";
     }

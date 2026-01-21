@@ -12,7 +12,7 @@ export default function PendingApprovalLayout({
     <div className="min-h-screen bg-background">
       {/* Minimal header */}
       <header className="border-b">
-        <div className="container flex h-14 items-center justify-between">
+        <div className="container mx-auto px-4 flex h-14 items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
             <Image src="/logo.png" alt="Vanguard" width={32} height={32} className="rounded" />
             <span className="font-bold">Vanguard</span>
@@ -25,7 +25,7 @@ export default function PendingApprovalLayout({
       </header>
 
       {/* Main content */}
-      <main className="container py-8">
+      <main className="container mx-auto px-4 py-8">
         {children}
       </main>
     </div>

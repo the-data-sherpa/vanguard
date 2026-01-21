@@ -273,4 +273,75 @@ http.route({
   }),
 });
 
+// ===================
+// Facebook OAuth Callback
+// ===================
+
+http.route({
+  path: "/facebook/connect",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    try {
+      const body = await request.json();
+      const { tenantId, pageId, pageName, pageToken, connectedBy } = body;
+
+      if (!tenantId || !pageId || !pageName || !pageToken || !connectedBy) {
+        return new Response("Missing required fields", { status: 400 });
+      }
+
+      await ctx.runMutation(internal.facebook.saveConnection, {
+        tenantId: tenantId as Id<"tenants">,
+        pageId,
+        pageName,
+        pageToken,
+        connectedBy,
+      });
+
+      return new Response(JSON.stringify({ success: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (error) {
+      console.error("[Facebook Connect] Error:", error);
+      return new Response("Internal server error", { status: 500 });
+    }
+  }),
+});
+
+// ===================
+// Tenant lookup for OAuth redirects
+// ===================
+
+http.route({
+  path: "/tenants/:tenantId",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    try {
+      const url = new URL(request.url);
+      const pathParts = url.pathname.split("/");
+      const tenantId = pathParts[pathParts.length - 1];
+
+      if (!tenantId) {
+        return new Response("Tenant ID required", { status: 400 });
+      }
+
+      const tenant = await ctx.runQuery(internal.tenants.getByIdInternal, {
+        tenantId: tenantId as Id<"tenants">,
+      });
+
+      if (!tenant) {
+        return new Response("Tenant not found", { status: 404 });
+      }
+
+      return new Response(JSON.stringify({ slug: tenant.slug }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (error) {
+      console.error("[Tenant Lookup] Error:", error);
+      return new Response("Internal server error", { status: 500 });
+    }
+  }),
+});
+
 export default http;

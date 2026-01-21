@@ -5,17 +5,19 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
-import { UserButton } from '@clerk/nextjs';
-import { Home, AlertTriangle, CloudRain, Settings, Users, User, CreditCard } from 'lucide-react';
+import { SignOutButton } from '@clerk/nextjs';
+import { Home, AlertTriangle, CloudRain, Settings, Users, User, CreditCard, Radio, Building2, Shield, LogOut, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/theme-toggle';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { TrialBanner, SubscriptionGuard } from '@/components/billing';
@@ -33,6 +35,7 @@ export function TenantLayout({ tenantSlug, tenantName, tenantId, children }: Ten
   const router = useRouter();
   const currentUser = useQuery(api.users.getCurrentUser);
   const tenant = useQuery(api.tenants.getBySlug, { slug: tenantSlug });
+  const userTenant = useQuery(api.users.getCurrentUserTenant);
 
   // Redirect to pending-approval page if tenant is pending approval
   useEffect(() => {
@@ -42,8 +45,11 @@ export function TenantLayout({ tenantSlug, tenantName, tenantId, children }: Ten
   }, [tenant, router]);
 
   // Platform admins do NOT have automatic tenant access - only check tenant role
-  const isAdmin = currentUser?.tenantRole === 'admin' ||
-    currentUser?.tenantRole === 'owner';
+  const isOwner = currentUser?.tenantRole === 'owner';
+  const isPlatformAdmin = currentUser?.role === 'platform_admin';
+
+  // For now, users can only have one tenant - future: list all tenants
+  const userTenants = userTenant?.tenant ? [userTenant.tenant] : [];
 
   const navItems = [
     {
@@ -62,7 +68,12 @@ export function TenantLayout({ tenantSlug, tenantName, tenantId, children }: Ten
       href: `/tenant/${tenantSlug}/weather`,
       icon: CloudRain,
     },
-    ...(isAdmin
+    {
+      label: 'Mission Control',
+      href: `/tenant/${tenantSlug}/mission-control`,
+      icon: Radio,
+    },
+    ...(isOwner
       ? [
           {
             label: 'Users',
@@ -74,13 +85,13 @@ export function TenantLayout({ tenantSlug, tenantName, tenantId, children }: Ten
             href: `/tenant/${tenantSlug}/billing`,
             icon: CreditCard,
           },
+          {
+            label: 'Settings',
+            href: `/tenant/${tenantSlug}/settings`,
+            icon: Settings,
+          },
         ]
       : []),
-    {
-      label: 'Settings',
-      href: `/tenant/${tenantSlug}/settings`,
-      icon: Settings,
-    },
   ];
 
   const getInitials = () => {
@@ -104,7 +115,7 @@ export function TenantLayout({ tenantSlug, tenantName, tenantId, children }: Ten
 
       {/* Top Navigation */}
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-14 items-center justify-between">
+        <div className="container mx-auto px-4 flex h-14 items-center justify-between">
           <div className="flex items-center">
             <TenantSelector
               currentTenantSlug={tenantSlug}
@@ -145,7 +156,7 @@ export function TenantLayout({ tenantSlug, tenantName, tenantId, children }: Ten
                   </Avatar>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuContent align="end" className="w-64">
                 <div className="flex items-center gap-2 p-2">
                   <Avatar className="h-8 w-8">
                     <AvatarImage src={currentUser?.avatar} />
@@ -163,24 +174,64 @@ export function TenantLayout({ tenantSlug, tenantName, tenantId, children }: Ten
                     Profile
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href={`/tenant/${tenantSlug}/settings`} className="flex items-center">
-                    <Settings className="mr-2 h-4 w-4" />
-                    Settings
-                  </Link>
-                </DropdownMenuItem>
+                {isOwner && (
+                  <DropdownMenuItem asChild>
+                    <Link href={`/tenant/${tenantSlug}/settings`} className="flex items-center">
+                      <Settings className="mr-2 h-4 w-4" />
+                      Settings
+                    </Link>
+                  </DropdownMenuItem>
+                )}
+
+                {/* Organizations Section */}
+                {userTenants.length > 0 && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel className="text-xs text-muted-foreground">
+                      Organizations
+                    </DropdownMenuLabel>
+                    {userTenants.map((t) => (
+                      <DropdownMenuItem
+                        key={t._id}
+                        onClick={() => router.push(`/tenant/${t.slug}`)}
+                        className="flex items-center justify-between"
+                      >
+                        <div className="flex items-center">
+                          <Building2 className="mr-2 h-4 w-4" />
+                          <span className="truncate max-w-[140px]">{t.displayName || t.name}</span>
+                        </div>
+                        {t.slug === tenantSlug && (
+                          <Check className="h-4 w-4 text-primary" />
+                        )}
+                      </DropdownMenuItem>
+                    ))}
+                  </>
+                )}
+
+                {/* Platform Admin Link */}
+                {isPlatformAdmin && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link href="/admin" className="flex items-center">
+                        <Shield className="mr-2 h-4 w-4" />
+                        Platform Admin
+                        <Badge variant="secondary" className="ml-auto text-xs">
+                          Admin
+                        </Badge>
+                      </Link>
+                    </DropdownMenuItem>
+                  </>
+                )}
+
+                {/* Sign Out */}
                 <DropdownMenuSeparator />
-                <div className="p-2">
-                  <UserButton
-                    afterSignOutUrl="/"
-                    appearance={{
-                      elements: {
-                        rootBox: 'w-full',
-                        userButtonTrigger: 'w-full justify-start',
-                      },
-                    }}
-                  />
-                </div>
+                <SignOutButton redirectUrl="/">
+                  <DropdownMenuItem className="flex items-center text-red-600 dark:text-red-400 cursor-pointer">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Sign out
+                  </DropdownMenuItem>
+                </SignOutButton>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -188,7 +239,7 @@ export function TenantLayout({ tenantSlug, tenantName, tenantId, children }: Ten
       </header>
 
       {/* Main Content */}
-      <main className="container py-6">
+      <main className="container mx-auto px-4 py-6">
         {tenant?._id ? (
           <SubscriptionGuard
             tenantId={tenant._id}

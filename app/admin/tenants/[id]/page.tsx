@@ -143,12 +143,9 @@ export default function TenantDetailPage() {
     switch (role) {
       case "owner":
         return <Badge className="bg-purple-600">Owner</Badge>;
-      case "admin":
-        return <Badge className="bg-blue-600">Admin</Badge>;
-      case "moderator":
-        return <Badge variant="secondary">Moderator</Badge>;
+      case "user":
       default:
-        return <Badge variant="outline">Member</Badge>;
+        return <Badge variant="outline">User</Badge>;
     }
   };
 

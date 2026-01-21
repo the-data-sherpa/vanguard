@@ -11,6 +11,7 @@ type TickResult = {
 type MaintenanceTickResult = {
   duration: number;
   staleIncidents: unknown;
+  facebookSync: unknown;
 };
 
 /**
@@ -66,6 +67,7 @@ export const tick = internalAction({
  *
  * Handles:
  * - Closing stale incidents (not updated in 2+ hours)
+ * - Syncing incidents/updates to Facebook
  * - Other periodic maintenance tasks
  */
 export const maintenanceTick = internalAction({
@@ -74,11 +76,20 @@ export const maintenanceTick = internalAction({
     const startTime = Date.now();
     console.log("[MAINTENANCE] Tick started");
 
-    // Close stale incidents for all tenants
-    const staleResult = await ctx.runAction(internal.maintenance.closeAllStaleIncidents).catch((error) => {
-      console.error("[MAINTENANCE] Close stale incidents failed:", error);
-      return { error: String(error) };
-    });
+    // Run maintenance tasks in parallel
+    const [staleResult, facebookResult] = await Promise.all([
+      // Close stale incidents for all tenants
+      ctx.runAction(internal.maintenance.closeAllStaleIncidents).catch((error) => {
+        console.error("[MAINTENANCE] Close stale incidents failed:", error);
+        return { error: String(error) };
+      }),
+
+      // Sync incidents to Facebook for all tenants
+      ctx.runAction(internal.facebookSync.syncAllTenants).catch((error) => {
+        console.error("[MAINTENANCE] Facebook sync failed:", error);
+        return { error: String(error) };
+      }),
+    ]);
 
     const duration = Date.now() - startTime;
     console.log(`[MAINTENANCE] Tick completed in ${duration}ms`);
@@ -86,6 +97,7 @@ export const maintenanceTick = internalAction({
     return {
       duration,
       staleIncidents: staleResult,
+      facebookSync: facebookResult,
     };
   },
 });

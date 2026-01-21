@@ -7,11 +7,10 @@ import { Id } from "./_generated/dataModel";
 // ===================
 
 // Role hierarchy for tenant access (platform_admin has no special tenant privileges)
+// Simplified to 2 roles: owner (full settings access) and user (can view + add updates)
 const roleHierarchy: Record<string, number> = {
-  member: 1,
-  moderator: 2,
-  admin: 3,
-  owner: 4,
+  user: 1,
+  owner: 2,
 };
 
 async function requireAuth(ctx: QueryCtx | MutationCtx) {
@@ -40,7 +39,7 @@ async function getCurrentUserInternal(ctx: QueryCtx | MutationCtx) {
     .unique();
 }
 
-async function requireTenantAdmin(
+async function requireTenantOwner(
   ctx: MutationCtx,
   tenantId: Id<"tenants">
 ): Promise<{ userId: Id<"users">; tenantRole: string }> {
@@ -59,13 +58,12 @@ async function requireTenantAdmin(
     throw new Error("Access denied: user does not belong to this tenant");
   }
 
-  // Check admin role
-  const userRoleLevel = roleHierarchy[user.tenantRole || "member"] || 0;
-  if (userRoleLevel < roleHierarchy.admin) {
-    throw new Error("Access denied: requires admin role or higher");
+  // Check owner role
+  if (user.tenantRole !== "owner") {
+    throw new Error("Access denied: requires owner role");
   }
 
-  return { userId: user._id, tenantRole: user.tenantRole || "member" };
+  return { userId: user._id, tenantRole: user.tenantRole };
 }
 
 // ===================
@@ -249,7 +247,7 @@ export const getCurrentUserTenant = query({
 
     return {
       tenant,
-      role: user.tenantRole || "member",
+      role: user.tenantRole || "user",
     };
   },
 });
@@ -370,15 +368,10 @@ export const inviteUser = mutation({
   args: {
     tenantId: v.id("tenants"),
     email: v.string(),
-    role: v.union(v.literal("member"), v.literal("moderator"), v.literal("admin")),
+    // Simplified to just "user" role - only owners can invite users
   },
-  handler: async (ctx, { tenantId, email, role }) => {
-    const { tenantRole } = await requireTenantAdmin(ctx, tenantId);
-
-    // Only owners can invite admins
-    if (role === "admin" && tenantRole !== "owner") {
-      throw new Error("Only owners can invite admin users");
-    }
+  handler: async (ctx, { tenantId, email }) => {
+    await requireTenantOwner(ctx, tenantId);
 
     // Check if user already exists
     const existingUser = await ctx.db
@@ -394,23 +387,23 @@ export const inviteUser = mutation({
         throw new Error("User is already a member of another tenant");
       }
 
-      // Add existing user to tenant
+      // Add existing user to tenant as "user" role
       await ctx.db.patch(existingUser._id, {
         tenantId,
-        tenantRole: role,
+        tenantRole: "user",
         isActive: true,
       });
       return existingUser._id;
     }
 
-    // Create pending user
+    // Create pending user with "user" role
     return await ctx.db.insert("users", {
       email,
       emailVisibility: false,
       verified: false,
       role: "user",
       tenantId,
-      tenantRole: role,
+      tenantRole: "user",
       isActive: false,
       isBanned: false,
     });
@@ -421,10 +414,10 @@ export const updateUserRole = mutation({
   args: {
     tenantId: v.id("tenants"),
     userId: v.id("users"),
-    role: v.union(v.literal("member"), v.literal("moderator"), v.literal("admin")),
+    role: v.union(v.literal("owner"), v.literal("user")),
   },
   handler: async (ctx, { tenantId, userId, role }) => {
-    const { userId: currentUserId, tenantRole } = await requireTenantAdmin(ctx, tenantId);
+    const { userId: currentUserId } = await requireTenantOwner(ctx, tenantId);
 
     const targetUser = await ctx.db.get(userId);
     if (!targetUser) {
@@ -435,24 +428,14 @@ export const updateUserRole = mutation({
       throw new Error("User does not belong to this tenant");
     }
 
-    // Cannot modify owners
-    if (targetUser.tenantRole === "owner") {
-      throw new Error("Cannot modify owner role");
-    }
-
     // Cannot modify yourself
     if (userId === currentUserId) {
       throw new Error("Cannot modify your own role");
     }
 
-    // Only owners can set admin role
-    if (role === "admin" && tenantRole !== "owner") {
-      throw new Error("Only owners can set admin role");
-    }
-
-    // Admins cannot modify other admins
-    if (targetUser.tenantRole === "admin" && tenantRole === "admin") {
-      throw new Error("Admins cannot modify other admins");
+    // Warn if demoting an owner
+    if (targetUser.tenantRole === "owner" && role === "user") {
+      // This is allowed - owner can demote other owners
     }
 
     await ctx.db.patch(userId, { tenantRole: role });
@@ -465,7 +448,7 @@ export const removeUserFromTenant = mutation({
     userId: v.id("users"),
   },
   handler: async (ctx, { tenantId, userId }) => {
-    const { userId: currentUserId, tenantRole } = await requireTenantAdmin(ctx, tenantId);
+    const { userId: currentUserId } = await requireTenantOwner(ctx, tenantId);
 
     const targetUser = await ctx.db.get(userId);
     if (!targetUser) {
@@ -476,19 +459,9 @@ export const removeUserFromTenant = mutation({
       throw new Error("User does not belong to this tenant");
     }
 
-    // Cannot remove owners
-    if (targetUser.tenantRole === "owner") {
-      throw new Error("Cannot remove the owner");
-    }
-
     // Cannot remove yourself
     if (userId === currentUserId) {
       throw new Error("Cannot remove yourself");
-    }
-
-    // Admins cannot remove other admins
-    if (targetUser.tenantRole === "admin" && tenantRole === "admin") {
-      throw new Error("Admins cannot remove other admins");
     }
 
     // Remove from tenant (keep user record)
@@ -507,7 +480,7 @@ export const toggleUserBan = mutation({
     reason: v.optional(v.string()),
   },
   handler: async (ctx, { tenantId, userId, banned, reason }) => {
-    const { userId: currentUserId, tenantRole } = await requireTenantAdmin(ctx, tenantId);
+    const { userId: currentUserId } = await requireTenantOwner(ctx, tenantId);
 
     const targetUser = await ctx.db.get(userId);
     if (!targetUser) {
@@ -518,19 +491,9 @@ export const toggleUserBan = mutation({
       throw new Error("User does not belong to this tenant");
     }
 
-    // Cannot ban owners
-    if (targetUser.tenantRole === "owner") {
-      throw new Error("Cannot ban the owner");
-    }
-
     // Cannot ban yourself
     if (userId === currentUserId) {
       throw new Error("Cannot ban yourself");
-    }
-
-    // Admins cannot ban other admins
-    if (targetUser.tenantRole === "admin" && tenantRole === "admin") {
-      throw new Error("Admins cannot ban other admins");
     }
 
     await ctx.db.patch(userId, {

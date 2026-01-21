@@ -87,6 +87,9 @@ export default function LandingPage() {
               <Link href="#integrations" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
                 Integrations
               </Link>
+              <Link href="/demo" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                Demo
+              </Link>
             </div>
             <div className="flex items-center gap-4">
               <ThemeToggle />
@@ -456,6 +459,7 @@ export default function LandingPage() {
                 <li><Link href="#features" className="hover:text-foreground transition-colors">Features</Link></li>
                 <li><Link href="#pricing" className="hover:text-foreground transition-colors">Pricing</Link></li>
                 <li><Link href="#integrations" className="hover:text-foreground transition-colors">Integrations</Link></li>
+                <li><Link href="/demo" className="hover:text-foreground transition-colors">Live Demo</Link></li>
               </ul>
             </div>
             <div>

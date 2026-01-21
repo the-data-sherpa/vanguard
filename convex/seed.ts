@@ -60,7 +60,7 @@ export const assignUserToTenant = mutation({
   args: {
     email: v.string(),
     tenantSlug: v.string(),
-    role: v.optional(v.union(v.literal("owner"), v.literal("admin"), v.literal("moderator"), v.literal("member"))),
+    role: v.optional(v.union(v.literal("owner"), v.literal("user"))),
   },
   handler: async (ctx, { email, tenantSlug, role = "owner" }) => {
     // Find the tenant

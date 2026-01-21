@@ -52,11 +52,10 @@ export function IncidentNotes({ tenantId, incidentId }: IncidentNotesProps) {
   const updateNote = useMutation(api.incidentNotes.update);
   const removeNote = useMutation(api.incidentNotes.remove);
 
-  // Check if user can manage notes (admin/moderator)
-  const isAdmin =
-    currentUser?.tenantRole === 'admin' || currentUser?.tenantRole === 'owner';
-  const isModerator = currentUser?.tenantRole === 'moderator';
-  const canAddNotes = isAdmin || isModerator;
+  // Check if user can manage notes
+  // With simplified roles: owner and user can both add notes
+  const isOwner = currentUser?.tenantRole === 'owner';
+  const canAddNotes = !!currentUser; // Any authenticated user can add notes
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,7 +106,7 @@ export function IncidentNotes({ tenantId, incidentId }: IncidentNotesProps) {
       await removeNote({
         id: noteId as Id<'incidentNotes'>,
         authorId: currentUser._id as Id<'users'>,
-        isAdmin,
+        isAdmin: isOwner,
       });
     } catch (error) {
       console.error('Failed to delete note:', error);
@@ -141,7 +140,7 @@ export function IncidentNotes({ tenantId, incidentId }: IncidentNotesProps) {
           {notes.map((note) => {
             const isAuthor = currentUser?._id === note.authorId;
             const canEdit = isAuthor;
-            const canDelete = isAuthor || isAdmin;
+            const canDelete = isAuthor || isOwner;
             const isEditing = editingId === note.id;
 
             return (
@@ -265,7 +264,7 @@ export function IncidentNotes({ tenantId, incidentId }: IncidentNotesProps) {
 
       {!canAddNotes && (
         <p className="text-xs text-muted-foreground">
-          Only administrators and moderators can add notes.
+          Sign in to add notes.
         </p>
       )}
     </div>

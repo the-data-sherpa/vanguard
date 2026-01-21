@@ -354,6 +354,8 @@ export const create = mutation({
 
 /**
  * Update an incident's status
+ * Note: Only manual incidents can be closed by users. PulsePoint incidents
+ * are managed by the sync process.
  */
 export const updateStatus = mutation({
   args: {
@@ -362,6 +364,16 @@ export const updateStatus = mutation({
     callClosedTime: v.optional(v.number()),
   },
   handler: async (ctx, { id, status, callClosedTime }) => {
+    const incident = await ctx.db.get(id);
+    if (!incident) {
+      throw new Error("Incident not found");
+    }
+
+    // Only manual incidents can be closed by users
+    if (status === "closed" && incident.source !== "manual") {
+      throw new Error("Only manual incidents can be closed. PulsePoint incidents are managed by sync.");
+    }
+
     await ctx.db.patch(id, {
       status,
       callClosedTime: status === "closed" ? callClosedTime || Date.now() : undefined,

@@ -17,20 +17,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { RoleSelector } from "./RoleSelector";
 
 interface InviteUserDialogProps {
   tenantId: Id<"tenants">;
-  canInviteAdmin?: boolean;
 }
 
-export function InviteUserDialog({
-  tenantId,
-  canInviteAdmin = false,
-}: InviteUserDialogProps) {
+export function InviteUserDialog({ tenantId }: InviteUserDialogProps) {
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<"member" | "moderator" | "admin">("member");
   const [isInviting, setIsInviting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,11 +43,9 @@ export function InviteUserDialog({
       await inviteUser({
         tenantId,
         email: email.trim().toLowerCase(),
-        role,
       });
       setOpen(false);
       setEmail("");
-      setRole("member");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to invite user");
     } finally {
@@ -88,19 +80,10 @@ export function InviteUserDialog({
               placeholder="user@example.com"
             />
           </div>
-          <div className="space-y-2">
-            <Label>Role</Label>
-            <RoleSelector
-              value={role}
-              onChange={setRole}
-              canSetAdmin={canInviteAdmin}
-            />
-            <p className="text-xs text-muted-foreground">
-              {role === "member" && "Members can view incidents and weather data."}
-              {role === "moderator" && "Moderators can manage user submissions and content."}
-              {role === "admin" && "Admins can manage users and organization settings."}
-            </p>
-          </div>
+          <p className="text-xs text-muted-foreground">
+            Users can view incidents, weather data, and add incident updates.
+            You can promote them to Owner later if needed.
+          </p>
           {error && (
             <p className="text-sm text-destructive">{error}</p>
           )}

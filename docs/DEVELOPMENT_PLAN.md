@@ -31,7 +31,7 @@
 │ ✅ PulsePoint sync (every 2 min, rate-limited, batch upsert)    │
 │ ✅ NWS weather sync (zone-based, severity mapping)              │
 │ ✅ Cron jobs (sync, maintenance, cleanup)                       │
-│ ✅ Role-based auth framework (member→moderator→admin→owner)     │
+│ ✅ Role-based auth framework (user→owner)                       │
 │ ✅ Server-side tenant authorization on mutations                │
 │ ✅ Input validation (NWS zone format)                           │
 │ ✅ Dashboard, incidents list, weather list, settings pages      │
@@ -57,7 +57,7 @@
 | Feature Toggles | ✅ Done | Enable/disable features with tier gating |
 | User Preferences | ✅ Done | Timezone, email/push notifications |
 | Data Export | ✅ Done | CSV/JSON export for incidents, weather, audit |
-| Social Media | ⬜ Needed | Schema ready, logic missing |
+| Social Media | ✅ Done | Mission Control, Facebook integration |
 | User Submissions | 🔮 Deferred | Schema ready, deprioritized |
 | Moderation Queue | 🔮 Deferred | Depends on submissions |
 | Interactive Map | ⬜ Needed | Not started |
@@ -249,21 +249,27 @@
 
 **Goal**: Enable automated incident sharing
 
-### Block 3A: Social Media Integration
+### Block 3A: Social Media Integration ✅ COMPLETE
 
-| Task | Priority | Complexity |
-|------|----------|------------|
-| Facebook page connection (OAuth flow) | 🟠 Medium | High |
-| Post templates (customizable per incident type) | 🟠 Medium | Medium |
-| Auto-post rules (which incidents, when) | 🟠 Medium | Medium |
-| Post history & status tracking | 🟡 Low | Low |
-| Manual post trigger with preview | 🟡 Low | Medium |
+| Task | Status | Notes |
+|------|--------|-------|
+| Facebook page connection (OAuth flow) | ✅ Done | Settings page with connect/disconnect |
+| Post templates (customizable per incident type) | ✅ Done | Per-tenant template configuration |
+| Auto-post rules (which incidents, when) | ✅ Done | Category-based auto-post settings |
+| Post history & status tracking | ✅ Done | Mission Control dashboard with sync status |
+| Manual post trigger with preview | ✅ Done | Preview and post from incident cards |
 
-**Files to create/modify:**
-- `app/tenant/[slug]/settings/social/page.tsx`
-- `convex/social.ts`
-- `convex/facebook.ts`
-- `components/social/PostPreview.tsx`
+**Files created:**
+- `app/tenant/[slug]/mission-control/page.tsx` - Mission Control dashboard
+- `app/tenant/[slug]/settings/social/page.tsx` - Social media settings
+- `convex/facebook.ts` - Facebook API integration (OAuth, posting)
+- `convex/missionControl.ts` - Dashboard stats, pending/posted/failed queries
+- `convex/incidentUpdates.ts` - Incident updates for posting
+
+**Components created:**
+- `components/mission-control/IncidentPostCard.tsx` - Incident card with post controls
+- `components/mission-control/SyncStatusBadge.tsx` - Post status indicator
+- `components/mission-control/UpdatesList.tsx` - List of incident updates
 
 ---
 
@@ -355,7 +361,7 @@
 | 🟠 4 | **2A: Platform Admin Dashboard** | Needed for tenant management | ✅ Done |
 | 🟠 5 | **2B: Tenant Lifecycle** | Create/suspend/delete tenants | ✅ Done |
 | 🟠 6 | **2C: Billing** | Revenue and trial management | ✅ Done |
-| 🟡 7 | **3A: Social Media** | High value for existing ICAW users | ⬜ Next |
+| 🟡 7 | **3A: Social Media** | High value for existing ICAW users | ✅ Done |
 | 🟡 8 | **4A: Map** | Visual appeal, differentiation | ⬜ Pending |
 | 🟡 9 | **4B: Analytics** | Nice-to-have for launch | ⬜ Pending |
 
@@ -422,9 +428,11 @@ Block 1C (Incidents)
 - Billing with Stripe ($29.99/mo + 14-day trial)
 - Demo tenant for prospects
 
-### Social Launch (+ Block 3A) ⬜ NEXT
-- Social media auto-posting
-- Full tenant self-service
+### Social Launch (+ Block 3A) ✅ COMPLETE
+- Social media auto-posting via Mission Control
+- Facebook page integration with OAuth
+- Post templates and auto-post rules
+- Sync status tracking (pending/posted/failed)
 
 ### Full Platform (+ Blocks 4A, 4B) ⬜ FUTURE
 - Interactive maps
@@ -444,6 +452,7 @@ Block 1C (Incidents)
 | 1.5.0 | January 2025 | Block 2A complete - Platform Admin Dashboard with tenant overview, stats, health monitoring, suspend/reactivate actions |
 | 1.6.0 | January 2025 | Block 2B complete - Tenant Lifecycle Management with creation wizard, suspension, deletion, tier upgrades |
 | 1.7.0 | January 2025 | Block 2C complete - Billing & Subscriptions with Stripe integration, 14-day trials, demo tenant, billing portal |
+| 1.8.0 | January 2025 | Block 3A complete - Mission Control, Facebook integration, auto-posting, sync status tracking |
 
 ---
 

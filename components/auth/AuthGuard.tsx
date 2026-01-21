@@ -8,22 +8,20 @@ import { Loader2 } from "lucide-react";
 
 interface AuthGuardProps {
   children: ReactNode;
-  requiredRole?: "member" | "moderator" | "admin" | "owner";
+  requiredRole?: "user" | "owner";
   tenantId?: string;
   fallback?: ReactNode;
 }
 
 // Role hierarchy for tenant access (platform_admin has no special tenant privileges)
 const roleHierarchy: Record<string, number> = {
-  member: 1,
-  moderator: 2,
-  admin: 3,
-  owner: 4,
+  user: 1,
+  owner: 2,
 };
 
 export function AuthGuard({
   children,
-  requiredRole = "member",
+  requiredRole = "user",
   fallback = <AccessDenied />,
 }: AuthGuardProps) {
   const { isSignedIn, isLoaded: clerkLoaded } = useUser();
@@ -68,7 +66,7 @@ export function AuthGuard({
   }
 
   // Check role hierarchy (platform_admin has no special tenant privileges)
-  const userRole = user.tenantRole || "member";
+  const userRole = user.tenantRole || "user";
   const userLevel = roleHierarchy[userRole] || 0;
   const requiredLevel = roleHierarchy[requiredRole] || 0;
 

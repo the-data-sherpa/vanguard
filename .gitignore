@@ -52,3 +52,5 @@ docker-data/
 *.pid.lock
 Thumbs.db
 .env.tmp
+.vercel
+.env*.local
