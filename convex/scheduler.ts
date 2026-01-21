@@ -7,6 +7,7 @@ type TickResult = {
   incidents: unknown;
   weather: unknown;
   facebookSync: unknown;
+  weatherFacebookSync: unknown;
 };
 
 type MaintenanceTickResult = {
@@ -30,7 +31,7 @@ export const tick = internalAction({
 
     // 1. Fetch external data (PulsePoint & Weather) and sync to Facebook in parallel
     // These are the primary data sources that need frequent polling
-    const [incidentResult, weatherResult, facebookResult] = await Promise.all([
+    const [incidentResult, weatherResult, facebookResult, weatherFacebookResult] = await Promise.all([
       ctx.runAction(internal.sync.syncAllTenantIncidents).catch((error) => {
         console.error("[SCHEDULER] Incident sync failed:", error);
         return { error: String(error) };
@@ -44,6 +45,11 @@ export const tick = internalAction({
         console.error("[SCHEDULER] Facebook sync failed:", error);
         return { error: String(error) };
       }),
+      // Sync weather alerts to Facebook for all tenants
+      ctx.runAction(internal.weatherFacebookSync.syncAllTenants).catch((error) => {
+        console.error("[SCHEDULER] Weather Facebook sync failed:", error);
+        return { error: String(error) };
+      }),
     ]);
 
     // Log results
@@ -55,6 +61,7 @@ export const tick = internalAction({
         ? `${weatherResult.filter((r: { success: boolean }) => r.success).length} tenants synced`
         : "error",
       facebook: facebookResult,
+      weatherFacebook: weatherFacebookResult,
     });
 
     const duration = Date.now() - startTime;
@@ -65,6 +72,7 @@ export const tick = internalAction({
       incidents: incidentResult,
       weather: weatherResult,
       facebookSync: facebookResult,
+      weatherFacebookSync: weatherFacebookResult,
     };
   },
 });
