@@ -60,7 +60,8 @@
 | Social Media | 🔄 In Progress | Mission Control, Facebook integration, auto-post rules, templates |
 | User Submissions | 🔮 Deferred | Schema ready, deprioritized |
 | Moderation Queue | 🔮 Deferred | Depends on submissions |
-| Interactive Map | ⬜ Needed | Not started |
+| Public Status Page | ⬜ Needed | Not started |
+| Interactive Map | ⬜ Needed | Not started (Phase 5) |
 | Analytics | ⬜ Needed | Not started |
 | Platform Admin | ✅ Done | Dashboard, tenant overview, health monitoring |
 | Tenant Lifecycle | ✅ Done | Create, suspend, delete, tier management |
@@ -325,25 +326,29 @@
 
 ---
 
-## Phase 4: Visualization & Analytics
+## Phase 4: Status Page & Analytics
 
-**Goal**: Help tenants understand their data
+**Goal**: Public visibility and data insights
 
-### Block 4A: Interactive Map
+### Block 4A: Public Service Status Page
 
 | Task | Priority | Complexity |
 |------|----------|------------|
-| Map component (Leaflet or Mapbox) | 🟡 Low | Medium |
-| Real-time incident markers with clustering | 🟡 Low | Medium |
-| Weather alert overlays (polygon zones) | 🟡 Low | High |
-| Historical heatmap view | 🟡 Low | Medium |
-| Filter by type/time on map | 🟡 Low | Low |
+| Public status page (no auth required) | 🟡 Medium | Medium |
+| Current active incidents summary | 🟡 Medium | Low |
+| Active weather alerts display | 🟡 Medium | Low |
+| System operational status indicator | 🟡 Medium | Low |
+| Historical uptime/incident timeline | 🟡 Medium | Medium |
+| Customizable tenant branding on public page | 🟡 Medium | Low |
+| Embeddable widget option | 🟡 Low | Medium |
 
 **Files to create/modify:**
-- `app/tenant/[slug]/map/page.tsx`
-- `components/map/IncidentMap.tsx`
-- `components/map/WeatherOverlay.tsx`
-- `components/map/MapFilters.tsx`
+- `app/[slug]/status/page.tsx` - Public status page (outside tenant auth)
+- `components/status/ActiveIncidentsSummary.tsx`
+- `components/status/WeatherAlertsBanner.tsx`
+- `components/status/SystemStatus.tsx`
+- `components/status/IncidentTimeline.tsx`
+- `convex/publicStatus.ts` - Public queries (no auth required)
 
 ### Block 4B: Analytics Dashboard
 
@@ -362,6 +367,28 @@
 - `components/analytics/CallTypeBreakdown.tsx`
 - `components/analytics/TimeHeatmap.tsx`
 - `convex/analytics.ts`
+
+---
+
+## Phase 5: Interactive Map
+
+**Goal**: Visual representation of incidents and alerts
+
+### Block 5A: Interactive Map
+
+| Task | Priority | Complexity |
+|------|----------|------------|
+| Map component (Leaflet or Mapbox) | 🟡 Low | Medium |
+| Real-time incident markers with clustering | 🟡 Low | Medium |
+| Weather alert overlays (polygon zones) | 🟡 Low | High |
+| Historical heatmap view | 🟡 Low | Medium |
+| Filter by type/time on map | 🟡 Low | Low |
+
+**Files to create/modify:**
+- `app/tenant/[slug]/map/page.tsx`
+- `components/map/IncidentMap.tsx`
+- `components/map/WeatherOverlay.tsx`
+- `components/map/MapFilters.tsx`
 
 ---
 
@@ -414,8 +441,9 @@
 | 🟠 5 | **2B: Tenant Lifecycle** | Create/suspend/delete tenants | ✅ Done |
 | 🟠 6 | **2C: Billing** | Revenue and trial management | ✅ Done |
 | 🟡 7 | **3A: Social Media** | High value for existing ICAW users | ✅ Done |
-| 🟡 8 | **4A: Map** | Visual appeal, differentiation | ⬜ Pending |
+| 🟡 8 | **4A: Status Page** | Public visibility, transparency | ⬜ Pending |
 | 🟡 9 | **4B: Analytics** | Nice-to-have for launch | ⬜ Pending |
+| 🟢 10 | **5A: Map** | Visual appeal, differentiation | ⬜ Pending |
 
 ---
 
@@ -458,9 +486,11 @@ Block 1C (Incidents)
     │
     ├──► Block 3A (Social) - posts incidents to Facebook
     │
-    ├──► Block 4A (Map) - displays incidents on map
+    ├──► Block 4A (Status Page) - public incident/weather display
     │
-    └──► Block 4B (Analytics) - analyzes incident data
+    ├──► Block 4B (Analytics) - analyzes incident data
+    │
+    └──► Block 5A (Map) - displays incidents on map
 ```
 
 ---
@@ -486,9 +516,13 @@ Block 1C (Incidents)
 - Post templates and auto-post rules
 - Sync status tracking (pending/posted/failed)
 
-### Full Platform (+ Blocks 4A, 4B) ⬜ FUTURE
-- Interactive maps
+### Public Visibility (+ Blocks 4A, 4B) ⬜ FUTURE
+- Public service status page
 - Analytics dashboards
+
+### Full Platform (+ Block 5A) ⬜ FUTURE
+- Interactive maps with real-time incidents
+- Weather alert overlays
 
 ---
 
@@ -506,6 +540,7 @@ Block 1C (Incidents)
 | 1.7.0 | January 2025 | Block 2C complete - Billing & Subscriptions with Stripe integration, 14-day trials, demo tenant, billing portal |
 | 1.8.0 | January 2025 | Block 3A complete - Mission Control, Facebook integration, auto-posting, sync status tracking |
 | 1.9.0 | January 2025 | Blocks 3B, 3C, 3D complete - Auto-post rules, post templates with placeholder system, template engine integration, tenant timezone support, call type/unit status mappings, searchable call type selector |
+| 2.0.0 | January 2025 | Restructured Phase 4: Added Public Service Status Page (4A), moved Interactive Map to new Phase 5 |
 
 ---
 

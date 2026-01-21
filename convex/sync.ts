@@ -478,29 +478,28 @@ export const syncPulsePointForTenant = internalAction({
       allIncidents.push(...filteredIncidents);
 
       // Batch upsert to database
+      let result = { created: 0, updated: 0, skipped: 0, grouped: 0 };
       if (allIncidents.length > 0) {
-        const result = await ctx.runMutation(internal.incidents.batchUpsertFromPulsePoint, {
+        result = await ctx.runMutation(internal.incidents.batchUpsertFromPulsePoint, {
           tenantId,
           incidents: allIncidents,
         });
-
-        // Update sync timestamp
-        await ctx.runMutation(internal.tenants.updateSyncTimestamp, {
-          tenantId,
-          type: "incident",
-        });
-
         console.log(`[PulsePoint] Sync complete for tenant ${tenantId}: ${result.created} created, ${result.updated} updated, ${result.skipped} skipped`);
-        return {
-          success: true,
-          fetched: allIncidents.length,
-          created: result.created,
-          updated: result.updated,
-          skipped: result.skipped,
-        };
       }
 
-      return { success: true, fetched: 0, created: 0, updated: 0, skipped: 0 };
+      // Always update sync timestamp on successful sync (even if 0 incidents found)
+      await ctx.runMutation(internal.tenants.updateSyncTimestamp, {
+        tenantId,
+        type: "incident",
+      });
+
+      return {
+        success: true,
+        fetched: allIncidents.length,
+        created: result.created,
+        updated: result.updated,
+        skipped: result.skipped,
+      };
     } catch (error) {
       console.error(`[PulsePoint] Error syncing for tenant ${tenantId}:`, error);
       throw error;
@@ -652,30 +651,29 @@ export const syncWeatherForTenant = internalAction({
       }
 
       // Batch upsert to database
+      let result = { created: 0, updated: 0 };
       if (allAlerts.length > 0) {
-        const result = await ctx.runMutation(internal.weather.batchUpsertFromNWS, {
+        result = await ctx.runMutation(internal.weather.batchUpsertFromNWS, {
           tenantId,
           alerts: allAlerts,
         });
 
         // Expire old alerts
         await ctx.runMutation(internal.weather.expireOldAlerts, { tenantId });
-
-        // Update sync timestamp
-        await ctx.runMutation(internal.tenants.updateSyncTimestamp, {
-          tenantId,
-          type: "weather",
-        });
-
-        return {
-          success: true,
-          fetched: allAlerts.length,
-          created: result.created,
-          updated: result.updated,
-        };
       }
 
-      return { success: true, fetched: 0, created: 0, updated: 0 };
+      // Always update sync timestamp on successful sync (even if 0 alerts found)
+      await ctx.runMutation(internal.tenants.updateSyncTimestamp, {
+        tenantId,
+        type: "weather",
+      });
+
+      return {
+        success: true,
+        fetched: allAlerts.length,
+        created: result.created,
+        updated: result.updated,
+      };
     } catch (error) {
       console.error(`[Weather] Error fetching for tenant ${tenantId}:`, error);
       return {

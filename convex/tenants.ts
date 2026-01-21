@@ -760,6 +760,7 @@ export const updateFeatures = mutation({
       customBranding: v.optional(v.boolean()),
       apiAccess: v.optional(v.boolean()),
       advancedAnalytics: v.optional(v.boolean()),
+      publicStatusPage: v.optional(v.boolean()),
     }),
   },
   handler: async (ctx, { tenantId, features }) => {

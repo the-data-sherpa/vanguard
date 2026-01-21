@@ -127,6 +127,7 @@ export default defineSchema({
         customBranding: v.optional(v.boolean()),
         apiAccess: v.optional(v.boolean()),
         advancedAnalytics: v.optional(v.boolean()),
+        publicStatusPage: v.optional(v.boolean()),
       })
     ),
     limits: v.optional(

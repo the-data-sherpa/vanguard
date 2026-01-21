@@ -407,7 +407,16 @@ export const updateUnits = mutation({
     ),
   },
   handler: async (ctx, { id, units, unitStatuses }) => {
-    await ctx.db.patch(id, { units, unitStatuses });
+    const incident = await ctx.db.get(id);
+
+    // If incident is already synced to Facebook, flag it for update
+    const needsFacebookUpdate = incident?.isSyncedToFacebook === true;
+
+    await ctx.db.patch(id, {
+      units,
+      unitStatuses,
+      ...(needsFacebookUpdate && { needsFacebookUpdate: true }),
+    });
   },
 });
 
@@ -523,11 +532,26 @@ export const batchUpsertFromPulsePoint = internalMutation({
           continue;
         }
 
-        // Check if status changed to closed - need to update Facebook
-        const statusChangedToClosed =
-          existing.status === "active" &&
-          incident.status === "closed" &&
-          existing.isSyncedToFacebook === true;
+        // Check if we need to update Facebook post
+        let needsFacebookUpdate = false;
+        if (existing.isSyncedToFacebook === true) {
+          // Status changed to closed
+          if (existing.status === "active" && incident.status === "closed") {
+            needsFacebookUpdate = true;
+          }
+          // Units changed
+          const existingUnits = existing.units || [];
+          const incomingUnits = incident.units || [];
+          if (existingUnits.length !== incomingUnits.length) {
+            needsFacebookUpdate = true;
+          } else {
+            const sortedExisting = [...existingUnits].sort();
+            const sortedIncoming = [...incomingUnits].sort();
+            if (!sortedExisting.every((u, i) => u === sortedIncoming[i])) {
+              needsFacebookUpdate = true;
+            }
+          }
+        }
 
         // Update existing incident
         await ctx.db.patch(existing._id, {
@@ -541,8 +565,8 @@ export const batchUpsertFromPulsePoint = internalMutation({
           unitStatuses: incident.unitStatuses,
           status: incident.status,
           callClosedTime: incident.callClosedTime,
-          // Flag for Facebook update if status changed to closed
-          ...(statusChangedToClosed && { needsFacebookUpdate: true }),
+          // Flag for Facebook update if status changed or units changed
+          ...(needsFacebookUpdate && { needsFacebookUpdate: true }),
         });
         updated++;
       } else {
