@@ -4,6 +4,14 @@ import { internal } from "./_generated/api";
 import { Webhook } from "svix";
 import Stripe from "stripe";
 import { Id } from "./_generated/dataModel";
+import {
+  getPublicTenantInfoHandler,
+  getPublicStatsHandler,
+  getPublicIncidentsHandler,
+  getPublicWeatherAlertsHandler,
+  getIncidentHistoryHandler,
+  getTenantByIdHandler,
+} from "./publicApi";
 
 const http = httpRouter();
 
@@ -309,39 +317,49 @@ http.route({
 });
 
 // ===================
-// Tenant lookup for OAuth redirects
+// Tenant lookup for OAuth redirects (rate-limited)
 // ===================
 
 http.route({
   path: "/tenants/:tenantId",
   method: "GET",
-  handler: httpAction(async (ctx, request) => {
-    try {
-      const url = new URL(request.url);
-      const pathParts = url.pathname.split("/");
-      const tenantId = pathParts[pathParts.length - 1];
+  handler: getTenantByIdHandler,
+});
 
-      if (!tenantId) {
-        return new Response("Tenant ID required", { status: 400 });
-      }
+// ===================
+// Public Status API (rate-limited)
+// ===================
+// These endpoints provide public access to status page data with rate limiting.
+// Rate limits: 60 req/min per IP, 200 req/min per tenant
 
-      const tenant = await ctx.runQuery(internal.tenants.getByIdInternal, {
-        tenantId: tenantId as Id<"tenants">,
-      });
+http.route({
+  path: "/api/public/status/info",
+  method: "GET",
+  handler: getPublicTenantInfoHandler,
+});
 
-      if (!tenant) {
-        return new Response("Tenant not found", { status: 404 });
-      }
+http.route({
+  path: "/api/public/status/stats",
+  method: "GET",
+  handler: getPublicStatsHandler,
+});
 
-      return new Response(JSON.stringify({ slug: tenant.slug }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
-    } catch (error) {
-      console.error("[Tenant Lookup] Error:", error);
-      return new Response("Internal server error", { status: 500 });
-    }
-  }),
+http.route({
+  path: "/api/public/status/incidents",
+  method: "GET",
+  handler: getPublicIncidentsHandler,
+});
+
+http.route({
+  path: "/api/public/status/weather",
+  method: "GET",
+  handler: getPublicWeatherAlertsHandler,
+});
+
+http.route({
+  path: "/api/public/status/history",
+  method: "GET",
+  handler: getIncidentHistoryHandler,
 });
 
 export default http;

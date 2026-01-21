@@ -15,18 +15,19 @@ import {
   Car,
   HardHat,
 } from "lucide-react";
+import { UnitStatusDetail } from "@/components/incidents/UnitStatusBadge";
+import type { UnitLegend } from "@/lib/types";
 
-interface UnitStatusItem {
-  unitId: string;
-  status: string;
-  timeDispatched?: number;
-  timeEnroute?: number;
-  timeOnScene?: number;
-}
-
-// unitStatuses can be an array or a record depending on schema
-type UnitStatuses =
-  | UnitStatusItem[]
+// unitStatuses from Convex can have various formats
+type ConvexUnitStatuses =
+  | Array<{
+      unitId: string;
+      status: string;
+      timeDispatched?: number;
+      timeEnroute?: number;
+      timeOnScene?: number;
+      timeCleared?: number;
+    }>
   | Record<string, { status: string; unit: string; timestamp: number }>;
 
 interface PublicIncident {
@@ -37,16 +38,18 @@ interface PublicIncident {
   callReceivedTime: number;
   status: string;
   units: string[];
-  unitStatuses: UnitStatuses;
+  unitStatuses: ConvexUnitStatuses;
   description?: string;
 }
 
-// Helper to normalize unitStatuses to array format
-function normalizeUnitStatuses(unitStatuses: UnitStatuses): UnitStatusItem[] {
+// Helper to normalize unitStatuses to array format for processing
+function normalizeUnitStatuses(
+  unitStatuses: ConvexUnitStatuses | undefined
+): Array<{ unitId: string; status: string }> {
   if (!unitStatuses) return [];
 
   if (Array.isArray(unitStatuses)) {
-    return unitStatuses;
+    return unitStatuses.map((u) => ({ unitId: u.unitId, status: u.status }));
   }
 
   // Convert record format to array format
@@ -58,6 +61,7 @@ function normalizeUnitStatuses(unitStatuses: UnitStatuses): UnitStatusItem[] {
 
 interface PublicIncidentCardProps {
   incident: PublicIncident;
+  unitLegend?: UnitLegend | null;
 }
 
 // Call type descriptions mapping
@@ -107,23 +111,6 @@ function getCallTypeDescription(callType: string): string {
   return CALL_TYPE_DESCRIPTIONS[callType] || callType;
 }
 
-// Status display labels
-const STATUS_LABELS: Record<string, string> = {
-  Dispatched: "Dispatched",
-  Enroute: "En Route",
-  "On Scene": "On Scene",
-  OnScene: "On Scene",
-  Available: "Available",
-  Cleared: "Cleared",
-  DP: "Dispatched",
-  EN: "En Route",
-  ER: "En Route",
-  OS: "On Scene",
-  AV: "Available",
-  CL: "Cleared",
-  AR: "Arrived",
-};
-
 // Get icon for call type category
 function getCategoryIcon(category: string) {
   switch (category) {
@@ -160,12 +147,21 @@ function getCategoryBorderClass(category: string): string {
   }
 }
 
+interface ProgressStage {
+  label: string;
+  active: boolean;
+  highlight?: boolean;
+}
+
 // Simple incident timeline component
-function IncidentProgress({ unitStatuses }: { unitStatuses: UnitStatuses }) {
+function IncidentProgress({ unitStatuses }: { unitStatuses: ConvexUnitStatuses }) {
   const normalized = normalizeUnitStatuses(unitStatuses);
   if (normalized.length === 0) return null;
 
   // Determine overall incident state based on unit statuses
+  const hasTransporting = normalized.some(
+    (u) => u.status === "TR" || u.status === "Transporting" || u.status === "AH" || u.status === "At Hospital"
+  );
   const hasOnScene = normalized.some(
     (u) => u.status === "OS" || u.status === "On Scene" || u.status === "OnScene"
   );
@@ -176,20 +172,30 @@ function IncidentProgress({ unitStatuses }: { unitStatuses: UnitStatuses }) {
     (u) => u.status === "DP" || u.status === "Dispatched"
   );
 
-  const stages = [
-    { label: "Dispatched", active: hasDispatched || hasEnroute || hasOnScene },
-    { label: "En Route", active: hasEnroute || hasOnScene },
-    { label: "On Scene", active: hasOnScene },
-  ];
+  // For medical incidents, include transporting stage
+  const stages: ProgressStage[] = hasTransporting
+    ? [
+        { label: "Dispatched", active: hasDispatched || hasEnroute || hasOnScene || hasTransporting },
+        { label: "En Route", active: hasEnroute || hasOnScene || hasTransporting },
+        { label: "On Scene", active: hasOnScene || hasTransporting },
+        { label: "Transporting", active: hasTransporting, highlight: true },
+      ]
+    : [
+        { label: "Dispatched", active: hasDispatched || hasEnroute || hasOnScene },
+        { label: "En Route", active: hasEnroute || hasOnScene },
+        { label: "On Scene", active: hasOnScene },
+      ];
 
   return (
-    <div className="flex items-center gap-1 text-xs">
+    <div className="flex items-center gap-1 text-xs flex-wrap">
       {stages.map((stage, i) => (
         <div key={stage.label} className="flex items-center">
           <div
             className={`px-2 py-0.5 rounded ${
               stage.active
-                ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
+                ? stage.highlight
+                  ? "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300"
+                  : "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
                 : "bg-gray-100 text-gray-400 dark:bg-gray-800"
             }`}
           >
@@ -198,7 +204,11 @@ function IncidentProgress({ unitStatuses }: { unitStatuses: UnitStatuses }) {
           {i < stages.length - 1 && (
             <div
               className={`w-4 h-0.5 ${
-                stages[i + 1].active ? "bg-green-500" : "bg-gray-300 dark:bg-gray-600"
+                stages[i + 1].active
+                  ? stages[i + 1].highlight
+                    ? "bg-orange-500"
+                    : "bg-green-500"
+                  : "bg-gray-300 dark:bg-gray-600"
               }`}
             />
           )}
@@ -208,18 +218,12 @@ function IncidentProgress({ unitStatuses }: { unitStatuses: UnitStatuses }) {
   );
 }
 
-export function PublicIncidentCard({ incident }: PublicIncidentCardProps) {
+export function PublicIncidentCard({ incident, unitLegend }: PublicIncidentCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   const category = incident.callTypeCategory || "other";
   const callTypeDescription = getCallTypeDescription(incident.callType);
   const hasUnits = incident.units && incident.units.length > 0;
-  const normalizedStatuses = normalizeUnitStatuses(incident.unitStatuses);
-
-  const getUnitStatus = (unitId: string): string => {
-    const unitStatus = normalizedStatuses.find((u) => u.unitId === unitId);
-    return unitStatus?.status || "Unknown";
-  };
 
   return (
     <Card
@@ -267,28 +271,18 @@ export function PublicIncidentCard({ incident }: PublicIncidentCardProps) {
           </Button>
         )}
 
-        {/* Expanded Unit Details */}
+        {/* Expanded Unit Details - uses UnitStatusDetail for grouped display */}
         {hasUnits && isExpanded && (
           <div className="border-t pt-3 space-y-3">
             <p className="text-sm font-medium">
               Units Responding ({incident.units.length})
             </p>
 
-            <div className="space-y-1 ml-2">
-              {incident.units.map((unit) => {
-                const status = getUnitStatus(unit);
-                const statusLabel = STATUS_LABELS[status] || status;
-
-                return (
-                  <div key={unit} className="flex items-center justify-between">
-                    <span className="font-mono text-sm">{unit}</span>
-                    <Badge variant="outline" className="text-xs">
-                      {statusLabel}
-                    </Badge>
-                  </div>
-                );
-              })}
-            </div>
+            <UnitStatusDetail
+              units={incident.units}
+              unitStatuses={incident.unitStatuses as any}
+              unitLegend={unitLegend || undefined}
+            />
 
             <Button
               variant="ghost"

@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { query } from "./_generated/server";
+import { query, internalQuery } from "./_generated/server";
 
 // ===================
 // Public Status Page Queries
@@ -30,6 +30,7 @@ export const getPublicTenantInfo = query({
       logoUrl: tenant.logoUrl,
       primaryColor: tenant.primaryColor,
       timezone: tenant.timezone,
+      unitLegend: tenant.unitLegend || null,
     };
   },
 });
@@ -220,6 +221,215 @@ export const getIncidentHistory = query({
     }
 
     // Convert to array sorted by date
+    return Object.entries(dailyCounts)
+      .map(([date, count]) => ({ date, count }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  },
+});
+
+// ===================
+// Internal Queries for HTTP Actions
+// ===================
+// These are internal versions of the public queries, called by HTTP actions
+// that implement rate limiting and caching.
+
+/**
+ * Internal: Get public tenant info (branding) if the status page feature is enabled.
+ */
+export const getPublicTenantInfoInternal = internalQuery({
+  args: { slug: v.string() },
+  handler: async (ctx, { slug }) => {
+    const tenant = await ctx.db
+      .query("tenants")
+      .withIndex("by_slug", (q) => q.eq("slug", slug))
+      .unique();
+
+    if (!tenant) return null;
+    if (tenant.status !== "active") return null;
+    if (!tenant.features?.publicStatusPage) return null;
+
+    return {
+      name: tenant.displayName || tenant.name,
+      logoUrl: tenant.logoUrl,
+      primaryColor: tenant.primaryColor,
+      timezone: tenant.timezone,
+      unitLegend: tenant.unitLegend || null,
+    };
+  },
+});
+
+/**
+ * Internal: Get public stats (incident counts, category breakdown, alert count).
+ */
+export const getPublicStatsInternal = internalQuery({
+  args: { slug: v.string() },
+  handler: async (ctx, { slug }) => {
+    const tenant = await ctx.db
+      .query("tenants")
+      .withIndex("by_slug", (q) => q.eq("slug", slug))
+      .unique();
+
+    if (!tenant) return null;
+    if (tenant.status !== "active") return null;
+    if (!tenant.features?.publicStatusPage) return null;
+
+    const now = Date.now();
+
+    const activeIncidents = await ctx.db
+      .query("incidents")
+      .withIndex("by_tenant_status", (q) =>
+        q.eq("tenantId", tenant._id).eq("status", "active")
+      )
+      .collect();
+
+    const activeAlerts = await ctx.db
+      .query("weatherAlerts")
+      .withIndex("by_tenant_status", (q) =>
+        q.eq("tenantId", tenant._id).eq("status", "active")
+      )
+      .filter((q) => q.gt(q.field("expires"), now))
+      .collect();
+
+    const categoryBreakdown: Record<string, number> = {};
+    for (const incident of activeIncidents) {
+      const category = incident.callTypeCategory || "other";
+      categoryBreakdown[category] = (categoryBreakdown[category] || 0) + 1;
+    }
+
+    return {
+      activeIncidentCount: activeIncidents.length,
+      activeAlertCount: activeAlerts.length,
+      categoryBreakdown,
+    };
+  },
+});
+
+/**
+ * Internal: Get public incidents with full details for incident cards.
+ */
+export const getPublicIncidentsInternal = internalQuery({
+  args: { slug: v.string() },
+  handler: async (ctx, { slug }) => {
+    const tenant = await ctx.db
+      .query("tenants")
+      .withIndex("by_slug", (q) => q.eq("slug", slug))
+      .unique();
+
+    if (!tenant) return null;
+    if (tenant.status !== "active") return null;
+    if (!tenant.features?.publicStatusPage) return null;
+
+    const incidents = await ctx.db
+      .query("incidents")
+      .withIndex("by_tenant_status", (q) =>
+        q.eq("tenantId", tenant._id).eq("status", "active")
+      )
+      .order("desc")
+      .take(100);
+
+    return incidents.map((incident) => ({
+      _id: incident._id,
+      callType: incident.callType,
+      callTypeCategory: incident.callTypeCategory || "other",
+      fullAddress: incident.fullAddress,
+      callReceivedTime: incident.callReceivedTime,
+      status: incident.status,
+      units: incident.units || [],
+      unitStatuses: incident.unitStatuses || [],
+      description: incident.description,
+    }));
+  },
+});
+
+/**
+ * Internal: Get public weather alerts.
+ */
+export const getPublicWeatherAlertsInternal = internalQuery({
+  args: { slug: v.string() },
+  handler: async (ctx, { slug }) => {
+    const tenant = await ctx.db
+      .query("tenants")
+      .withIndex("by_slug", (q) => q.eq("slug", slug))
+      .unique();
+
+    if (!tenant) return null;
+    if (tenant.status !== "active") return null;
+    if (!tenant.features?.publicStatusPage) return null;
+
+    const now = Date.now();
+
+    const alerts = await ctx.db
+      .query("weatherAlerts")
+      .withIndex("by_tenant_status", (q) =>
+        q.eq("tenantId", tenant._id).eq("status", "active")
+      )
+      .filter((q) => q.gt(q.field("expires"), now))
+      .collect();
+
+    return alerts.map((alert) => ({
+      _id: alert._id,
+      event: alert.event,
+      headline: alert.headline,
+      severity: alert.severity,
+      urgency: alert.urgency,
+      onset: alert.onset,
+      expires: alert.expires,
+    }));
+  },
+});
+
+/**
+ * Internal: Get incident history for the last N days.
+ */
+export const getIncidentHistoryInternal = internalQuery({
+  args: {
+    slug: v.string(),
+    days: v.optional(v.number()),
+  },
+  handler: async (ctx, { slug, days = 30 }) => {
+    const tenant = await ctx.db
+      .query("tenants")
+      .withIndex("by_slug", (q) => q.eq("slug", slug))
+      .unique();
+
+    if (!tenant) return null;
+    if (tenant.status !== "active") return null;
+    if (!tenant.features?.publicStatusPage) return null;
+
+    const endDate = new Date();
+    endDate.setHours(23, 59, 59, 999);
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+    startDate.setHours(0, 0, 0, 0);
+
+    const incidents = await ctx.db
+      .query("incidents")
+      .withIndex("by_tenant_time", (q) => q.eq("tenantId", tenant._id))
+      .filter((q) =>
+        q.and(
+          q.gte(q.field("callReceivedTime"), startDate.getTime()),
+          q.lte(q.field("callReceivedTime"), endDate.getTime())
+        )
+      )
+      .collect();
+
+    const dailyCounts: Record<string, number> = {};
+
+    for (let i = 0; i <= days; i++) {
+      const date = new Date(startDate);
+      date.setDate(date.getDate() + i);
+      const dateStr = date.toISOString().split("T")[0];
+      dailyCounts[dateStr] = 0;
+    }
+
+    for (const incident of incidents) {
+      const date = new Date(incident.callReceivedTime);
+      const dateStr = date.toISOString().split("T")[0];
+      if (dailyCounts[dateStr] !== undefined) {
+        dailyCounts[dateStr]++;
+      }
+    }
+
     return Object.entries(dailyCounts)
       .map(([date, count]) => ({ date, count }))
       .sort((a, b) => a.date.localeCompare(b.date));
