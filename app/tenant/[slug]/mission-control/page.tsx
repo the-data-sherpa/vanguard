@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { IncidentPostCard } from "@/components/mission-control/IncidentPostCard";
+import { CreateIncidentDialog } from "@/components/incidents";
 import Link from "next/link";
 
 interface MissionControlPageProps {
@@ -97,25 +98,28 @@ export default function MissionControlPage({ params }: MissionControlPageProps) 
           </p>
         </div>
         {isOwner && (
-          <Link href={`/tenant/${slug}/settings/social`}>
-            <Button variant="outline">
-              <Settings className="mr-2 h-4 w-4" />
-              Social Settings
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <CreateIncidentDialog tenantId={tenant._id} />
+            <Link href={`/tenant/${slug}/settings/social`}>
+              <Button variant="outline">
+                <Settings className="mr-2 h-4 w-4" />
+                Social Settings
+              </Button>
+            </Link>
+          </div>
         )}
       </div>
 
       {/* Facebook Connection Status */}
       {!stats?.facebookConnected && (
-        <Card className="border-yellow-200 bg-yellow-50">
+        <Card className="border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-950">
           <CardContent className="py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <Facebook className="h-6 w-6 text-blue-600" />
+                <Facebook className="h-6 w-6 text-blue-600 dark:text-blue-400" />
                 <div>
-                  <p className="font-medium">Facebook Not Connected</p>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="font-medium text-yellow-900 dark:text-yellow-100">Facebook Not Connected</p>
+                  <p className="text-sm text-yellow-700 dark:text-yellow-300">
                     Connect your Facebook page to enable automatic posting
                   </p>
                 </div>
@@ -131,19 +135,19 @@ export default function MissionControlPage({ params }: MissionControlPageProps) 
       )}
 
       {stats?.facebookConnected && (
-        <Card className="border-green-200 bg-green-50">
+        <Card className="border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950">
           <CardContent className="py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <Facebook className="h-6 w-6 text-blue-600" />
+                <Facebook className="h-6 w-6 text-blue-600 dark:text-blue-400" />
                 <div>
-                  <p className="font-medium">Connected to {stats.facebookPageName}</p>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="font-medium text-green-900 dark:text-green-100">Connected to {stats.facebookPageName}</p>
+                  <p className="text-sm text-green-700 dark:text-green-300">
                     Posts will be published to your Facebook page
                   </p>
                 </div>
               </div>
-              <Badge variant="outline" className="text-green-600 border-green-300">
+              <Badge variant="outline" className="text-green-600 dark:text-green-400 border-green-300 dark:border-green-700">
                 <CheckCircle className="mr-1 h-3 w-3" />
                 Connected
               </Badge>
@@ -238,15 +242,15 @@ export default function MissionControlPage({ params }: MissionControlPageProps) 
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="pending" className="space-y-4">
+        <TabsContent value="pending" className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {pendingPosts === undefined ? (
-            <div className="space-y-4">
+            <>
               {[...Array(3)].map((_, i) => (
-                <Skeleton key={i} className="h-32" />
+                <Skeleton key={i} className="h-40" />
               ))}
-            </div>
+            </>
           ) : pendingPosts.length === 0 ? (
-            <Card>
+            <Card className="col-span-full">
               <CardContent className="py-8 text-center">
                 <Clock className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <p className="text-muted-foreground">No pending posts</p>
@@ -261,20 +265,21 @@ export default function MissionControlPage({ params }: MissionControlPageProps) 
                 key={incident._id}
                 incident={incident}
                 tenantId={tenant._id}
+                isOwner={isOwner}
               />
             ))
           )}
         </TabsContent>
 
-        <TabsContent value="posted" className="space-y-4">
+        <TabsContent value="posted" className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {postedIncidents === undefined ? (
-            <div className="space-y-4">
+            <>
               {[...Array(3)].map((_, i) => (
-                <Skeleton key={i} className="h-32" />
+                <Skeleton key={i} className="h-40" />
               ))}
-            </div>
+            </>
           ) : postedIncidents.length === 0 ? (
-            <Card>
+            <Card className="col-span-full">
               <CardContent className="py-8 text-center">
                 <CheckCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <p className="text-muted-foreground">No posted incidents yet</p>
@@ -289,20 +294,21 @@ export default function MissionControlPage({ params }: MissionControlPageProps) 
                 key={incident._id}
                 incident={incident}
                 tenantId={tenant._id}
+                isOwner={isOwner}
               />
             ))
           )}
         </TabsContent>
 
-        <TabsContent value="failed" className="space-y-4">
+        <TabsContent value="failed" className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {failedPosts === undefined ? (
-            <div className="space-y-4">
+            <>
               {[...Array(3)].map((_, i) => (
-                <Skeleton key={i} className="h-32" />
+                <Skeleton key={i} className="h-40" />
               ))}
-            </div>
+            </>
           ) : failedPosts.length === 0 ? (
-            <Card>
+            <Card className="col-span-full">
               <CardContent className="py-8 text-center">
                 <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
                 <p className="text-muted-foreground">No failed posts</p>
@@ -317,6 +323,7 @@ export default function MissionControlPage({ params }: MissionControlPageProps) 
                 key={incident._id}
                 incident={incident}
                 tenantId={tenant._id}
+                isOwner={isOwner}
               />
             ))
           )}

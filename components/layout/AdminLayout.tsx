@@ -76,7 +76,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     <div className="min-h-screen bg-background">
       {/* Top Navigation */}
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-14 items-center justify-between">
+        <div className="container mx-auto px-4 flex h-14 items-center justify-between">
           <div className="flex items-center">
             <Link href="/admin" className="mr-6 flex items-center space-x-2">
               <span className="font-bold">Vanguard Admin</span>
@@ -165,7 +165,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
       </header>
 
       {/* Main Content */}
-      <main className="container py-6">{children}</main>
+      <main className="container mx-auto px-4 py-6">{children}</main>
     </div>
   );
 }

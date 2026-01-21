@@ -108,7 +108,7 @@ export function TenantLayout({ tenantSlug, tenantName, tenantId, children }: Ten
 
       {/* Top Navigation */}
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-14 items-center justify-between">
+        <div className="container mx-auto px-4 flex h-14 items-center justify-between">
           <div className="flex items-center">
             <TenantSelector
               currentTenantSlug={tenantSlug}
@@ -192,7 +192,7 @@ export function TenantLayout({ tenantSlug, tenantName, tenantId, children }: Ten
       </header>
 
       {/* Main Content */}
-      <main className="container py-6">
+      <main className="container mx-auto px-4 py-6">
         {tenant?._id ? (
           <SubscriptionGuard
             tenantId={tenant._id}

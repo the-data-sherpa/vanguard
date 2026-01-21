@@ -16,7 +16,7 @@ export default function DemoLayout({ children }: { children: React.ReactNode }) 
       <div className="min-h-screen bg-background flex flex-col">
         {/* Demo Banner */}
         <div className="bg-gradient-to-r from-amber-500 to-orange-500 text-white">
-          <div className="container py-3 px-4 flex items-center justify-between">
+          <div className="container mx-auto py-3 px-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <AlertTriangle className="h-5 w-5" />
               <span className="font-medium">
@@ -37,7 +37,7 @@ export default function DemoLayout({ children }: { children: React.ReactNode }) 
 
         {/* Header */}
         <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <div className="container flex h-14 items-center">
+          <div className="container mx-auto px-4 flex h-14 items-center">
             <Link href="/demo" className="flex items-center gap-2 font-semibold">
               <Flame className="h-6 w-6 text-orange-500" />
               <span>Demo Fire & Rescue</span>
@@ -62,6 +62,12 @@ export default function DemoLayout({ children }: { children: React.ReactNode }) 
               >
                 Weather
               </Link>
+              <Link
+                href="/demo/mission-control"
+                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Mission Control
+              </Link>
             </nav>
 
             <div className="ml-auto flex items-center gap-4">
@@ -76,13 +82,13 @@ export default function DemoLayout({ children }: { children: React.ReactNode }) 
         </header>
 
         {/* Main Content */}
-        <main className="flex-1 container py-6">
+        <main className="flex-1 container mx-auto px-4 py-6">
           {children}
         </main>
 
         {/* Footer CTA */}
         <div className="border-t bg-muted/50">
-          <div className="container py-8 text-center">
+          <div className="container mx-auto px-4 py-8 text-center">
             <h2 className="text-2xl font-bold mb-2">Ready to get started?</h2>
             <p className="text-muted-foreground mb-4 max-w-lg mx-auto">
               Start your 14-day free trial today. No credit card required.

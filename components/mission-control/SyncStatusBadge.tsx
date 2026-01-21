@@ -17,7 +17,7 @@ export function SyncStatusBadge({ status, className }: SyncStatusBadgeProps) {
       return (
         <Badge
           variant="outline"
-          className={cn("text-green-600 border-green-300 bg-green-50", className)}
+          className={cn("text-green-600 dark:text-green-400 border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-950", className)}
         >
           <CheckCircle className="mr-1 h-3 w-3" />
           Posted
@@ -27,7 +27,7 @@ export function SyncStatusBadge({ status, className }: SyncStatusBadgeProps) {
       return (
         <Badge
           variant="outline"
-          className={cn("text-yellow-600 border-yellow-300 bg-yellow-50", className)}
+          className={cn("text-yellow-600 dark:text-yellow-400 border-yellow-300 dark:border-yellow-700 bg-yellow-50 dark:bg-yellow-950", className)}
         >
           <Clock className="mr-1 h-3 w-3" />
           Pending
@@ -37,7 +37,7 @@ export function SyncStatusBadge({ status, className }: SyncStatusBadgeProps) {
       return (
         <Badge
           variant="outline"
-          className={cn("text-red-600 border-red-300 bg-red-50", className)}
+          className={cn("text-red-600 dark:text-red-400 border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-950", className)}
         >
           <AlertCircle className="mr-1 h-3 w-3" />
           Failed
@@ -47,7 +47,7 @@ export function SyncStatusBadge({ status, className }: SyncStatusBadgeProps) {
       return (
         <Badge
           variant="outline"
-          className={cn("text-blue-600 border-blue-300 bg-blue-50", className)}
+          className={cn("text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-950", className)}
         >
           <RefreshCw className="mr-1 h-3 w-3" />
           Needs Update

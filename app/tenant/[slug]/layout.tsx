@@ -17,11 +17,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     return (
       <div className="min-h-screen bg-background">
         <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur">
-          <div className="container flex h-14 items-center">
+          <div className="container mx-auto px-4 flex h-14 items-center">
             <Skeleton className="h-6 w-48" />
           </div>
         </header>
-        <main className="container py-6">
+        <main className="container mx-auto px-4 py-6">
           <div className="space-y-4">
             <Skeleton className="h-8 w-64" />
             <div className="grid grid-cols-4 gap-4">
