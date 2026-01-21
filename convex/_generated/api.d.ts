@@ -40,6 +40,7 @@ import type * as syncHelpers from "../syncHelpers.js";
 import type * as tenants from "../tenants.js";
 import type * as users from "../users.js";
 import type * as weather from "../weather.js";
+import type * as weatherFacebookSync from "../weatherFacebookSync.js";
 
 import type {
   ApiFromModules,
@@ -80,6 +81,7 @@ declare const fullApi: ApiFromModules<{
   tenants: typeof tenants;
   users: typeof users;
   weather: typeof weather;
+  weatherFacebookSync: typeof weatherFacebookSync;
 }>;
 
 /**
