@@ -104,7 +104,11 @@ export default function PublicStatusPage() {
                 ) : (
                   <div className="space-y-4">
                     {nonMedicalIncidents.map((incident) => (
-                      <PublicIncidentCard key={incident._id} incident={incident} />
+                      <PublicIncidentCard
+                        key={incident._id}
+                        incident={incident}
+                        unitLegend={tenantInfo.unitLegend}
+                      />
                     ))}
                   </div>
                 )}
@@ -118,7 +122,11 @@ export default function PublicStatusPage() {
                 ) : (
                   <div className="space-y-4">
                     {medicalIncidents.map((incident) => (
-                      <PublicIncidentCard key={incident._id} incident={incident} />
+                      <PublicIncidentCard
+                        key={incident._id}
+                        incident={incident}
+                        unitLegend={tenantInfo.unitLegend}
+                      />
                     ))}
                   </div>
                 )}

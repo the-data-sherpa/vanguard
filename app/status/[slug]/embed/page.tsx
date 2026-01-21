@@ -132,7 +132,11 @@ export default function EmbedStatusPage() {
             ) : (
               <div className="space-y-3 max-h-[400px] overflow-y-auto">
                 {nonMedicalIncidents.map((incident) => (
-                  <PublicIncidentCard key={incident._id} incident={incident} />
+                  <PublicIncidentCard
+                    key={incident._id}
+                    incident={incident}
+                    unitLegend={tenantInfo.unitLegend}
+                  />
                 ))}
               </div>
             )}
@@ -146,7 +150,11 @@ export default function EmbedStatusPage() {
             ) : (
               <div className="space-y-3 max-h-[400px] overflow-y-auto">
                 {medicalIncidents.map((incident) => (
-                  <PublicIncidentCard key={incident._id} incident={incident} />
+                  <PublicIncidentCard
+                    key={incident._id}
+                    incident={incident}
+                    unitLegend={tenantInfo.unitLegend}
+                  />
                 ))}
               </div>
             )}
