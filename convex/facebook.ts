@@ -176,13 +176,23 @@ export const getPageToken = internalMutation({
   handler: async (ctx, { tenantId }) => {
     const tenant = await ctx.db.get(tenantId);
     if (!tenant || !tenant.facebookPageToken) {
+      // #region agent log
+      fetch('http://127.0.0.1:7243/ingest/87cf2615-bb0c-477f-a417-058eda363708',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'facebook.ts:178',message:'No tenant or token found',data:{hasTenant:!!tenant,hasToken:!!tenant?.facebookPageToken},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H2'})}).catch(()=>{});
+      // #endregion
       return null;
     }
 
     // Check if token is expired
     if (tenant.facebookTokenExpiresAt && tenant.facebookTokenExpiresAt < Date.now()) {
+      // #region agent log
+      fetch('http://127.0.0.1:7243/ingest/87cf2615-bb0c-477f-a417-058eda363708',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'facebook.ts:183',message:'Token expired',data:{expiresAt:tenant.facebookTokenExpiresAt,now:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H2'})}).catch(()=>{});
+      // #endregion
       return null;
     }
+
+    // #region agent log
+    fetch('http://127.0.0.1:7243/ingest/87cf2615-bb0c-477f-a417-058eda363708',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'facebook.ts:187',message:'Returning page token',data:{pageId:tenant.facebookPageId,hasToken:!!tenant.facebookPageToken,tokenPrefix:tenant.facebookPageToken?.substring(0,10)},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H2'})}).catch(()=>{});
+    // #endregion
 
     return {
       pageId: tenant.facebookPageId,
@@ -271,8 +281,8 @@ Posted: ${dateStr} at ${timeStr}
 #TestPost #Vanguard`;
 
     try {
-      // Post to Facebook using v21.0 API
-      const url = `https://graph.facebook.com/v21.0/${credentials.pageId}/feed`;
+      // Post to Facebook using v24.0 API
+      const url = `https://graph.facebook.com/v24.0/${credentials.pageId}/feed`;
       const response = await fetch(url, {
         method: "POST",
         headers: {

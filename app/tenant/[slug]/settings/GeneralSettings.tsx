@@ -197,10 +197,6 @@ export function GeneralSettings({ tenant }: GeneralSettingsProps) {
             <span className="text-muted-foreground">Status</span>
             <span className="font-medium capitalize">{tenant.status}</span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Tier</span>
-            <span className="font-medium capitalize">{tenant.tier}</span>
-          </div>
           {tenant.lastIncidentSync && (
             <div className="flex justify-between">
               <span className="text-muted-foreground">Last Incident Sync</span>

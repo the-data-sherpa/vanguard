@@ -200,8 +200,8 @@ async function postToFacebook(
   message: string
 ): Promise<{ id: string } | null> {
   try {
-    // Use v21.0 API version
-    const url = `https://graph.facebook.com/v21.0/${pageId}/feed`;
+    // Use v24.0 API version
+    const url = `https://graph.facebook.com/v24.0/${pageId}/feed`;
     console.log(`[Weather Facebook] Posting to page ${pageId}...`);
 
     const response = await fetch(url, {

@@ -83,6 +83,43 @@ export async function GET(request: NextRequest) {
     const pageName = selectedPage.name;
     const pageId = selectedPage.id;
 
+    // #region agent log
+    fetch('http://127.0.0.1:7243/ingest/87cf2615-bb0c-477f-a417-058eda363708',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'callback/route.ts:84',message:'Page token retrieved from getUserPages',data:{pageId,pageName,hasToken:!!pageToken,tokenPrefix:pageToken?.substring(0,10)},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H2'})}).catch(()=>{});
+    // #endregion
+
+    // Verify page token permissions before storing
+    try {
+      const debugUrl = `https://graph.facebook.com/v24.0/debug_token?input_token=${pageToken}&access_token=${longLivedToken.access_token}`;
+      const debugResponse = await fetch(debugUrl);
+      if (debugResponse.ok) {
+        const debugData = await debugResponse.json();
+        const scopes = debugData.data?.scopes || [];
+        const granularScopes = debugData.data?.granular_scopes || [];
+        const hasShowList = scopes.includes('pages_show_list') || granularScopes.some((g: any) => g.scope === 'pages_show_list');
+        const hasManageMetadata = scopes.includes('pages_manage_metadata') || granularScopes.some((g: any) => g.scope === 'pages_manage_metadata');
+        const hasManagePosts = scopes.includes('pages_manage_posts') || granularScopes.some((g: any) => g.scope === 'pages_manage_posts');
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/87cf2615-bb0c-477f-a417-058eda363708',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'callback/route.ts:95',message:'Page token debug info',data:{isValid:debugData.data?.is_valid,userId:debugData.data?.user_id,appId:debugData.data?.app_id,scopes,granularScopes,hasShowList,hasManageMetadata,hasManagePosts,type:debugData.data?.type},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H3'})}).catch(()=>{});
+        // #endregion
+        console.log(`[Facebook OAuth] Page token scopes: ${scopes.join(', ')}`);
+        if (granularScopes.length > 0) {
+          console.log(`[Facebook OAuth] Page token granular scopes:`, JSON.stringify(granularScopes, null, 2));
+        }
+        if (!hasShowList && !hasManageMetadata) {
+          console.warn(`[Facebook OAuth] WARNING: Page token missing impersonation permission! Has show_list: ${hasShowList}, has manage_metadata: ${hasManageMetadata}`);
+        }
+      } else {
+        const errorText = await debugResponse.text();
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/87cf2615-bb0c-477f-a417-058eda363708',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'callback/route.ts:107',message:'Debug token API failed',data:{status:debugResponse.status,errorText},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H3'})}).catch(()=>{});
+        // #endregion
+      }
+    } catch (debugError) {
+      // #region agent log
+      fetch('http://127.0.0.1:7243/ingest/87cf2615-bb0c-477f-a417-058eda363708',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'callback/route.ts:113',message:'Failed to debug token',data:{error:String(debugError)},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H3'})}).catch(()=>{});
+      // #endregion
+    }
+
     // Store the connection in Convex
     // Note: Using internal mutation requires server auth or system key
     // For now, we'll use an HTTP action or a special endpoint
@@ -112,7 +149,7 @@ async function exchangeCodeForToken(code: string, requestUrl: string) {
   const appSecret = process.env.FACEBOOK_APP_SECRET!;
   const redirectUri = new URL("/api/auth/facebook/callback", requestUrl).origin + "/api/auth/facebook/callback";
 
-  const url = new URL("https://graph.facebook.com/v21.0/oauth/access_token");
+  const url = new URL("https://graph.facebook.com/v24.0/oauth/access_token");
   url.searchParams.set("client_id", appId);
   url.searchParams.set("client_secret", appSecret);
   url.searchParams.set("redirect_uri", redirectUri);
@@ -132,7 +169,7 @@ async function getLongLivedToken(shortLivedToken: string) {
   const appId = process.env.FACEBOOK_APP_ID!;
   const appSecret = process.env.FACEBOOK_APP_SECRET!;
 
-  const url = new URL("https://graph.facebook.com/v21.0/oauth/access_token");
+  const url = new URL("https://graph.facebook.com/v24.0/oauth/access_token");
   url.searchParams.set("grant_type", "fb_exchange_token");
   url.searchParams.set("client_id", appId);
   url.searchParams.set("client_secret", appSecret);
@@ -149,7 +186,7 @@ async function getLongLivedToken(shortLivedToken: string) {
 }
 
 async function getUserPages(accessToken: string) {
-  const url = new URL("https://graph.facebook.com/v21.0/me/accounts");
+  const url = new URL("https://graph.facebook.com/v24.0/me/accounts");
   url.searchParams.set("access_token", accessToken);
   url.searchParams.set("fields", "id,name,access_token");
 
