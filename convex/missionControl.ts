@@ -741,6 +741,7 @@ export const getIncidentUpdates = query({
 
 /**
  * Get Facebook connection status for a tenant
+ * Returns both legacy single-page info and multi-page info
  */
 export const getFacebookStatus = query({
   args: {
@@ -754,19 +755,42 @@ export const getFacebookStatus = query({
       return null;
     }
 
-    // Check if token is expired
-    const isExpired = tenant.facebookTokenExpiresAt
-      ? tenant.facebookTokenExpiresAt < Date.now()
+    const now = Date.now();
+    const pages = tenant.facebookPages || [];
+
+    // Check if any page token is expired
+    const hasExpiredToken = pages.some((p) => p.tokenExpiresAt && p.tokenExpiresAt < now);
+    const legacyIsExpired = tenant.facebookTokenExpiresAt
+      ? tenant.facebookTokenExpiresAt < now
       : false;
 
+    // Determine if connected (has pages in new array or legacy fields)
+    const isConnected = pages.length > 0 || !!tenant.facebookPageId;
+
+    // Map pages with expiration status
+    const pagesWithStatus = pages.map((p) => ({
+      pageId: p.pageId,
+      pageName: p.pageName,
+      connectedBy: p.connectedBy,
+      connectedAt: p.connectedAt,
+      tokenExpiresAt: p.tokenExpiresAt,
+      isExpired: p.tokenExpiresAt ? p.tokenExpiresAt < now : false,
+      isActive: p.pageId === tenant.activeFacebookPageId,
+    }));
+
     return {
-      isConnected: !!tenant.facebookPageId,
+      isConnected,
+      // Legacy single-page fields (for backward compatibility)
       pageId: tenant.facebookPageId,
       pageName: tenant.facebookPageName,
       connectedAt: tenant.facebookConnectedAt,
       connectedBy: tenant.facebookConnectedBy,
-      isExpired,
+      isExpired: hasExpiredToken || legacyIsExpired,
       expiresAt: tenant.facebookTokenExpiresAt,
+      // Multi-page fields
+      pages: pagesWithStatus,
+      activePageId: tenant.activeFacebookPageId,
+      activePageName: pages.find((p) => p.pageId === tenant.activeFacebookPageId)?.pageName || tenant.facebookPageName,
     };
   },
 });

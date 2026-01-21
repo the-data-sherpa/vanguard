@@ -177,13 +177,24 @@ export default defineSchema({
     lastIncidentSync: v.optional(v.number()),
     lastWeatherSync: v.optional(v.number()),
 
-    // Facebook Integration
+    // Facebook Integration (legacy single-page fields - kept for backward compatibility)
     facebookPageId: v.optional(v.string()),
     facebookPageName: v.optional(v.string()),
     facebookPageToken: v.optional(v.string()),       // Long-lived page token
     facebookTokenExpiresAt: v.optional(v.number()),
     facebookConnectedBy: v.optional(v.string()),     // Clerk user ID who connected
     facebookConnectedAt: v.optional(v.number()),
+
+    // Facebook Integration (multi-page support)
+    facebookPages: v.optional(v.array(v.object({
+      pageId: v.string(),
+      pageName: v.string(),
+      pageToken: v.string(),
+      tokenExpiresAt: v.optional(v.number()),
+      connectedBy: v.string(),
+      connectedAt: v.number(),
+    }))),
+    activeFacebookPageId: v.optional(v.string()),   // Which page is currently active for posting
   })
     .index("by_slug", ["slug"])
     .index("by_status", ["status"])

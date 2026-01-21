@@ -316,6 +316,82 @@ http.route({
   }),
 });
 
+/**
+ * Save multiple Facebook pages after OAuth
+ * Used by the new multi-page OAuth flow
+ */
+http.route({
+  path: "/facebook/connect-pages",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    try {
+      const body = await request.json();
+      const { tenantId, pages, connectedBy } = body;
+
+      if (!tenantId || !pages || !Array.isArray(pages) || pages.length === 0 || !connectedBy) {
+        return new Response("Missing required fields", { status: 400 });
+      }
+
+      // Validate each page has required fields
+      for (const page of pages) {
+        if (!page.pageId || !page.pageName || !page.pageToken) {
+          return new Response("Invalid page data: missing pageId, pageName, or pageToken", { status: 400 });
+        }
+      }
+
+      await ctx.runMutation(internal.facebook.savePages, {
+        tenantId: tenantId as Id<"tenants">,
+        pages: pages.map((p: { pageId: string; pageName: string; pageToken: string; tokenExpiresAt?: number }) => ({
+          pageId: p.pageId,
+          pageName: p.pageName,
+          pageToken: p.pageToken,
+          tokenExpiresAt: p.tokenExpiresAt,
+        })),
+        connectedBy,
+      });
+
+      return new Response(JSON.stringify({ success: true, pagesAdded: pages.length }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (error) {
+      console.error("[Facebook Connect Pages] Error:", error);
+      return new Response("Internal server error", { status: 500 });
+    }
+  }),
+});
+
+/**
+ * Reset Facebook sync state for active incidents
+ * Used when switching active pages to re-post incidents
+ */
+http.route({
+  path: "/facebook/reset-sync-state",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    try {
+      const body = await request.json();
+      const { tenantId } = body;
+
+      if (!tenantId) {
+        return new Response("Missing tenantId", { status: 400 });
+      }
+
+      const result = await ctx.runMutation(internal.facebookSync.resetSyncState, {
+        tenantId: tenantId as Id<"tenants">,
+      });
+
+      return new Response(JSON.stringify({ success: true, resetCount: result.resetCount }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    } catch (error) {
+      console.error("[Facebook Reset Sync State] Error:", error);
+      return new Response("Internal server error", { status: 500 });
+    }
+  }),
+});
+
 // ===================
 // Tenant lookup for OAuth redirects (rate-limited)
 // ===================

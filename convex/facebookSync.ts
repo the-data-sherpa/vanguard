@@ -460,6 +460,44 @@ export const markUpdatesSynced = internalMutation({
   },
 });
 
+/**
+ * Reset Facebook sync state for all active incidents
+ * Used when switching active Facebook pages to re-post incidents to the new page
+ */
+export const resetSyncState = internalMutation({
+  args: {
+    tenantId: v.id("tenants"),
+  },
+  handler: async (ctx, { tenantId }) => {
+    // Get all active incidents that have been synced to Facebook
+    const incidents = await ctx.db
+      .query("incidents")
+      .withIndex("by_tenant_status", (q) =>
+        q.eq("tenantId", tenantId).eq("status", "active")
+      )
+      .filter((q) => q.eq(q.field("isSyncedToFacebook"), true))
+      .collect();
+
+    let resetCount = 0;
+    for (const incident of incidents) {
+      await ctx.db.patch(incident._id, {
+        isSyncedToFacebook: false,
+        facebookPostId: undefined,
+        facebookSyncAttempts: 0,
+        needsFacebookUpdate: false,
+        lastSyncAttempt: undefined,
+        syncError: undefined,
+      });
+      resetCount++;
+    }
+
+    const tenant = await ctx.db.get(tenantId);
+    console.log(`[Facebook Sync] Reset sync state for ${resetCount} active incidents on tenant ${tenant?.slug || tenantId}`);
+
+    return { resetCount };
+  },
+});
+
 // ===================
 // Actions (for external API calls)
 // ===================
@@ -814,8 +852,9 @@ export const syncAllTenants = internalAction({
     let totalSkipped = 0;
 
     for (const tenant of tenants) {
-      // Skip tenants without Facebook
-      if (!tenant.facebookPageId) {
+      // Skip tenants without Facebook (check both new array and legacy field)
+      const hasPages = tenant.facebookPages && tenant.facebookPages.length > 0;
+      if (!hasPages && !tenant.facebookPageId) {
         continue;
       }
 

@@ -74,65 +74,48 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Use the first page (or could show a page selector)
-    // TODO: Add page selection UI if user manages multiple pages
-    const selectedPage = pages[0];
+    console.log(`[Facebook OAuth] Found ${pages.length} page(s) for user`);
 
-    // Get page access token (this is a long-lived token since we used long-lived user token)
-    const pageToken = selectedPage.access_token;
-    const pageName = selectedPage.name;
-    const pageId = selectedPage.id;
+    // If only one page, auto-connect it (legacy behavior)
+    if (pages.length === 1) {
+      const selectedPage = pages[0];
+      const pageToken = selectedPage.access_token;
+      const pageName = selectedPage.name;
+      const pageId = selectedPage.id;
 
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/87cf2615-bb0c-477f-a417-058eda363708',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'callback/route.ts:84',message:'Page token retrieved from getUserPages',data:{pageId,pageName,hasToken:!!pageToken,tokenPrefix:pageToken?.substring(0,10)},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H2'})}).catch(()=>{});
-    // #endregion
+      console.log(`[Facebook OAuth] Auto-connecting single page: ${pageName}`);
 
-    // Verify page token permissions before storing
-    try {
-      const debugUrl = `https://graph.facebook.com/v24.0/debug_token?input_token=${pageToken}&access_token=${longLivedToken.access_token}`;
-      const debugResponse = await fetch(debugUrl);
-      if (debugResponse.ok) {
-        const debugData = await debugResponse.json();
-        const scopes = debugData.data?.scopes || [];
-        const granularScopes = debugData.data?.granular_scopes || [];
-        const hasShowList = scopes.includes('pages_show_list') || granularScopes.some((g: any) => g.scope === 'pages_show_list');
-        const hasManageMetadata = scopes.includes('pages_manage_metadata') || granularScopes.some((g: any) => g.scope === 'pages_manage_metadata');
-        const hasManagePosts = scopes.includes('pages_manage_posts') || granularScopes.some((g: any) => g.scope === 'pages_manage_posts');
-        // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/87cf2615-bb0c-477f-a417-058eda363708',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'callback/route.ts:95',message:'Page token debug info',data:{isValid:debugData.data?.is_valid,userId:debugData.data?.user_id,appId:debugData.data?.app_id,scopes,granularScopes,hasShowList,hasManageMetadata,hasManagePosts,type:debugData.data?.type},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H3'})}).catch(()=>{});
-        // #endregion
-        console.log(`[Facebook OAuth] Page token scopes: ${scopes.join(', ')}`);
-        if (granularScopes.length > 0) {
-          console.log(`[Facebook OAuth] Page token granular scopes:`, JSON.stringify(granularScopes, null, 2));
-        }
-        if (!hasShowList && !hasManageMetadata) {
-          console.warn(`[Facebook OAuth] WARNING: Page token missing impersonation permission! Has show_list: ${hasShowList}, has manage_metadata: ${hasManageMetadata}`);
-        }
-      } else {
-        const errorText = await debugResponse.text();
-        // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/87cf2615-bb0c-477f-a417-058eda363708',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'callback/route.ts:107',message:'Debug token API failed',data:{status:debugResponse.status,errorText},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H3'})}).catch(()=>{});
-        // #endregion
-      }
-    } catch (debugError) {
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/87cf2615-bb0c-477f-a417-058eda363708',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'callback/route.ts:113',message:'Failed to debug token',data:{error:String(debugError)},timestamp:Date.now(),sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H3'})}).catch(()=>{});
-      // #endregion
+      // Store the connection in Convex
+      await saveConnectionViaHttp(tenantId, {
+        pageId,
+        pageName,
+        pageToken,
+        connectedBy: userId,
+      });
+
+      // Redirect back to settings with success
+      return NextResponse.redirect(
+        new URL(`/tenant/${tenantSlug}/settings/social?connected=true`, request.url)
+      );
     }
 
-    // Store the connection in Convex
-    // Note: Using internal mutation requires server auth or system key
-    // For now, we'll use an HTTP action or a special endpoint
-    await saveConnectionViaHttp(tenantId, {
-      pageId,
-      pageName,
-      pageToken,
-      connectedBy: userId,
-    });
+    // Multiple pages - redirect to settings with pages data for selection modal
+    // Encode pages as base64 JSON to pass safely in URL
+    const pagesData = pages.map((p) => ({
+      id: p.id,
+      name: p.name,
+      token: p.access_token,
+    }));
+    const encodedPages = Buffer.from(JSON.stringify(pagesData)).toString("base64");
 
-    // Redirect back to settings with success
+    console.log(`[Facebook OAuth] Redirecting with ${pages.length} pages for selection`);
+
+    // Redirect back to settings with pages for selection
     return NextResponse.redirect(
-      new URL(`/tenant/${tenantSlug}/settings/social?connected=true`, request.url)
+      new URL(
+        `/tenant/${tenantSlug}/settings/social?pendingPages=${encodeURIComponent(encodedPages)}&connectedBy=${userId}`,
+        request.url
+      )
     );
   } catch (error) {
     console.error("[Facebook OAuth] Error:", error);
