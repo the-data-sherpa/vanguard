@@ -26,11 +26,8 @@ export default function IncidentsPage() {
   // Get current user for permission check
   const currentUser = useQuery(api.users.getCurrentUser);
 
-  // Check if user can create incidents (admin/moderator)
-  const canCreateIncident =
-    currentUser?.tenantRole === "admin" ||
-    currentUser?.tenantRole === "owner" ||
-    currentUser?.tenantRole === "moderator";
+  // Check if user can create incidents (owner only)
+  const canCreateIncident = currentUser?.tenantRole === "owner";
 
   // Filter state
   const [filters, setFilters] = useState<FilterState>({

@@ -56,7 +56,7 @@ export function UserTable({
   const [roleChangeUser, setRoleChangeUser] = useState<Doc<"users"> | null>(null);
   const [removeUser, setRemoveUser] = useState<Doc<"users"> | null>(null);
   const [banUser, setBanUser] = useState<Doc<"users"> | null>(null);
-  const [selectedRole, setSelectedRole] = useState<"member" | "moderator" | "admin">("member");
+  const [selectedRole, setSelectedRole] = useState<"owner" | "user">("user");
   const [isLoading, setIsLoading] = useState(false);
 
   const updateUserRole = useMutation(api.users.updateUserRole);
@@ -66,17 +66,9 @@ export function UserTable({
   const canModifyUser = (targetUser: Doc<"users">) => {
     // Cannot modify yourself
     if (targetUser._id === currentUserId) return false;
-    // Cannot modify owners
-    if (targetUser.tenantRole === "owner") return false;
-    // Owners can modify anyone (except other owners)
-    if (currentUserRole === "owner") return true;
-    // Admins cannot modify other admins
-    if (currentUserRole === "admin" && targetUser.tenantRole === "admin") return false;
-    // Admins can modify members and moderators
-    return currentUserRole === "admin";
+    // Only owners can modify users
+    return currentUserRole === "owner";
   };
-
-  const canSetAdmin = currentUserRole === "owner";
 
   const handleRoleChange = async () => {
     if (!roleChangeUser) return;
@@ -132,10 +124,7 @@ export function UserTable({
     switch (role) {
       case "owner":
         return "default";
-      case "admin":
-        return "destructive";
-      case "moderator":
-        return "secondary";
+      case "user":
       default:
         return "outline";
     }
@@ -215,7 +204,7 @@ export function UserTable({
                         <DropdownMenuItem
                           onClick={() => {
                             setRoleChangeUser(user);
-                            setSelectedRole((user.tenantRole as "member" | "moderator" | "admin") || "member");
+                            setSelectedRole((user.tenantRole as "owner" | "user") || "user");
                           }}
                         >
                           <Shield className="mr-2 h-4 w-4" />
@@ -267,8 +256,11 @@ export function UserTable({
             <RoleSelector
               value={selectedRole}
               onChange={setSelectedRole}
-              canSetAdmin={canSetAdmin}
             />
+            <p className="text-xs text-muted-foreground mt-2">
+              {selectedRole === "user" && "Users can view incidents, weather data, and add incident updates."}
+              {selectedRole === "owner" && "Owners can manage users and organization settings."}
+            </p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRoleChangeUser(null)}>

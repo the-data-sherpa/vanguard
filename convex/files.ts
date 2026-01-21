@@ -6,7 +6,7 @@ import { Id } from "./_generated/dataModel";
 // Authorization Helper
 // ===================
 
-async function requireTenantAdmin(
+async function requireTenantOwner(
   ctx: MutationCtx,
   tenantId: Id<"tenants">
 ): Promise<{ userId: Id<"users">; tenantRole: string }> {
@@ -37,19 +37,11 @@ async function requireTenantAdmin(
     throw new Error("Access denied: user does not belong to this tenant");
   }
 
-  const roleHierarchy: Record<string, number> = {
-    member: 1,
-    moderator: 2,
-    admin: 3,
-    owner: 4,
-  };
-
-  const userRoleLevel = roleHierarchy[user.tenantRole || "member"] || 0;
-  if (userRoleLevel < roleHierarchy.admin) {
-    throw new Error("Access denied: requires admin role or higher");
+  if (user.tenantRole !== "owner") {
+    throw new Error("Access denied: requires owner role");
   }
 
-  return { userId: user._id, tenantRole: user.tenantRole || "member" };
+  return { userId: user._id, tenantRole: user.tenantRole };
 }
 
 // ===================
@@ -66,7 +58,7 @@ export const generateUploadUrl = mutation({
   },
   handler: async (ctx, { tenantId }) => {
     // Verify user has admin access
-    await requireTenantAdmin(ctx, tenantId);
+    await requireTenantOwner(ctx, tenantId);
 
     // Generate upload URL from Convex storage
     return await ctx.storage.generateUploadUrl();
@@ -87,7 +79,7 @@ export const saveFile = mutation({
   },
   handler: async (ctx, { tenantId, storageId, fileName, fileType, fileSize }) => {
     // Verify user has admin access
-    await requireTenantAdmin(ctx, tenantId);
+    await requireTenantOwner(ctx, tenantId);
 
     // Validate file size (max 2MB)
     if (fileSize > 2 * 1024 * 1024) {
@@ -120,7 +112,7 @@ export const deleteFile = mutation({
   },
   handler: async (ctx, { tenantId, storageId }) => {
     // Verify user has admin access
-    await requireTenantAdmin(ctx, tenantId);
+    await requireTenantOwner(ctx, tenantId);
 
     // Delete from storage
     await ctx.storage.delete(storageId as Id<"_storage">);

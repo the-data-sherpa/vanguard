@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { query, mutation, internalMutation, QueryCtx, MutationCtx } from "./_generated/server";
+import { query, mutation, internalMutation, internalQuery, QueryCtx, MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 
@@ -11,12 +11,12 @@ import { Id } from "./_generated/dataModel";
  * Verify that the current user is authenticated and has access to the specified tenant
  * with at least the required role level.
  *
- * Role hierarchy: owner > admin > moderator > member
+ * Role hierarchy: owner > user
  */
 async function requireTenantAccess(
   ctx: MutationCtx,
   tenantId: Id<"tenants">,
-  requiredRole: "member" | "moderator" | "admin" | "owner" = "admin"
+  requiredRole: "user" | "owner" = "owner"
 ): Promise<{ userId: Id<"users">; tenantRole: string }> {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) {
@@ -50,20 +50,18 @@ async function requireTenantAccess(
 
   // Check role hierarchy
   const roleHierarchy: Record<string, number> = {
-    member: 1,
-    moderator: 2,
-    admin: 3,
-    owner: 4,
+    user: 1,
+    owner: 2,
   };
 
-  const userRoleLevel = roleHierarchy[user.tenantRole || "member"] || 0;
+  const userRoleLevel = roleHierarchy[user.tenantRole || "user"] || 0;
   const requiredRoleLevel = roleHierarchy[requiredRole] || 0;
 
   if (userRoleLevel < requiredRoleLevel) {
     throw new Error(`Access denied: requires ${requiredRole} role or higher`);
   }
 
-  return { userId: user._id, tenantRole: user.tenantRole || "member" };
+  return { userId: user._id, tenantRole: user.tenantRole || "user" };
 }
 
 // NWS zone format validation
@@ -112,6 +110,16 @@ export const listActive = query({
       .query("tenants")
       .withIndex("by_status", (q) => q.eq("status", "active"))
       .collect();
+  },
+});
+
+/**
+ * Get a tenant by ID (internal use - for HTTP endpoints)
+ */
+export const getByIdInternal = internalQuery({
+  args: { tenantId: v.id("tenants") },
+  handler: async (ctx, { tenantId }) => {
+    return await ctx.db.get(tenantId);
   },
 });
 
@@ -540,7 +548,7 @@ export const updatePulsepointConfig = mutation({
   },
   handler: async (ctx, { tenantId, config, deleteExistingIncidents }) => {
     // Verify user has admin access to this tenant
-    await requireTenantAccess(ctx, tenantId, "admin");
+    await requireTenantAccess(ctx, tenantId, "owner");
 
     // Get current tenant to check for agency change
     const tenant = await ctx.db.get(tenantId);
@@ -604,7 +612,7 @@ export const updateWeatherZones = mutation({
   },
   handler: async (ctx, { tenantId, zones }) => {
     // Verify user has admin access to this tenant
-    await requireTenantAccess(ctx, tenantId, "admin");
+    await requireTenantAccess(ctx, tenantId, "owner");
 
     // Validate zone format
     const invalidZones = zones.filter((zone) => !isValidNWSZone(zone));
@@ -691,7 +699,7 @@ export const updateUnitLegend = mutation({
   },
   handler: async (ctx, { tenantId, legend }) => {
     // Verify user has admin access to this tenant
-    await requireTenantAccess(ctx, tenantId, "admin");
+    await requireTenantAccess(ctx, tenantId, "owner");
 
     await ctx.db.patch(tenantId, {
       unitLegend: legend,
@@ -715,7 +723,7 @@ export const updateBranding = mutation({
   },
   handler: async (ctx, { tenantId, displayName, description, logoUrl, primaryColor }) => {
     // Verify user has admin access to this tenant
-    await requireTenantAccess(ctx, tenantId, "admin");
+    await requireTenantAccess(ctx, tenantId, "owner");
 
     // Validate primary color format if provided
     if (primaryColor && !/^#[0-9A-Fa-f]{6}$/.test(primaryColor)) {
@@ -756,7 +764,7 @@ export const updateFeatures = mutation({
   },
   handler: async (ctx, { tenantId, features }) => {
     // Verify user has admin access to this tenant
-    await requireTenantAccess(ctx, tenantId, "admin");
+    await requireTenantAccess(ctx, tenantId, "owner");
 
     // Get current tenant to merge features
     const tenant = await ctx.db.get(tenantId);

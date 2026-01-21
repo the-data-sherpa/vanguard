@@ -6,7 +6,7 @@ import { Id } from "./_generated/dataModel";
 // Authorization Helper
 // ===================
 
-async function requireTenantAdmin(
+async function requireTenantOwner(
   ctx: QueryCtx,
   tenantId: Id<"tenants">
 ): Promise<void> {
@@ -37,16 +37,8 @@ async function requireTenantAdmin(
     throw new Error("Access denied: user does not belong to this tenant");
   }
 
-  const roleHierarchy: Record<string, number> = {
-    member: 1,
-    moderator: 2,
-    admin: 3,
-    owner: 4,
-  };
-
-  const userRoleLevel = roleHierarchy[user.tenantRole || "member"] || 0;
-  if (userRoleLevel < roleHierarchy.admin) {
-    throw new Error("Access denied: requires admin role or higher");
+  if (user.tenantRole !== "owner") {
+    throw new Error("Access denied: requires owner role");
   }
 }
 
@@ -66,7 +58,7 @@ export const getIncidentsForExport = query({
   },
   handler: async (ctx, { tenantId, startDate, endDate }) => {
     // Verify user has admin access
-    await requireTenantAdmin(ctx, tenantId);
+    await requireTenantOwner(ctx, tenantId);
 
     // Query incidents
     let incidents = await ctx.db
@@ -120,7 +112,7 @@ export const getWeatherAlertsForExport = query({
   },
   handler: async (ctx, { tenantId, startDate, endDate }) => {
     // Verify user has admin access
-    await requireTenantAdmin(ctx, tenantId);
+    await requireTenantOwner(ctx, tenantId);
 
     // Query weather alerts
     let alerts = await ctx.db
@@ -173,7 +165,7 @@ export const getAuditLogsForExport = query({
   },
   handler: async (ctx, { tenantId, startDate, endDate }) => {
     // Verify user has admin access
-    await requireTenantAdmin(ctx, tenantId);
+    await requireTenantOwner(ctx, tenantId);
 
     // Query audit logs
     let logs = await ctx.db

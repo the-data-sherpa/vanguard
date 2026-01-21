@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { UserButton } from '@clerk/nextjs';
-import { Home, AlertTriangle, CloudRain, Settings, Users, User, CreditCard } from 'lucide-react';
+import { Home, AlertTriangle, CloudRain, Settings, Users, User, CreditCard, Radio } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/theme-toggle';
 import {
@@ -42,8 +42,7 @@ export function TenantLayout({ tenantSlug, tenantName, tenantId, children }: Ten
   }, [tenant, router]);
 
   // Platform admins do NOT have automatic tenant access - only check tenant role
-  const isAdmin = currentUser?.tenantRole === 'admin' ||
-    currentUser?.tenantRole === 'owner';
+  const isOwner = currentUser?.tenantRole === 'owner';
 
   const navItems = [
     {
@@ -62,7 +61,12 @@ export function TenantLayout({ tenantSlug, tenantName, tenantId, children }: Ten
       href: `/tenant/${tenantSlug}/weather`,
       icon: CloudRain,
     },
-    ...(isAdmin
+    {
+      label: 'Mission Control',
+      href: `/tenant/${tenantSlug}/mission-control`,
+      icon: Radio,
+    },
+    ...(isOwner
       ? [
           {
             label: 'Users',
@@ -74,13 +78,13 @@ export function TenantLayout({ tenantSlug, tenantName, tenantId, children }: Ten
             href: `/tenant/${tenantSlug}/billing`,
             icon: CreditCard,
           },
+          {
+            label: 'Settings',
+            href: `/tenant/${tenantSlug}/settings`,
+            icon: Settings,
+          },
         ]
       : []),
-    {
-      label: 'Settings',
-      href: `/tenant/${tenantSlug}/settings`,
-      icon: Settings,
-    },
   ];
 
   const getInitials = () => {

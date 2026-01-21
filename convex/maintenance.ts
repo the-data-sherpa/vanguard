@@ -525,3 +525,89 @@ export const processScheduledDeletions = internalAction({
     return { processedCount: pendingDeletion.length, deletedCount };
   },
 });
+
+// ===================
+// Role Migration (v2)
+// ===================
+
+/**
+ * Migrate user roles from 4-tier system to 2-tier system
+ *
+ * Migration mapping:
+ * - owner → owner
+ * - admin → owner (promote to maintain access)
+ * - moderator → user
+ * - member → user
+ *
+ * Run this once after deploying the schema changes:
+ *   npx convex run maintenance:migrateUserRoles
+ */
+export const migrateUserRoles = internalMutation({
+  args: {},
+  handler: async (ctx): Promise<{
+    total: number;
+    migrated: number;
+    details: { ownersKept: number; adminsPromoted: number; moderatorsDemoted: number; membersDemoted: number }
+  }> => {
+    const allUsers = await ctx.db.query("users").collect();
+
+    let ownersKept = 0;
+    let adminsPromoted = 0;
+    let moderatorsDemoted = 0;
+    let membersDemoted = 0;
+    let migrated = 0;
+
+    for (const user of allUsers) {
+      const currentRole = user.tenantRole;
+
+      // Skip users without a tenant role
+      if (!currentRole) continue;
+
+      // Skip users already on new roles
+      if (currentRole === "owner" || currentRole === "user") {
+        if (currentRole === "owner") ownersKept++;
+        continue;
+      }
+
+      // Map old roles to new roles
+      let newRole: "owner" | "user";
+
+      // Using type assertion since old roles might still exist in DB
+      const oldRole = currentRole as string;
+
+      if (oldRole === "admin") {
+        // Promote admins to owners to maintain access
+        newRole = "owner";
+        adminsPromoted++;
+      } else if (oldRole === "moderator") {
+        newRole = "user";
+        moderatorsDemoted++;
+      } else if (oldRole === "member") {
+        newRole = "user";
+        membersDemoted++;
+      } else {
+        // Unknown role, default to user
+        newRole = "user";
+      }
+
+      await ctx.db.patch(user._id, { tenantRole: newRole });
+      migrated++;
+
+      console.log(`[Migration] User ${user.email}: ${oldRole} → ${newRole}`);
+    }
+
+    console.log(`[Migration] Role migration complete: ${migrated} users migrated`);
+    console.log(`[Migration] Details: ${ownersKept} owners kept, ${adminsPromoted} admins→owner, ${moderatorsDemoted} moderators→user, ${membersDemoted} members→user`);
+
+    return {
+      total: allUsers.length,
+      migrated,
+      details: {
+        ownersKept,
+        adminsPromoted,
+        moderatorsDemoted,
+        membersDemoted,
+      },
+    };
+  },
+});

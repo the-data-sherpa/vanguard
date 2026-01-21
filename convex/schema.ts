@@ -174,6 +174,14 @@ export default defineSchema({
     // Sync tracking
     lastIncidentSync: v.optional(v.number()),
     lastWeatherSync: v.optional(v.number()),
+
+    // Facebook Integration
+    facebookPageId: v.optional(v.string()),
+    facebookPageName: v.optional(v.string()),
+    facebookPageToken: v.optional(v.string()),       // Long-lived page token
+    facebookTokenExpiresAt: v.optional(v.number()),
+    facebookConnectedBy: v.optional(v.string()),     // Clerk user ID who connected
+    facebookConnectedAt: v.optional(v.number()),
   })
     .index("by_slug", ["slug"])
     .index("by_status", ["status"])
@@ -323,10 +331,8 @@ export default defineSchema({
     role: v.union(v.literal("user"), v.literal("platform_admin")),
     tenantRole: v.optional(
       v.union(
-        v.literal("member"),
-        v.literal("moderator"),
-        v.literal("admin"),
-        v.literal("owner")
+        v.literal("owner"),
+        v.literal("user")
       )
     ),
     isActive: v.optional(v.boolean()),
@@ -380,4 +386,54 @@ export default defineSchema({
   })
     .index("by_tenant", ["tenantId"])
     .index("by_actor", ["actorId"]),
+
+  // ===================
+  // Incident Updates (for Mission Control)
+  // ===================
+  incidentUpdates: defineTable({
+    tenantId: v.id("tenants"),
+    incidentId: v.id("incidents"),
+    content: v.string(),
+    createdBy: v.string(),  // Clerk user ID
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+    isSyncedToFacebook: v.optional(v.boolean()),
+    facebookSyncedAt: v.optional(v.number()),
+    syncError: v.optional(v.string()),
+  })
+    .index("by_incident", ["incidentId"])
+    .index("by_tenant", ["tenantId"])
+    .index("by_tenant_unsync", ["tenantId", "isSyncedToFacebook"]),
+
+  // ===================
+  // Post Templates (for Social Media)
+  // ===================
+  postTemplates: defineTable({
+    tenantId: v.id("tenants"),
+    name: v.string(),
+    callTypes: v.array(v.string()),      // Which call types use this template
+    template: v.string(),                 // Template string with placeholders
+    includeUnits: v.boolean(),
+    includeMap: v.boolean(),
+    hashtags: v.array(v.string()),
+    isDefault: v.optional(v.boolean()),
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_tenant", ["tenantId"]),
+
+  // ===================
+  // Auto-Post Rules (for Social Media)
+  // ===================
+  autoPostRules: defineTable({
+    tenantId: v.id("tenants"),
+    enabled: v.boolean(),
+    callTypes: v.array(v.string()),      // Which types to auto-post
+    excludeMedical: v.boolean(),         // Filter out medical calls
+    minUnits: v.optional(v.number()),    // Only post if X+ units
+    delaySeconds: v.optional(v.number()), // Wait before posting
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_tenant", ["tenantId"]),
 });

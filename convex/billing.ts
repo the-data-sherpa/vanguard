@@ -42,18 +42,17 @@ async function requireTenantMember(
     throw new Error("Access denied: user does not belong to this tenant");
   }
 
-  return { userId: user._id, tenantRole: user.tenantRole || "member" };
+  return { userId: user._id, tenantRole: user.tenantRole || "user" };
 }
 
-async function requireTenantAdmin(
+async function requireTenantOwner(
   ctx: MutationCtx,
   tenantId: Id<"tenants">
 ): Promise<{ userId: Id<"users">; tenantRole: string }> {
   const { userId, tenantRole } = await requireTenantMember(ctx, tenantId);
 
-  const adminRoles = ["admin", "owner"];
-  if (!adminRoles.includes(tenantRole)) {
-    throw new Error("Access denied: requires admin or owner role");
+  if (tenantRole !== "owner") {
+    throw new Error("Access denied: requires owner role");
   }
 
   return { userId, tenantRole };

@@ -123,7 +123,7 @@ export type UnitLegend = UnitLegendEntry[];
 
 export type UserRole = 'user' | 'platform_admin';
 
-export type TenantRole = 'member' | 'moderator' | 'admin' | 'owner';
+export type TenantRole = 'owner' | 'user';
 
 export interface User extends BaseRecord {
   tenantId?: string;

@@ -14,7 +14,7 @@ interface UsersPageProps {
 
 export default function UsersPage({ params }: UsersPageProps) {
   return (
-    <AuthGuard requiredRole="admin">
+    <AuthGuard requiredRole="owner">
       <UsersPageContent params={params} />
     </AuthGuard>
   );
@@ -54,9 +54,7 @@ function UsersPageContent({ params }: UsersPageProps) {
   }
 
   // Platform admins do NOT have automatic tenant access - use tenant role only
-  const currentUserRole = currentUser.tenantRole || "member";
-
-  const canInviteAdmin = currentUserRole === "owner";
+  const currentUserRole = currentUser.tenantRole || "user";
 
   return (
     <div className="space-y-6">
@@ -70,7 +68,7 @@ function UsersPageContent({ params }: UsersPageProps) {
             Manage users in your organization
           </p>
         </div>
-        <InviteUserDialog tenantId={tenant._id} canInviteAdmin={canInviteAdmin} />
+        <InviteUserDialog tenantId={tenant._id} />
       </div>
 
       <div className="space-y-4">
