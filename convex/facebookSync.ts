@@ -166,6 +166,9 @@ function shouldAutoPost(
 
   // Check call type filter - if user has selected specific types, only post those
   if (rules.callTypes.length > 0) {
+    // Standard categories that have explicit filter options
+    const standardCategories = ["fire", "medical", "rescue", "traffic", "hazmat"];
+
     // Check if incident matches any of the enabled call types/categories
     const matchesCallType = rules.callTypes.some((ct) => {
       const ctLower = ct.toLowerCase();
@@ -177,6 +180,8 @@ function shouldAutoPost(
       if (incidentCategory.includes(ctLower)) return true;
       // Match by description (e.g., "Medical Emergency" contains "medical")
       if (incidentDescription.includes(ctLower)) return true;
+      // "other" is a catch-all - matches any category not in the standard 5
+      if (ctLower === "other" && !standardCategories.includes(incidentCategory)) return true;
       return false;
     });
 
