@@ -553,6 +553,13 @@ function formatUnitStatus(status: string): string {
 // Unit Grouping by Department
 // ===================
 
+// ===================
+// Unit Department Grouping Utilities
+// ===================
+// NOTE: This logic is duplicated in lib/utils.ts for frontend use.
+// Both implementations must stay in sync to ensure consistent grouping
+// across UI and Facebook posts.
+
 // Fire/Rescue unit type suffixes - these get stripped to show department name
 const FIRE_UNIT_SUFFIXES = [
   'ENGINE', 'LADDER', 'TRUCK', 'TANKER', 'BRUSH', 'RESCUE',
@@ -569,12 +576,17 @@ const EMS_PREFIXES = ['EMS ', 'MEDIC ', 'AMBULANCE '];
 /**
  * Extract department/service name from unit description
  *
- * Fire units: "MOORESVILLE ENGINE" → "Mooresville"
- * Fire units with numbers: "SHEPHERDS BRUSH 1" → "Shepherds"
- * EMS units: "MOORESVILLE EMS" → "Mooresville EMS"
- * Generic EMS: "EMS SUPERVISOR" → "EMS"
+ * Handles:
+ * - Fire units: "MOORESVILLE ENGINE" → "Mooresville"
+ * - Fire units with numbers: "SHEPHERDS BRUSH 1" → "Shepherds"
+ * - EMS units: "MOORESVILLE EMS" → "Mooresville EMS"
+ * - Generic EMS: "EMS SUPERVISOR" → "EMS"
+ * - Units without suffixes: "MOORESVILLE" → "Mooresville"
+ *
+ * @param description - Unit description from legend (e.g., "Mount Mourne Tanker 1")
+ * @returns Department name (e.g., "Mount Mourne")
  */
-function extractDepartment(description: string): string {
+export function extractDepartment(description: string): string {
   let upper = description.toUpperCase().trim();
   let desc = description.trim();
 
@@ -585,7 +597,7 @@ function extractDepartment(description: string): string {
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
 
-  // Strip trailing numbers (e.g., "SHEPHERDS BRUSH 1" → "SHEPHERDS BRUSH")
+  // Strip trailing numbers FIRST (e.g., "SHEPHERDS BRUSH 1" → "SHEPHERDS BRUSH")
   // This handles apparatus numbers like Engine 1, Tanker 2, Brush 1, etc.
   const trailingNumberMatch = upper.match(/^(.+?)\s+\d+$/);
   if (trailingNumberMatch) {
@@ -626,10 +638,16 @@ function extractDepartment(description: string): string {
 }
 
 /**
- * Group units by their department
- * Uses legend descriptions if available, otherwise groups under "Other"
+ * Group units by their department name
+ *
+ * Uses legend descriptions if available, otherwise groups under "Other".
+ * This ensures consistent grouping across Facebook posts and UI displays.
+ *
+ * @param units - Array of unit IDs (e.g., ["F70T1", "F12BR1"])
+ * @param unitLegend - Optional unit legend with descriptions
+ * @returns Map of department name to array of unit IDs
  */
-function groupUnitsByDepartment(
+export function groupUnitsByDepartment(
   units: string[],
   unitLegend?: UnitLegendEntry[]
 ): Map<string, string[]> {
@@ -641,9 +659,11 @@ function groupUnitsByDepartment(
 
     let department: string = 'Other';
 
-    // Try to get department from legend
+    // Try to get department from legend (case-insensitive match)
     if (unitLegend && unitLegend.length > 0) {
-      const entry = unitLegend.find((u) => u.UnitKey.toLowerCase() === unit.toLowerCase());
+      const entry = unitLegend.find(
+        (u) => u.UnitKey.toLowerCase() === unit.toLowerCase()
+      );
       if (entry?.Description) {
         department = extractDepartment(entry.Description);
       }

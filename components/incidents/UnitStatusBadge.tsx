@@ -3,101 +3,10 @@
 import { Badge } from '@/components/ui/badge';
 import type { UnitLegend, UnitStatusesField } from '@/lib/types';
 import { getUnitStatusByUnitId } from '@/lib/types';
+import { extractDepartment, groupUnitsByDepartment } from '@/lib/utils';
 
-// Fire/Rescue unit type suffixes - these get stripped to show department name
-const FIRE_UNIT_SUFFIXES = [
-  'ENGINE', 'LADDER', 'TRUCK', 'TANKER', 'BRUSH', 'RESCUE',
-  'BATTALION', 'CHIEF', 'CAPTAIN', 'UTILITY', 'SQUAD',
-  'HAZMAT', 'SPECIAL', 'PUMPER', 'QUINT', 'TOWER',
-];
-
-// EMS unit type suffixes - these keep "EMS" in the group name
-const EMS_UNIT_SUFFIXES = ['AMBULANCE', 'EMS', 'MEDIC'];
-
-// EMS-related prefixes for descriptions that start with EMS
-const EMS_PREFIXES = ['EMS ', 'MEDIC ', 'AMBULANCE '];
-
-/**
- * Extract department/service name from unit description
- *
- * Fire units: "MOORESVILLE ENGINE" → "Mooresville"
- * EMS units: "MOORESVILLE EMS" → "Mooresville EMS"
- * Generic EMS: "EMS SUPERVISOR" → "EMS"
- */
-export function extractDepartment(description: string): string {
-  const upper = description.toUpperCase().trim();
-
-  // Helper to title case a string
-  const titleCase = (str: string) => str
-    .toLowerCase()
-    .split(' ')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
-
-  // Check if description starts with EMS-related prefix (e.g., "EMS SUPERVISOR", "EMS CONVALESCENT")
-  for (const prefix of EMS_PREFIXES) {
-    if (upper.startsWith(prefix) || upper === prefix.trim()) {
-      return 'EMS';
-    }
-  }
-
-  // Check for EMS suffixes - keep "EMS" in the group name
-  for (const suffix of EMS_UNIT_SUFFIXES) {
-    if (upper.endsWith(` ${suffix}`)) {
-      const dept = description.slice(0, -(suffix.length + 1)).trim();
-      if (dept) {
-        return `${titleCase(dept)} EMS`;
-      }
-      return 'EMS';
-    }
-  }
-
-  // Check for fire/rescue suffixes - strip suffix, return department name
-  for (const suffix of FIRE_UNIT_SUFFIXES) {
-    if (upper.endsWith(` ${suffix}`)) {
-      const dept = description.slice(0, -(suffix.length + 1)).trim();
-      if (dept) {
-        return titleCase(dept);
-      }
-    }
-  }
-
-  // If no suffix found, return the whole description title-cased
-  return titleCase(description);
-}
-
-/**
- * Group units by their department
- * Uses legend descriptions if available, otherwise groups under "Other"
- */
-export function groupUnitsByDepartment(
-  units: string[],
-  unitLegend?: UnitLegend
-): Map<string, string[]> {
-  const groups = new Map<string, string[]>();
-
-  for (const unit of units) {
-    // Skip VTAC (radio channel) units
-    if (unit.toUpperCase().includes('VTAC')) continue;
-
-    let department: string = 'Other';
-
-    // Try to get department from legend
-    if (unitLegend && unitLegend.length > 0) {
-      const entry = unitLegend.find((u) => u.UnitKey === unit);
-      if (entry?.Description) {
-        department = extractDepartment(entry.Description);
-      }
-    }
-
-    if (!groups.has(department)) {
-      groups.set(department, []);
-    }
-    groups.get(department)!.push(unit);
-  }
-
-  return groups;
-}
+// Re-export for backward compatibility
+export { extractDepartment, groupUnitsByDepartment };
 
 interface UnitStatusBadgeProps {
   unit: string;
@@ -220,11 +129,23 @@ export function UnitStatusDetail({ units, unitStatuses, unitLegend }: UnitStatus
   const getUnitType = (unitKey: string): string | null => {
     const desc = getDescription(unitKey);
     if (!desc) return null;
-    const upper = desc.toUpperCase();
+    const upper = desc.toUpperCase().trim();
+    
+    // Strip trailing numbers first (e.g., "ALEXANDER ENGINE 1" → "ALEXANDER ENGINE")
+    const trailingNumberMatch = upper.match(/^(.+?)\s+\d+$/);
+    const normalizedUpper = trailingNumberMatch ? trailingNumberMatch[1] : upper;
+    
     // Check both fire and EMS suffixes
+    const FIRE_UNIT_SUFFIXES = [
+      'ENGINE', 'LADDER', 'TRUCK', 'TANKER', 'BRUSH', 'RESCUE',
+      'BATTALION', 'CHIEF', 'CAPTAIN', 'UTILITY', 'SQUAD',
+      'HAZMAT', 'SPECIAL', 'PUMPER', 'QUINT', 'TOWER', 'FIRE',
+    ];
+    const EMS_UNIT_SUFFIXES = ['AMBULANCE', 'EMS', 'MEDIC'];
     const allSuffixes = [...FIRE_UNIT_SUFFIXES, ...EMS_UNIT_SUFFIXES];
+    
     for (const suffix of allSuffixes) {
-      if (upper.endsWith(` ${suffix}`)) {
+      if (normalizedUpper.endsWith(` ${suffix}`)) {
         return suffix.charAt(0) + suffix.slice(1).toLowerCase();
       }
     }
