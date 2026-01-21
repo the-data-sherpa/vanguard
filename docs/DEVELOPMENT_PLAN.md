@@ -2,7 +2,7 @@
 
 > Building Block Approach to Platform Completion
 >
-> Last Updated: January 2025
+> Last Updated: January 2025 (Phase 4 Complete)
 
 ---
 
@@ -57,13 +57,13 @@
 | Feature Toggles | ✅ Done | Enable/disable features with tier gating |
 | User Preferences | ✅ Done | Timezone, email/push notifications |
 | Data Export | ✅ Done | CSV/JSON export for incidents, weather, audit |
-| Social Media | 🔄 In Progress | Mission Control, Facebook integration, auto-post rules, templates |
+| Social Media | ✅ Done | Mission Control, Facebook integration, auto-post rules, templates |
 | User Submissions | 🔮 Deferred | Schema ready, deprioritized |
 | Moderation Queue | 🔮 Deferred | Depends on submissions |
-| Public Status Page | ⬜ Needed | Not started |
+| Public Status Page | ✅ Done | Public route, real-time status, incident timeline |
 | Interactive Map | ⬜ Needed | Not started (Phase 5) |
-| Analytics | ⬜ Needed | Not started |
-| Platform Admin | ✅ Done | Dashboard, tenant overview, health monitoring |
+| Analytics | ✅ Done | Recharts dashboards, trend analysis, heatmaps |
+| Platform Admin | ✅ Done | Dashboard, tenant overview, system health monitoring |
 | Tenant Lifecycle | ✅ Done | Create, suspend, delete, tier management |
 | Billing & Subscriptions | ✅ Done | Stripe, trials, billing portal, demo tenant |
 
@@ -330,43 +330,90 @@
 
 **Goal**: Public visibility and data insights
 
-### Block 4A: Public Service Status Page
+### Block 4A: Public Service Status Page ✅ COMPLETE
 
-| Task | Priority | Complexity |
-|------|----------|------------|
-| Public status page (no auth required) | 🟡 Medium | Medium |
-| Current active incidents summary | 🟡 Medium | Low |
-| Active weather alerts display | 🟡 Medium | Low |
-| System operational status indicator | 🟡 Medium | Low |
-| Historical uptime/incident timeline | 🟡 Medium | Medium |
-| Customizable tenant branding on public page | 🟡 Medium | Low |
-| Embeddable widget option | 🟡 Low | Medium |
+| Task | Status | Notes |
+|------|--------|-------|
+| Public status page (no auth required) | ✅ Done | `/status/[slug]` route |
+| Current active incidents summary | ✅ Done | Category breakdown with counts |
+| Active weather alerts display | ✅ Done | Severity-based alert cards |
+| System operational status indicator | ✅ Done | Green/yellow/red status |
+| Historical incident timeline | ✅ Done | 30-day incident history chart |
+| Customizable tenant branding | ✅ Done | Logo, colors, display name |
+| Embeddable widget option | ✅ Done | `/status/[slug]/embed` iframe-friendly |
 
-**Files to create/modify:**
-- `app/[slug]/status/page.tsx` - Public status page (outside tenant auth)
-- `components/status/ActiveIncidentsSummary.tsx`
-- `components/status/WeatherAlertsBanner.tsx`
-- `components/status/SystemStatus.tsx`
-- `components/status/IncidentTimeline.tsx`
-- `convex/publicStatus.ts` - Public queries (no auth required)
+**Files created:**
+- `app/status/[slug]/layout.tsx` - Public layout with standalone ConvexProvider
+- `app/status/[slug]/page.tsx` - Main status page
+- `app/status/[slug]/embed/page.tsx` - Embeddable widget version
+- `convex/status.ts` - Public queries (tenant info, incidents, weather, history)
+- `components/status/StatusHeader.tsx` - Tenant branding display
+- `components/status/OperationalStatus.tsx` - System status indicator
+- `components/status/IncidentSummary.tsx` - Active incident counts
+- `components/status/WeatherAlertSummary.tsx` - Weather alert display
+- `components/status/HistoryTimeline.tsx` - 30-day incident chart
 
-### Block 4B: Analytics Dashboard
+**Files modified:**
+- `middleware.ts` - Added `/status(.*)` to public routes
+- `convex/schema.ts` - Added `publicStatusPage` to tenant features
+- `app/tenant/[slug]/settings/FeatureSettings.tsx` - Toggle for public status page
 
-| Task | Priority | Complexity |
-|------|----------|------------|
-| Incident trends over time (line charts) | 🟡 Low | Medium |
-| Call type distribution (pie/bar charts) | 🟡 Low | Low |
-| Busiest times analysis (hour/day heatmap) | 🟡 Low | Medium |
-| Unit utilization metrics | 🟡 Low | Medium |
-| Response time tracking (if data available) | 🟡 Low | Medium |
-| Exportable reports (PDF) | 🟡 Low | High |
+### Block 4B: Analytics Dashboard ✅ COMPLETE
 
-**Files to create/modify:**
-- `app/tenant/[slug]/analytics/page.tsx`
-- `components/analytics/TrendChart.tsx`
-- `components/analytics/CallTypeBreakdown.tsx`
-- `components/analytics/TimeHeatmap.tsx`
-- `convex/analytics.ts`
+| Task | Status | Notes |
+|------|--------|-------|
+| Incident trends over time (line charts) | ✅ Done | 30-day trend with Recharts |
+| Call type distribution (pie/bar charts) | ✅ Done | Pie + bar combo chart |
+| Busiest times analysis (hour/day heatmap) | ✅ Done | 7x24 hour/day heatmap |
+| Unit utilization metrics | ✅ Done | Top units by dispatch count |
+| Response time tracking | ✅ Done | Based on unitStatuses timestamps |
+| Date range picker | ✅ Done | Custom range selector |
+
+**Files created:**
+- `app/tenant/[slug]/analytics/page.tsx` - Analytics dashboard
+- `convex/analytics.ts` - Aggregation queries
+- `components/analytics/IncidentTrendChart.tsx` - Line chart
+- `components/analytics/CallTypeChart.tsx` - Pie + bar chart
+- `components/analytics/BusyTimesHeatmap.tsx` - Hour/day heatmap
+- `components/analytics/UnitUtilizationChart.tsx` - Bar chart
+- `components/analytics/ResponseTimeChart.tsx` - Area chart
+- `components/analytics/DateRangePicker.tsx` - Date selector
+- `components/analytics/AnalyticsCard.tsx` - Chart wrapper
+
+**Files modified:**
+- `components/layout/TenantLayout.tsx` - Added Analytics nav item (conditional)
+- `app/tenant/[slug]/settings/FeatureSettings.tsx` - Enabled advancedAnalytics toggle
+
+**Dependencies added:** `recharts` for charting
+
+### Block 4C: Platform Admin System Health ✅ COMPLETE
+
+| Task | Status | Notes |
+|------|--------|-------|
+| System health dashboard | ✅ Done | `/admin/health` route |
+| Sync history chart (7 days) | ✅ Done | Success/failure tracking |
+| Platform incident trends | ✅ Done | All-tenant aggregation |
+| Tenant health table | ✅ Done | Per-tenant metrics with actions |
+| Recent errors log | ✅ Done | From audit logs |
+| External service health checks | ✅ Done | PulsePoint, NWS, Stripe |
+
+**Files created:**
+- `app/admin/health/page.tsx` - System Health dashboard
+- `convex/adminHealth.ts` - Health monitoring queries and actions
+- `components/admin/SyncHistoryChart.tsx` - Sync success/failure over time
+- `components/admin/PlatformIncidentChart.tsx` - Platform-wide incident trends
+- `components/admin/TenantHealthTable.tsx` - Per-tenant health breakdown
+- `components/admin/ErrorLogTable.tsx` - Recent errors display
+- `components/admin/ExternalServiceStatus.tsx` - Active health checks with caching
+
+**Files modified:**
+- `components/layout/AdminLayout.tsx` - Added Health nav item
+
+**External Service Health Checks:**
+- PulsePoint: `api.pulsepoint.org/v1/webapp?resource=searchagencies`
+- NWS: `api.weather.gov` (base URL)
+- Stripe: `api.stripe.com/healthcheck`
+- Results cached in localStorage (5-minute TTL) to avoid excessive API calls
 
 ---
 
@@ -441,9 +488,10 @@
 | 🟠 5 | **2B: Tenant Lifecycle** | Create/suspend/delete tenants | ✅ Done |
 | 🟠 6 | **2C: Billing** | Revenue and trial management | ✅ Done |
 | 🟡 7 | **3A: Social Media** | High value for existing ICAW users | ✅ Done |
-| 🟡 8 | **4A: Status Page** | Public visibility, transparency | ⬜ Pending |
-| 🟡 9 | **4B: Analytics** | Nice-to-have for launch | ⬜ Pending |
-| 🟢 10 | **5A: Map** | Visual appeal, differentiation | ⬜ Pending |
+| 🟡 8 | **4A: Status Page** | Public visibility, transparency | ✅ Done |
+| 🟡 9 | **4B: Analytics** | Data insights for tenants | ✅ Done |
+| 🟡 10 | **4C: Admin Health** | Platform monitoring | ✅ Done |
+| 🟢 11 | **5A: Map** | Visual appeal, differentiation | ⬜ Pending |
 
 ---
 
@@ -516,9 +564,13 @@ Block 1C (Incidents)
 - Post templates and auto-post rules
 - Sync status tracking (pending/posted/failed)
 
-### Public Visibility (+ Blocks 4A, 4B) ⬜ FUTURE
-- Public service status page
-- Analytics dashboards
+### Public Visibility & Analytics (+ Blocks 4A, 4B, 4C) ✅ COMPLETE
+- Public service status page (`/status/[slug]`)
+- Embeddable status widget for external sites
+- Tenant analytics dashboard with Recharts
+- Incident trends, call type distribution, busy times heatmap
+- Platform admin system health monitoring
+- External service health checks (PulsePoint, NWS, Stripe)
 
 ### Full Platform (+ Block 5A) ⬜ FUTURE
 - Interactive maps with real-time incidents
@@ -541,6 +593,7 @@ Block 1C (Incidents)
 | 1.8.0 | January 2025 | Block 3A complete - Mission Control, Facebook integration, auto-posting, sync status tracking |
 | 1.9.0 | January 2025 | Blocks 3B, 3C, 3D complete - Auto-post rules, post templates with placeholder system, template engine integration, tenant timezone support, call type/unit status mappings, searchable call type selector |
 | 2.0.0 | January 2025 | Restructured Phase 4: Added Public Service Status Page (4A), moved Interactive Map to new Phase 5 |
+| 2.1.0 | January 2025 | Phase 4 complete: Block 4A (Public Status Page), Block 4B (Analytics Dashboard), Block 4C (Platform Admin System Health with external service checks) |
 
 ---
 
