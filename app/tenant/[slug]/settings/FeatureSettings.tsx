@@ -9,12 +9,14 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Save, Loader2, CloudRain, Users, MessageSquare, Share2, Zap, BarChart3 } from "lucide-react";
+import { Save, Loader2, CloudRain, Users, MessageSquare, Share2, Zap, BarChart3, Globe, ExternalLink, Copy, Check } from "lucide-react";
+import { Input } from "@/components/ui/input";
 
 interface FeatureSettingsProps {
   tenant: {
     _id: Id<"tenants">;
     tier: string;
+    slug: string;
     features?: {
       facebook?: boolean;
       twitter?: boolean;
@@ -26,6 +28,7 @@ interface FeatureSettingsProps {
       customBranding?: boolean;
       apiAccess?: boolean;
       advancedAnalytics?: boolean;
+      publicStatusPage?: boolean;
     };
   };
 }
@@ -95,7 +98,13 @@ const FEATURES: FeatureToggle[] = [
     label: "Advanced Analytics",
     description: "Access detailed analytics and reporting",
     icon: <BarChart3 className="h-5 w-5" />,
-    tierRequired: ["enterprise"],
+    tierRequired: ["starter", "professional", "enterprise"],
+  },
+  {
+    key: "publicStatusPage",
+    label: "Public Status Page",
+    description: "Share a public page showing real-time incident and weather status",
+    icon: <Globe className="h-5 w-5" />,
   },
 ];
 
@@ -109,6 +118,17 @@ export function FeatureSettings({ tenant }: FeatureSettingsProps) {
   });
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const statusPageUrl = typeof window !== "undefined"
+    ? `${window.location.origin}/status/${tenant.slug}`
+    : `/status/${tenant.slug}`;
+
+  const handleCopyUrl = async () => {
+    await navigator.clipboard.writeText(statusPageUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const updateFeatures = useMutation(api.tenants.updateFeatures);
 
@@ -135,6 +155,7 @@ export function FeatureSettings({ tenant }: FeatureSettingsProps) {
           customBranding: features.customBranding,
           apiAccess: features.apiAccess,
           advancedAnalytics: features.advancedAnalytics,
+          publicStatusPage: features.publicStatusPage,
         },
       });
       setMessage({ type: "success", text: "Features saved successfully" });
@@ -215,6 +236,48 @@ export function FeatureSettings({ tenant }: FeatureSettingsProps) {
               </div>
             );
           })}
+
+          {/* Public Status Page URL */}
+          {(features.publicStatusPage || tenant.features?.publicStatusPage) && (
+            <div className="p-4 rounded-lg border bg-muted/30 space-y-2">
+              <div className="flex items-center gap-2">
+                <Globe className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Public Status Page URL</span>
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  value={statusPageUrl}
+                  readOnly
+                  className="text-sm font-mono bg-background"
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={handleCopyUrl}
+                  title="Copy URL"
+                >
+                  {copied ? (
+                    <Check className="h-4 w-4 text-green-600" />
+                  ) : (
+                    <Copy className="h-4 w-4" />
+                  )}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  asChild
+                  title="Open in new tab"
+                >
+                  <a href={statusPageUrl} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Share this URL to let others view your public status page
+              </p>
+            </div>
+          )}
 
           <div className="flex items-center gap-4 pt-4 border-t">
             <Button onClick={handleSave} disabled={saving || !hasChanges()}>

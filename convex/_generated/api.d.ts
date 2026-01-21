@@ -9,6 +9,7 @@
  */
 
 import type * as admin from "../admin.js";
+import type * as analytics from "../analytics.js";
 import type * as autoPostRules from "../autoPostRules.js";
 import type * as billing from "../billing.js";
 import type * as cacheHelpers from "../cacheHelpers.js";
@@ -29,6 +30,7 @@ import type * as missionControl from "../missionControl.js";
 import type * as postTemplates from "../postTemplates.js";
 import type * as scheduler from "../scheduler.js";
 import type * as seed from "../seed.js";
+import type * as status from "../status.js";
 import type * as stripe from "../stripe.js";
 import type * as sync from "../sync.js";
 import type * as syncHelpers from "../syncHelpers.js";
@@ -44,6 +46,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
+  analytics: typeof analytics;
   autoPostRules: typeof autoPostRules;
   billing: typeof billing;
   cacheHelpers: typeof cacheHelpers;
@@ -64,6 +67,7 @@ declare const fullApi: ApiFromModules<{
   postTemplates: typeof postTemplates;
   scheduler: typeof scheduler;
   seed: typeof seed;
+  status: typeof status;
   stripe: typeof stripe;
   sync: typeof sync;
   syncHelpers: typeof syncHelpers;
