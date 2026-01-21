@@ -557,7 +557,7 @@ function formatUnitStatus(status: string): string {
 const FIRE_UNIT_SUFFIXES = [
   'ENGINE', 'LADDER', 'TRUCK', 'TANKER', 'BRUSH', 'RESCUE',
   'BATTALION', 'CHIEF', 'CAPTAIN', 'UTILITY', 'SQUAD',
-  'HAZMAT', 'SPECIAL', 'PUMPER', 'QUINT', 'TOWER',
+  'HAZMAT', 'SPECIAL', 'PUMPER', 'QUINT', 'TOWER', 'FIRE',
 ];
 
 // EMS unit type suffixes - these keep "EMS" in the group name
@@ -570,11 +570,13 @@ const EMS_PREFIXES = ['EMS ', 'MEDIC ', 'AMBULANCE '];
  * Extract department/service name from unit description
  *
  * Fire units: "MOORESVILLE ENGINE" → "Mooresville"
+ * Fire units with numbers: "SHEPHERDS BRUSH 1" → "Shepherds"
  * EMS units: "MOORESVILLE EMS" → "Mooresville EMS"
  * Generic EMS: "EMS SUPERVISOR" → "EMS"
  */
 function extractDepartment(description: string): string {
-  const upper = description.toUpperCase().trim();
+  let upper = description.toUpperCase().trim();
+  let desc = description.trim();
 
   // Helper to title case a string
   const titleCase = (str: string) => str
@@ -582,6 +584,14 @@ function extractDepartment(description: string): string {
     .split(' ')
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
+
+  // Strip trailing numbers (e.g., "SHEPHERDS BRUSH 1" → "SHEPHERDS BRUSH")
+  // This handles apparatus numbers like Engine 1, Tanker 2, Brush 1, etc.
+  const trailingNumberMatch = upper.match(/^(.+?)\s+\d+$/);
+  if (trailingNumberMatch) {
+    upper = trailingNumberMatch[1];
+    desc = desc.replace(/\s+\d+$/, '');
+  }
 
   // Check if description starts with EMS-related prefix (e.g., "EMS SUPERVISOR", "EMS CONVALESCENT")
   for (const prefix of EMS_PREFIXES) {
@@ -593,7 +603,7 @@ function extractDepartment(description: string): string {
   // Check for EMS suffixes - keep "EMS" in the group name
   for (const suffix of EMS_UNIT_SUFFIXES) {
     if (upper.endsWith(` ${suffix}`)) {
-      const dept = description.slice(0, -(suffix.length + 1)).trim();
+      const dept = desc.slice(0, -(suffix.length + 1)).trim();
       if (dept) {
         return `${titleCase(dept)} EMS`;
       }
@@ -604,7 +614,7 @@ function extractDepartment(description: string): string {
   // Check for fire/rescue suffixes - strip suffix, return department name
   for (const suffix of FIRE_UNIT_SUFFIXES) {
     if (upper.endsWith(` ${suffix}`)) {
-      const dept = description.slice(0, -(suffix.length + 1)).trim();
+      const dept = desc.slice(0, -(suffix.length + 1)).trim();
       if (dept) {
         return titleCase(dept);
       }
@@ -612,7 +622,7 @@ function extractDepartment(description: string): string {
   }
 
   // If no suffix found, return the whole description title-cased
-  return titleCase(description);
+  return titleCase(desc);
 }
 
 /**
