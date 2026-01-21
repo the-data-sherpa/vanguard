@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Save, Loader2, X, Plus } from "lucide-react";
+import { Save, Loader2, X, Plus, Facebook, ExternalLink } from "lucide-react";
+import Link from "next/link";
 import { SyncControls } from "./SyncControls";
 import { PulsePointConfig } from "./PulsePointConfig";
 
@@ -29,9 +30,10 @@ interface IntegrationSettingsProps {
     unitLegendUpdatedAt?: number;
     unitLegend?: Array<{ UnitKey: string; Description: string }>;
   };
+  tenantSlug: string;
 }
 
-export function IntegrationSettings({ tenant }: IntegrationSettingsProps) {
+export function IntegrationSettings({ tenant, tenantSlug }: IntegrationSettingsProps) {
   const [zones, setZones] = useState<string[]>(tenant.weatherZones || []);
   const [newZone, setNewZone] = useState("");
   const [savingZones, setSavingZones] = useState(false);
@@ -113,6 +115,31 @@ export function IntegrationSettings({ tenant }: IntegrationSettingsProps) {
               unitCount: tenant.unitLegend?.length ?? 0,
             }}
           />
+        </CardContent>
+      </Card>
+
+      {/* Social Media Integration */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Facebook className="h-5 w-5 text-blue-600" />
+            Social Media Integration
+          </CardTitle>
+          <CardDescription>
+            Connect your Facebook page to automatically post incident updates
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground mb-4">
+            Mission Control allows you to share incident updates with your community via Facebook.
+            Configure your Facebook page connection in the Social settings.
+          </p>
+          <Button asChild variant="outline">
+            <Link href={`/tenant/${tenantSlug}/settings/social`}>
+              Configure Social Media
+              <ExternalLink className="ml-2 h-4 w-4" />
+            </Link>
+          </Button>
         </CardContent>
       </Card>
 

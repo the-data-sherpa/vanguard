@@ -55,7 +55,7 @@ export default function SettingsPage() {
         </TabsContent>
 
         <TabsContent value="integrations" className="mt-6">
-          <IntegrationSettings tenant={tenant} />
+          <IntegrationSettings tenant={tenant} tenantSlug={slug} />
         </TabsContent>
 
         <TabsContent value="features" className="mt-6">
