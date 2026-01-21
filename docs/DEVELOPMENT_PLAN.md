@@ -259,18 +259,21 @@
 | Auto-post rules (which incidents, when) | ✅ Done | Category-based auto-post settings |
 | Post history & status tracking | ✅ Done | Mission Control dashboard with sync status |
 | Manual post trigger with preview | ✅ Done | Preview and post from incident cards |
+| Mission Control filtering | ✅ Done | Only shows incidents matching auto-post rules |
 
 **Files created:**
 - `app/tenant/[slug]/mission-control/page.tsx` - Mission Control dashboard
 - `app/tenant/[slug]/settings/social/page.tsx` - Social media settings
 - `convex/facebook.ts` - Facebook API integration (OAuth, posting)
-- `convex/missionControl.ts` - Dashboard stats, pending/posted/failed queries
+- `convex/missionControl.ts` - Dashboard stats, pending/posted/failed queries (filters by auto-post rules)
 - `convex/incidentUpdates.ts` - Incident updates for posting
 
 **Components created:**
 - `components/mission-control/IncidentPostCard.tsx` - Incident card with post controls
 - `components/mission-control/SyncStatusBadge.tsx` - Post status indicator
 - `components/mission-control/UpdatesList.tsx` - List of incident updates
+
+**Mission Control Filtering:** When auto-posting is enabled, Mission Control only displays incidents that pass the configured filters (call types, exclude medical, minimum units). When disabled, shows all non-medical incidents.
 
 ### Block 3B: Auto-Post Rules Configuration ✅ COMPLETE
 
@@ -335,28 +338,34 @@
 | Task | Status | Notes |
 |------|--------|-------|
 | Public status page (no auth required) | ✅ Done | `/status/[slug]` route |
-| Current active incidents summary | ✅ Done | Category breakdown with counts |
+| Tabbed incident cards | ✅ Done | Medical / Non-medical tabs with full incident details |
 | Active weather alerts display | ✅ Done | Severity-based alert cards |
 | System operational status indicator | ✅ Done | Green/yellow/red status |
 | Historical incident timeline | ✅ Done | 30-day incident history chart |
 | Customizable tenant branding | ✅ Done | Logo, colors, display name |
-| Embeddable widget option | ✅ Done | `/status/[slug]/embed` iframe-friendly |
+| Embeddable widget option | ✅ Done | `/status/[slug]/embed` iframe-friendly with tabs |
 
 **Files created:**
 - `app/status/[slug]/layout.tsx` - Public layout with standalone ConvexProvider
-- `app/status/[slug]/page.tsx` - Main status page
-- `app/status/[slug]/embed/page.tsx` - Embeddable widget version
+- `app/status/[slug]/page.tsx` - Main status page with tabbed incident cards
+- `app/status/[slug]/embed/page.tsx` - Embeddable version with tabs and incident cards
 - `convex/status.ts` - Public queries (tenant info, incidents, weather, history)
 - `components/status/StatusHeader.tsx` - Tenant branding display
 - `components/status/OperationalStatus.tsx` - System status indicator
-- `components/status/IncidentSummary.tsx` - Active incident counts
+- `components/status/IncidentSummary.tsx` - Active incident counts (legacy)
 - `components/status/WeatherAlertSummary.tsx` - Weather alert display
 - `components/status/HistoryTimeline.tsx` - 30-day incident chart
+- `components/status/PublicIncidentCard.tsx` - Incident card for public display
 
 **Files modified:**
 - `middleware.ts` - Added `/status(.*)` to public routes
 - `convex/schema.ts` - Added `publicStatusPage` to tenant features
 - `app/tenant/[slug]/settings/FeatureSettings.tsx` - Toggle for public status page
+
+**Embedding:**
+```html
+<iframe src="https://domain.com/status/tenant-slug/embed" width="100%" height="600" frameborder="0"></iframe>
+```
 
 ### Block 4B: Analytics Dashboard ✅ COMPLETE
 
@@ -594,6 +603,7 @@ Block 1C (Incidents)
 | 1.9.0 | January 2025 | Blocks 3B, 3C, 3D complete - Auto-post rules, post templates with placeholder system, template engine integration, tenant timezone support, call type/unit status mappings, searchable call type selector |
 | 2.0.0 | January 2025 | Restructured Phase 4: Added Public Service Status Page (4A), moved Interactive Map to new Phase 5 |
 | 2.1.0 | January 2025 | Phase 4 complete: Block 4A (Public Status Page), Block 4B (Analytics Dashboard), Block 4C (Platform Admin System Health with external service checks) |
+| 2.2.0 | January 2025 | Enhanced public status page with tabbed incident cards (medical/non-medical), embeddable widget with full incident display, Mission Control filtering by auto-post rules |
 
 ---
 

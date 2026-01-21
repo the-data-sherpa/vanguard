@@ -85,7 +85,7 @@ export const getPublicStats = query({
 });
 
 /**
- * Get public incidents (limited fields for public display).
+ * Get public incidents with full details for incident cards.
  * Returns null if tenant doesn't exist or feature is disabled.
  */
 export const getPublicIncidents = query({
@@ -106,16 +106,19 @@ export const getPublicIncidents = query({
         q.eq("tenantId", tenant._id).eq("status", "active")
       )
       .order("desc")
-      .take(50);
+      .take(100);
 
-    // Return only public-safe fields
+    // Return fields needed for incident cards
     return incidents.map((incident) => ({
       _id: incident._id,
       callType: incident.callType,
-      callTypeCategory: incident.callTypeCategory,
+      callTypeCategory: incident.callTypeCategory || "other",
       fullAddress: incident.fullAddress,
       callReceivedTime: incident.callReceivedTime,
-      unitCount: incident.units?.length || 0,
+      status: incident.status,
+      units: incident.units || [],
+      unitStatuses: incident.unitStatuses || [],
+      description: incident.description,
     }));
   },
 });

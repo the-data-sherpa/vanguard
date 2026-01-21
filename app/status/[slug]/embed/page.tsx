@@ -3,8 +3,10 @@
 import { useParams } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import { Loader2, CheckCircle, AlertTriangle, XCircle, Flame } from "lucide-react";
-import Image from "next/image";
+import { Loader2, AlertTriangle, CheckCircle, XCircle } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { PublicIncidentCard } from "@/components/status";
 
 type StatusLevel = "operational" | "degraded" | "major";
 
@@ -17,22 +19,22 @@ function getStatusLevel(incidentCount: number, alertCount: number): StatusLevel 
 const statusConfig = {
   operational: {
     icon: CheckCircle,
-    label: "All Systems Operational",
-    bgColor: "bg-green-50 dark:bg-green-950",
+    label: "All Clear",
+    bgColor: "bg-green-100 dark:bg-green-900/30",
     textColor: "text-green-700 dark:text-green-400",
     iconColor: "text-green-500",
   },
   degraded: {
     icon: AlertTriangle,
     label: "Active Incidents",
-    bgColor: "bg-amber-50 dark:bg-amber-950",
+    bgColor: "bg-amber-100 dark:bg-amber-900/30",
     textColor: "text-amber-700 dark:text-amber-400",
     iconColor: "text-amber-500",
   },
   major: {
     icon: XCircle,
-    label: "Multiple Active Incidents",
-    bgColor: "bg-red-50 dark:bg-red-950",
+    label: "Multiple Incidents",
+    bgColor: "bg-red-100 dark:bg-red-900/30",
     textColor: "text-red-700 dark:text-red-400",
     iconColor: "text-red-500",
   },
@@ -43,19 +45,20 @@ export default function EmbedStatusPage() {
   const slug = params.slug as string;
 
   const tenantInfo = useQuery(api.status.getPublicTenantInfo, { slug });
-  const stats = useQuery(api.status.getPublicStats, { slug });
+  const incidents = useQuery(api.status.getPublicIncidents, { slug });
+  const alerts = useQuery(api.status.getPublicWeatherAlerts, { slug });
 
   // Loading state
-  if (tenantInfo === undefined || stats === undefined) {
+  if (tenantInfo === undefined || incidents === undefined || alerts === undefined) {
     return (
-      <div className="p-4 flex items-center justify-center min-h-[100px]">
+      <div className="p-4 flex items-center justify-center min-h-[200px]">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   // Not found or feature disabled
-  if (tenantInfo === null || stats === null) {
+  if (tenantInfo === null || incidents === null) {
     return (
       <div className="p-4 text-center text-muted-foreground text-sm">
         Status page not available
@@ -63,55 +66,100 @@ export default function EmbedStatusPage() {
     );
   }
 
-  const status = getStatusLevel(stats.activeIncidentCount, stats.activeAlertCount);
+  // Split incidents into medical and non-medical
+  const medicalIncidents = incidents.filter(
+    (i) => i.callTypeCategory === "medical"
+  );
+  const nonMedicalIncidents = incidents.filter(
+    (i) => i.callTypeCategory !== "medical"
+  );
+
+  const totalIncidents = incidents.length;
+  const totalAlerts = alerts?.length || 0;
+  const status = getStatusLevel(totalIncidents, totalAlerts);
   const config = statusConfig[status];
-  const Icon = config.icon;
+  const StatusIcon = config.icon;
 
   return (
-    <div className={`p-4 rounded-lg ${config.bgColor}`}>
-      <div className="flex items-center gap-3">
-        {/* Logo or Icon */}
-        {tenantInfo.logoUrl ? (
-          <Image
-            src={tenantInfo.logoUrl}
-            alt={tenantInfo.name}
-            width={32}
-            height={32}
-            className="rounded"
-          />
-        ) : (
-          <div
-            className="h-8 w-8 rounded flex items-center justify-center"
-            style={{ backgroundColor: tenantInfo.primaryColor || "#f97316" }}
-          >
-            <Flame className="h-4 w-4 text-white" />
-          </div>
-        )}
-
-        {/* Status */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <Icon className={`h-5 w-5 ${config.iconColor}`} />
-            <span className={`font-medium ${config.textColor}`}>
-              {config.label}
-            </span>
-          </div>
-          <p className="text-xs text-muted-foreground truncate">
-            {tenantInfo.name}
-          </p>
+    <div className="p-4 space-y-4 min-h-[200px]">
+      {/* Status Banner */}
+      <div className={`p-3 rounded-lg ${config.bgColor} flex items-center justify-between`}>
+        <div className="flex items-center gap-2">
+          <StatusIcon className={`h-5 w-5 ${config.iconColor}`} />
+          <span className={`font-medium ${config.textColor}`}>
+            {config.label}
+          </span>
         </div>
-
-        {/* Stats */}
-        <div className="text-right">
-          <div className="text-lg font-bold">{stats.activeIncidentCount}</div>
-          <div className="text-xs text-muted-foreground">
-            {stats.activeIncidentCount === 1 ? "incident" : "incidents"}
-          </div>
+        <div className="flex items-center gap-3 text-sm">
+          <span className="text-muted-foreground">
+            {totalIncidents} {totalIncidents === 1 ? "incident" : "incidents"}
+          </span>
+          {totalAlerts > 0 && (
+            <span className="text-muted-foreground">
+              {totalAlerts} {totalAlerts === 1 ? "alert" : "alerts"}
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Link to full page */}
-      <div className="mt-3 pt-3 border-t text-center">
+      {/* Tabbed Incidents */}
+      {totalIncidents > 0 ? (
+        <Tabs defaultValue="non-medical" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="non-medical" className="flex items-center gap-2 text-xs">
+              Fire / Rescue / Traffic
+              {nonMedicalIncidents.length > 0 && (
+                <Badge variant="secondary" className="ml-1 text-xs">
+                  {nonMedicalIncidents.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="medical" className="flex items-center gap-2 text-xs">
+              Medical
+              {medicalIncidents.length > 0 && (
+                <Badge variant="secondary" className="ml-1 text-xs">
+                  {medicalIncidents.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="non-medical" className="mt-3">
+            {nonMedicalIncidents.length === 0 ? (
+              <div className="text-center py-6 text-muted-foreground text-sm">
+                No active fire, rescue, or traffic incidents
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                {nonMedicalIncidents.map((incident) => (
+                  <PublicIncidentCard key={incident._id} incident={incident} />
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="medical" className="mt-3">
+            {medicalIncidents.length === 0 ? (
+              <div className="text-center py-6 text-muted-foreground text-sm">
+                No active medical incidents
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                {medicalIncidents.map((incident) => (
+                  <PublicIncidentCard key={incident._id} incident={incident} />
+                ))}
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
+      ) : (
+        <div className="text-center py-8 text-muted-foreground">
+          No active incidents
+        </div>
+      )}
+
+      {/* Footer link */}
+      <div className="text-center pt-2 border-t">
         <a
           href={`/status/${slug}`}
           target="_blank"
