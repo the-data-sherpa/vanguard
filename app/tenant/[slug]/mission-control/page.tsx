@@ -1,22 +1,18 @@
 "use client";
 
-import { use, useState } from "react";
+import { use } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import {
   Radio,
   CheckCircle,
-  Clock,
-  AlertCircle,
   Facebook,
   Settings,
   RefreshCw,
-  Loader2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { IncidentPostCard } from "@/components/mission-control/IncidentPostCard";
 import { CreateIncidentDialog } from "@/components/incidents";
@@ -33,21 +29,15 @@ export default function MissionControlPage({ params }: MissionControlPageProps) 
   const tenant = useQuery(api.tenants.getBySlug, { slug });
   const currentUser = useQuery(api.users.getCurrentUser);
 
-  // Only fetch data once we have the tenant
+  // Get all incidents for Mission Control
+  const incidents = useQuery(
+    api.missionControl.getAllMissionControlIncidents,
+    tenant ? { tenantId: tenant._id } : "skip"
+  );
+
+  // Get stats for summary cards
   const stats = useQuery(
     api.missionControl.getDashboardStats,
-    tenant ? { tenantId: tenant._id } : "skip"
-  );
-  const pendingPosts = useQuery(
-    api.missionControl.getPendingPosts,
-    tenant ? { tenantId: tenant._id } : "skip"
-  );
-  const postedIncidents = useQuery(
-    api.missionControl.getPostedIncidents,
-    tenant ? { tenantId: tenant._id } : "skip"
-  );
-  const failedPosts = useQuery(
-    api.missionControl.getFailedPosts,
     tenant ? { tenantId: tenant._id } : "skip"
   );
 
@@ -83,6 +73,13 @@ export default function MissionControlPage({ params }: MissionControlPageProps) 
   }
 
   const isOwner = currentUser.tenantRole === "owner";
+
+  // Count incidents by status
+  type MissionControlIncident = NonNullable<typeof incidents>[number];
+  const pendingCount = incidents?.filter((i: MissionControlIncident) => i.syncStatus === "pending").length ?? 0;
+  const postedCount = incidents?.filter((i: MissionControlIncident) => i.syncStatus === "posted").length ?? 0;
+  const pendingUpdateCount = incidents?.filter((i: MissionControlIncident) => i.syncStatus === "pending_update").length ?? 0;
+  const pendingCloseCount = incidents?.filter((i: MissionControlIncident) => i.syncStatus === "pending_close").length ?? 0;
 
   return (
     <div className="space-y-6">
@@ -160,25 +157,14 @@ export default function MissionControlPage({ params }: MissionControlPageProps) 
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Incidents</CardTitle>
-            <Radio className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Pending Post</CardTitle>
+            <Radio className="h-4 w-4 text-yellow-500" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {stats?.activeIncidents ?? <Skeleton className="h-8 w-12" />}
+              {incidents === undefined ? <Skeleton className="h-8 w-12" /> : pendingCount}
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Posts</CardTitle>
-            <Clock className="h-4 w-4 text-yellow-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {stats?.pendingPosts ?? <Skeleton className="h-8 w-12" />}
-            </div>
+            <p className="text-xs text-muted-foreground">Waiting to be posted</p>
           </CardContent>
         </Card>
 
@@ -189,78 +175,75 @@ export default function MissionControlPage({ params }: MissionControlPageProps) 
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {stats?.postedIncidents ?? <Skeleton className="h-8 w-12" />}
+              {incidents === undefined ? <Skeleton className="h-8 w-12" /> : postedCount}
             </div>
+            <p className="text-xs text-muted-foreground">Active & synced</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Failed</CardTitle>
-            <AlertCircle className="h-4 w-4 text-red-500" />
+            <CardTitle className="text-sm font-medium">Pending Update</CardTitle>
+            <RefreshCw className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {stats?.failedPosts ?? <Skeleton className="h-8 w-12" />}
+              {incidents === undefined ? <Skeleton className="h-8 w-12" /> : pendingUpdateCount}
             </div>
+            <p className="text-xs text-muted-foreground">Has new updates to sync</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pending Close</CardTitle>
+            <CheckCircle className="h-4 w-4 text-purple-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {incidents === undefined ? <Skeleton className="h-8 w-12" /> : pendingCloseCount}
+            </div>
+            <p className="text-xs text-muted-foreground">Closed, awaiting sync</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Pending updates indicator */}
-      {stats && stats.pendingUpdates > 0 && (
+      {/* Sync status indicator */}
+      {stats && stats.totalPendingSync > 0 && (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <RefreshCw className="h-4 w-4" />
-          {stats.pendingUpdates} update{stats.pendingUpdates !== 1 ? "s" : ""} pending sync
+          <RefreshCw className="h-4 w-4 animate-spin" />
+          {stats.totalPendingSync} item{stats.totalPendingSync !== 1 ? "s" : ""} pending sync (syncs every 2 minutes)
         </div>
       )}
 
-      {/* Incident Tabs */}
-      <Tabs defaultValue="pending" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="pending" className="gap-2">
-            <Clock className="h-4 w-4" />
-            Pending
-            {pendingPosts && pendingPosts.length > 0 && (
-              <Badge variant="secondary" className="ml-1">
-                {pendingPosts.length}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="posted" className="gap-2">
-            <CheckCircle className="h-4 w-4" />
-            Posted
-          </TabsTrigger>
-          <TabsTrigger value="failed" className="gap-2">
-            <AlertCircle className="h-4 w-4" />
-            Failed
-            {failedPosts && failedPosts.length > 0 && (
-              <Badge variant="destructive" className="ml-1">
-                {failedPosts.length}
-              </Badge>
-            )}
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="pending" className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {pendingPosts === undefined ? (
+      {/* All Incidents Grid */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <Radio className="h-5 w-5 text-orange-500" />
+          <h2 className="text-xl font-semibold">All Incidents</h2>
+          {incidents && incidents.length > 0 && (
+            <Badge variant="secondary">{incidents.length}</Badge>
+          )}
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {incidents === undefined ? (
             <>
-              {[...Array(3)].map((_, i) => (
+              {[...Array(6)].map((_, i) => (
                 <Skeleton key={i} className="h-40" />
               ))}
             </>
-          ) : pendingPosts.length === 0 ? (
+          ) : incidents.length === 0 ? (
             <Card className="col-span-full">
               <CardContent className="py-8 text-center">
-                <Clock className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">No pending posts</p>
+                <Radio className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">No active incidents</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  New incidents will appear here when they&apos;re ready to post
+                  Incidents will appear here as they come in
                 </p>
               </CardContent>
             </Card>
           ) : (
-            pendingPosts.map((incident) => (
+            incidents.map((incident: MissionControlIncident) => (
               <IncidentPostCard
                 key={incident._id}
                 incident={incident}
@@ -269,66 +252,8 @@ export default function MissionControlPage({ params }: MissionControlPageProps) 
               />
             ))
           )}
-        </TabsContent>
-
-        <TabsContent value="posted" className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {postedIncidents === undefined ? (
-            <>
-              {[...Array(3)].map((_, i) => (
-                <Skeleton key={i} className="h-40" />
-              ))}
-            </>
-          ) : postedIncidents.length === 0 ? (
-            <Card className="col-span-full">
-              <CardContent className="py-8 text-center">
-                <CheckCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">No posted incidents yet</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Incidents will appear here after they&apos;ve been posted to Facebook
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            postedIncidents.map((incident) => (
-              <IncidentPostCard
-                key={incident._id}
-                incident={incident}
-                tenantId={tenant._id}
-                isOwner={isOwner}
-              />
-            ))
-          )}
-        </TabsContent>
-
-        <TabsContent value="failed" className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {failedPosts === undefined ? (
-            <>
-              {[...Array(3)].map((_, i) => (
-                <Skeleton key={i} className="h-40" />
-              ))}
-            </>
-          ) : failedPosts.length === 0 ? (
-            <Card className="col-span-full">
-              <CardContent className="py-8 text-center">
-                <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
-                <p className="text-muted-foreground">No failed posts</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  All posts have been synced successfully
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            failedPosts.map((incident) => (
-              <IncidentPostCard
-                key={incident._id}
-                incident={incident}
-                tenantId={tenant._id}
-                isOwner={isOwner}
-              />
-            ))
-          )}
-        </TabsContent>
-      </Tabs>
+        </div>
+      </div>
     </div>
   );
 }

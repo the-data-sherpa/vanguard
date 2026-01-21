@@ -1,6 +1,7 @@
 import { v } from "convex/values";
-import { query, mutation, MutationCtx } from "./_generated/server";
-import { Id } from "./_generated/dataModel";
+import { query, mutation, internalQuery, MutationCtx } from "./_generated/server";
+import { Id, Doc } from "./_generated/dataModel";
+import { getCallTypeDescription, formatUnitStatusCode } from "./callTypes";
 
 // ===================
 // Authorization Helper
@@ -76,7 +77,24 @@ export const get = query({
 });
 
 /**
- * Get the default template for a call type
+ * Get the default template for a tenant
+ */
+export const getDefault = query({
+  args: {
+    tenantId: v.id("tenants"),
+  },
+  handler: async (ctx, { tenantId }) => {
+    const templates = await ctx.db
+      .query("postTemplates")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId))
+      .collect();
+
+    return templates.find((t) => t.isDefault) || null;
+  },
+});
+
+/**
+ * Get the best template for a call type
  */
 export const getForCallType = query({
   args: {
@@ -89,9 +107,13 @@ export const getForCallType = query({
       .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId))
       .collect();
 
-    // Find template that matches this call type
+    // Find template that matches this call type (case-insensitive partial match)
+    const callTypeLower = callType.toLowerCase();
     const matchingTemplate = templates.find(
-      (t) => t.callTypes.includes(callType) || t.callTypes.includes("*")
+      (t) => t.callTypes.some((ct) =>
+        callTypeLower.includes(ct.toLowerCase()) ||
+        ct === "*"
+      )
     );
 
     // Fall back to default template
@@ -100,6 +122,38 @@ export const getForCallType = query({
     }
 
     return matchingTemplate;
+  },
+});
+
+/**
+ * Get template for a specific call type (internal use for sync jobs)
+ */
+export const getForCallTypeInternal = internalQuery({
+  args: {
+    tenantId: v.id("tenants"),
+    callType: v.string(),
+  },
+  handler: async (ctx, { tenantId, callType }) => {
+    const templates = await ctx.db
+      .query("postTemplates")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId))
+      .collect();
+
+    // Find template that matches this call type (case-insensitive partial match)
+    const callTypeLower = callType.toLowerCase();
+    const matchingTemplate = templates.find(
+      (t) => t.callTypes.some((ct) =>
+        callTypeLower.includes(ct.toLowerCase()) ||
+        ct === "*"
+      )
+    );
+
+    // Fall back to default template
+    if (matchingTemplate) {
+      return matchingTemplate;
+    }
+
+    return templates.find((t) => t.isDefault) || null;
   },
 });
 
@@ -122,7 +176,7 @@ export const create = mutation({
     isDefault: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    await requireTenantOwner(ctx, args.tenantId);
+    const { userId } = await requireTenantOwner(ctx, args.tenantId);
 
     // If this is being set as default, unset other defaults
     if (args.isDefault) {
@@ -138,7 +192,7 @@ export const create = mutation({
       }
     }
 
-    return await ctx.db.insert("postTemplates", {
+    const templateId = await ctx.db.insert("postTemplates", {
       tenantId: args.tenantId,
       name: args.name,
       callTypes: args.callTypes,
@@ -149,6 +203,20 @@ export const create = mutation({
       isDefault: args.isDefault || false,
       createdAt: Date.now(),
     });
+
+    // Log the creation
+    await ctx.db.insert("auditLogs", {
+      tenantId: args.tenantId,
+      actorId: userId,
+      actorType: "user",
+      action: "post_template.created",
+      targetType: "postTemplates",
+      targetId: templateId,
+      details: { name: args.name, isDefault: args.isDefault },
+      result: "success",
+    });
+
+    return templateId;
   },
 });
 
@@ -168,7 +236,7 @@ export const update = mutation({
     isDefault: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    await requireTenantOwner(ctx, args.tenantId);
+    const { userId } = await requireTenantOwner(ctx, args.tenantId);
 
     const existingTemplate = await ctx.db.get(args.templateId);
     if (!existingTemplate || existingTemplate.tenantId !== args.tenantId) {
@@ -199,7 +267,67 @@ export const update = mutation({
     if (args.isDefault !== undefined) updates.isDefault = args.isDefault;
 
     await ctx.db.patch(args.templateId, updates);
+
+    // Log the update
+    await ctx.db.insert("auditLogs", {
+      tenantId: args.tenantId,
+      actorId: userId,
+      actorType: "user",
+      action: "post_template.updated",
+      targetType: "postTemplates",
+      targetId: args.templateId,
+      details: { name: args.name || existingTemplate.name },
+      result: "success",
+    });
+
     return args.templateId;
+  },
+});
+
+/**
+ * Set a template as the default
+ */
+export const setDefault = mutation({
+  args: {
+    tenantId: v.id("tenants"),
+    templateId: v.id("postTemplates"),
+  },
+  handler: async (ctx, { tenantId, templateId }) => {
+    const { userId } = await requireTenantOwner(ctx, tenantId);
+
+    const template = await ctx.db.get(templateId);
+    if (!template || template.tenantId !== tenantId) {
+      throw new Error("Template not found");
+    }
+
+    // Unset other defaults
+    const existingTemplates = await ctx.db
+      .query("postTemplates")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId))
+      .collect();
+
+    for (const t of existingTemplates) {
+      if (t._id !== templateId && t.isDefault) {
+        await ctx.db.patch(t._id, { isDefault: false });
+      }
+    }
+
+    // Set this as default
+    await ctx.db.patch(templateId, { isDefault: true });
+
+    // Log the update
+    await ctx.db.insert("auditLogs", {
+      tenantId,
+      actorId: userId,
+      actorType: "user",
+      action: "post_template.set_default",
+      targetType: "postTemplates",
+      targetId: templateId,
+      details: { name: template.name },
+      result: "success",
+    });
+
+    return templateId;
   },
 });
 
@@ -212,7 +340,7 @@ export const remove = mutation({
     templateId: v.id("postTemplates"),
   },
   handler: async (ctx, { tenantId, templateId }) => {
-    await requireTenantOwner(ctx, tenantId);
+    const { userId } = await requireTenantOwner(ctx, tenantId);
 
     const template = await ctx.db.get(templateId);
     if (!template || template.tenantId !== tenantId) {
@@ -220,111 +348,228 @@ export const remove = mutation({
     }
 
     await ctx.db.delete(templateId);
+
+    // Log the deletion
+    await ctx.db.insert("auditLogs", {
+      tenantId,
+      actorId: userId,
+      actorType: "user",
+      action: "post_template.deleted",
+      targetType: "postTemplates",
+      targetId: templateId,
+      details: { name: template.name },
+      result: "success",
+    });
+
     return templateId;
   },
 });
 
 // ===================
-// Auto-Post Rules
+// Template Engine
 // ===================
 
-/**
- * Get auto-post rules for a tenant
- */
-export const getAutoPostRules = query({
-  args: {
-    tenantId: v.id("tenants"),
-  },
-  handler: async (ctx, { tenantId }) => {
-    const rules = await ctx.db
-      .query("autoPostRules")
-      .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId))
-      .first();
+interface UnitStatus {
+  unitId: string;
+  status: string;
+  timeDispatched?: number;
+  timeAcknowledged?: number;
+  timeEnroute?: number;
+  timeOnScene?: number;
+  timeCleared?: number;
+}
 
-    // Return default rules if none exist
-    if (!rules) {
-      return {
-        enabled: false,
-        callTypes: [],
-        excludeMedical: true,
-        minUnits: undefined,
-        delaySeconds: undefined,
-      };
+interface IncidentData {
+  status: string;
+  callType: string;
+  fullAddress: string;
+  units?: string[];
+  unitStatuses?: UnitStatus[] | Record<string, { unit: string; status: string; timestamp: number }>;
+  callReceivedTime: number;
+}
+
+/**
+ * Apply a template to an incident
+ * Available placeholders:
+ * - {{status}} - Current status with emoji (🚨 ACTIVE CALL or ✅ CLEARED)
+ * - {{callType}} - Type of incident
+ * - {{address}} - Location
+ * - {{units}} - Responding units (formatted list)
+ * - {{unitCount}} - Number of units
+ * - {{time}} - Incident time
+ * - {{updates}} - Recent updates
+ * - {{hashtags}} - Configured hashtags
+ */
+export function applyTemplate(
+  template: Doc<"postTemplates">,
+  incident: IncidentData,
+  updates: Array<{ content: string; createdAt: number }> = [],
+  timezone?: string
+): string {
+  let result = template.template;
+  const tz = timezone || "America/New_York";
+
+  // Status with emoji
+  const statusEmoji = incident.status === "active" ? "🚨" : "✅";
+  const statusText = incident.status === "active" ? "ACTIVE INCIDENT" : "INCIDENT CLOSED";
+  result = result.replace(/\{\{status\}\}/gi, `${statusEmoji} ${statusText}`);
+
+  // Call type - expand code to description
+  const callTypeDescription = getCallTypeDescription(incident.callType);
+  result = result.replace(/\{\{callType\}\}/gi, callTypeDescription);
+
+  // Address
+  result = result.replace(/\{\{address\}\}/gi, incident.fullAddress);
+
+  // Units
+  if (template.includeUnits && incident.units && incident.units.length > 0) {
+    const unitsList = formatUnits(incident.units, incident.unitStatuses);
+    result = result.replace(/\{\{units\}\}/gi, unitsList);
+  } else {
+    result = result.replace(/\{\{units\}\}/gi, "");
+  }
+
+  // Unit count
+  result = result.replace(/\{\{unitCount\}\}/gi, String(incident.units?.length || 0));
+
+  // Time - use tenant timezone
+  const time = new Date(incident.callReceivedTime);
+  const timeStr = time.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: tz,
+  });
+  result = result.replace(/\{\{time\}\}/gi, timeStr);
+
+  // Updates
+  if (updates.length > 0) {
+    const updatesText = formatUpdates(updates, tz);
+    result = result.replace(/\{\{updates\}\}/gi, updatesText);
+  } else {
+    result = result.replace(/\{\{updates\}\}/gi, "");
+  }
+
+  // Hashtags
+  if (template.hashtags.length > 0) {
+    const hashtagsText = template.hashtags
+      .map((h) => (h.startsWith("#") ? h : `#${h}`))
+      .join(" ");
+    result = result.replace(/\{\{hashtags\}\}/gi, hashtagsText);
+  } else {
+    result = result.replace(/\{\{hashtags\}\}/gi, "");
+  }
+
+  // Clean up any extra blank lines
+  result = result.replace(/\n{3,}/g, "\n\n").trim();
+
+  return result;
+}
+
+/**
+ * Format units for display
+ */
+function formatUnits(
+  units: string[],
+  unitStatuses?: UnitStatus[] | Record<string, { unit: string; status: string; timestamp: number }>
+): string {
+  const lines: string[] = [];
+
+  if (unitStatuses && Array.isArray(unitStatuses)) {
+    // Group by status
+    const statusGroups: Record<string, string[]> = {};
+    for (const us of unitStatuses) {
+      const status = us.status || "Unknown";
+      if (!statusGroups[status]) {
+        statusGroups[status] = [];
+      }
+      statusGroups[status].push(us.unitId);
     }
 
-    return rules;
-  },
-});
-
-/**
- * Update auto-post rules
- */
-export const updateAutoPostRules = mutation({
-  args: {
-    tenantId: v.id("tenants"),
-    enabled: v.boolean(),
-    callTypes: v.array(v.string()),
-    excludeMedical: v.boolean(),
-    minUnits: v.optional(v.number()),
-    delaySeconds: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    await requireTenantOwner(ctx, args.tenantId);
-
-    const existingRules = await ctx.db
-      .query("autoPostRules")
-      .withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
-      .first();
-
-    if (existingRules) {
-      // Update existing
-      await ctx.db.patch(existingRules._id, {
-        enabled: args.enabled,
-        callTypes: args.callTypes,
-        excludeMedical: args.excludeMedical,
-        minUnits: args.minUnits,
-        delaySeconds: args.delaySeconds,
-        updatedAt: Date.now(),
-      });
-      return existingRules._id;
-    } else {
-      // Create new
-      return await ctx.db.insert("autoPostRules", {
-        tenantId: args.tenantId,
-        enabled: args.enabled,
-        callTypes: args.callTypes,
-        excludeMedical: args.excludeMedical,
-        minUnits: args.minUnits,
-        delaySeconds: args.delaySeconds,
-        createdAt: Date.now(),
-      });
+    for (const [status, statusUnits] of Object.entries(statusGroups)) {
+      const displayStatus = formatUnitStatus(status);
+      for (const unit of statusUnits) {
+        lines.push(`• ${unit} - ${displayStatus}`);
+      }
     }
-  },
-});
+  } else {
+    // Simple list
+    for (const unit of units) {
+      lines.push(`• ${unit}`);
+    }
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * Format unit status for display
+ */
+function formatUnitStatus(status: string): string {
+  return formatUnitStatusCode(status);
+}
+
+/**
+ * Format updates for display
+ */
+function formatUpdates(updates: Array<{ content: string; createdAt: number }>, timezone?: string): string {
+  const lines: string[] = [];
+  const recentUpdates = updates.slice(0, 5);
+  const tz = timezone || "America/New_York";
+
+  for (const update of recentUpdates) {
+    const updateTime = new Date(update.createdAt);
+    const updateTimeStr = updateTime.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+      timeZone: tz,
+    });
+    lines.push(`• [${updateTimeStr}] ${update.content}`);
+  }
+
+  if (updates.length > 5) {
+    lines.push(`• ... and ${updates.length - 5} more updates`);
+  }
+
+  return lines.join("\n");
+}
 
 // ===================
-// Template Defaults
+// Default Template
 // ===================
 
 /**
- * Get the default template content
- * Used when no custom template is configured
+ * Default template string for when no custom template is configured
  */
-export const DEFAULT_TEMPLATE = `{{STATUS_EMOJI}} {{STATUS_TEXT}}
+export const DEFAULT_TEMPLATE_STRING = `{{status}}
 
-Type: {{CALL_TYPE}}
-Location: {{ADDRESS}}
+📋 Type: {{callType}}
 
-{{#UNITS}}
-Units:
-{{UNITS_LIST}}
-{{/UNITS}}
+📍 {{address}}
 
-Time: {{TIME}}
+🚒 Units:
+{{units}}
 
-{{#UPDATES}}
-Updates:
-{{UPDATES_LIST}}
-{{/UPDATES}}
+⏰ {{time}}
 
-{{HASHTAGS}}`;
+{{updates}}
+
+{{hashtags}}`;
+
+/**
+ * Create a default template object for use when no template exists
+ */
+export function getDefaultTemplateObject(tenantId: Id<"tenants">): Omit<Doc<"postTemplates">, "_id" | "_creationTime"> {
+  return {
+    tenantId,
+    name: "Default Template",
+    callTypes: ["*"],
+    template: DEFAULT_TEMPLATE_STRING,
+    includeUnits: true,
+    includeMap: false,
+    hashtags: ["EmergencyAlert", "FirstResponders"],
+    isDefault: true,
+    createdAt: Date.now(),
+  };
+}

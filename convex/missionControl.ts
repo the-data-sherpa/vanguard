@@ -311,55 +311,254 @@ export const getDashboardStats = query({
     // Get tenant for Facebook connection status
     const tenant = await ctx.db.get(tenantId);
 
-    // Count active non-medical incidents
+    // Count active non-medical incidents (qualifying for posting)
     const activeIncidents = await ctx.db
       .query("incidents")
       .withIndex("by_tenant_status", (q) =>
         q.eq("tenantId", tenantId).eq("status", "active")
       )
-      .filter((q) => q.neq(q.field("callTypeCategory"), "medical"))
-      .collect();
-
-    // Group incidents to get accurate count after consolidation
-    const groupedIncidents = groupIncidents(activeIncidents);
-
-    // Count by sync status
-    let pendingCount = 0;
-    let postedCount = 0;
-    let failedCount = 0;
-    let needsUpdateCount = 0;
-
-    for (const incident of groupedIncidents) {
-      if (incident.syncError) {
-        failedCount++;
-      } else if (incident.isSyncedToFacebook) {
-        postedCount++;
-        if (incident.needsFacebookUpdate) {
-          needsUpdateCount++;
-        }
-      } else {
-        pendingCount++;
-      }
-    }
-
-    // Count pending updates
-    const pendingUpdates = await ctx.db
-      .query("incidentUpdates")
-      .withIndex("by_tenant_unsync", (q) =>
-        q.eq("tenantId", tenantId).eq("isSyncedToFacebook", false)
+      .filter((q) =>
+        q.and(
+          q.neq(q.field("callTypeCategory"), "medical"),
+          q.or(
+            q.eq(q.field("isSyncedToFacebook"), false),
+            q.eq(q.field("isSyncedToFacebook"), undefined)
+          )
+        )
       )
       .collect();
 
+    // Group incidents to get accurate count after consolidation
+    const groupedActiveIncidents = groupIncidents(activeIncidents);
+
+    // Count active incidents needing update (posted but has pending updates)
+    const activeNeedingUpdate = await ctx.db
+      .query("incidents")
+      .withIndex("by_tenant_status", (q) =>
+        q.eq("tenantId", tenantId).eq("status", "active")
+      )
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("isSyncedToFacebook"), true),
+          q.eq(q.field("needsFacebookUpdate"), true),
+          q.neq(q.field("callTypeCategory"), "medical")
+        )
+      )
+      .collect();
+
+    const groupedActiveNeedingUpdate = groupIncidents(activeNeedingUpdate);
+
+    // Count closed incidents needing update
+    const closedNeedingUpdate = await ctx.db
+      .query("incidents")
+      .withIndex("by_tenant_status", (q) =>
+        q.eq("tenantId", tenantId).eq("status", "closed")
+      )
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("isSyncedToFacebook"), true),
+          q.eq(q.field("needsFacebookUpdate"), true),
+          q.neq(q.field("callTypeCategory"), "medical")
+        )
+      )
+      .collect();
+
+    const groupedClosedNeedingUpdate = groupIncidents(closedNeedingUpdate);
+
     return {
-      activeIncidents: groupedIncidents.length,
-      pendingPosts: pendingCount,
-      postedIncidents: postedCount,
-      failedPosts: failedCount,
-      needsUpdate: needsUpdateCount,
-      pendingUpdates: pendingUpdates.length,
+      activeQualifying: groupedActiveIncidents.length,
+      activeNeedingUpdate: groupedActiveNeedingUpdate.length,
+      closedNeedingUpdate: groupedClosedNeedingUpdate.length,
+      totalPendingSync: groupedActiveIncidents.length + groupedActiveNeedingUpdate.length + groupedClosedNeedingUpdate.length,
       facebookConnected: !!tenant?.facebookPageId,
       facebookPageName: tenant?.facebookPageName,
     };
+  },
+});
+
+/**
+ * Get active incidents that need Facebook updates (already posted but have new updates)
+ */
+export const getActiveIncidentsNeedingUpdate = query({
+  args: {
+    tenantId: v.id("tenants"),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, { tenantId, limit = 50 }) => {
+    await requireTenantMember(ctx, tenantId);
+
+    // Get active incidents that are synced but need updates
+    const allIncidents = await ctx.db
+      .query("incidents")
+      .withIndex("by_tenant_status", (q) =>
+        q.eq("tenantId", tenantId).eq("status", "active")
+      )
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("isSyncedToFacebook"), true),
+          q.eq(q.field("needsFacebookUpdate"), true),
+          q.neq(q.field("callTypeCategory"), "medical")
+        )
+      )
+      .order("desc")
+      .collect();
+
+    // Group incidents by groupId
+    const groupedIncidents = groupIncidents(allIncidents);
+    const incidents = groupedIncidents.slice(0, limit);
+
+    // Enrich with update counts
+    const enrichedIncidents = await Promise.all(
+      incidents.map(async (incident) => {
+        const updates = await ctx.db
+          .query("incidentUpdates")
+          .withIndex("by_incident", (q) => q.eq("incidentId", incident._id))
+          .collect();
+
+        return {
+          ...incident,
+          syncStatus: "pending_update" as const,
+          updateCount: updates.length,
+          pendingUpdateCount: updates.filter((u) => !u.isSyncedToFacebook).length,
+        };
+      })
+    );
+
+    return enrichedIncidents;
+  },
+});
+
+/**
+ * Get closed incidents that need Facebook updates (status changed to closed)
+ */
+export const getClosedIncidentsNeedingUpdate = query({
+  args: {
+    tenantId: v.id("tenants"),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, { tenantId, limit = 50 }) => {
+    await requireTenantMember(ctx, tenantId);
+
+    // Get closed incidents that need Facebook update
+    const allIncidents = await ctx.db
+      .query("incidents")
+      .withIndex("by_tenant_status", (q) =>
+        q.eq("tenantId", tenantId).eq("status", "closed")
+      )
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("isSyncedToFacebook"), true),
+          q.eq(q.field("needsFacebookUpdate"), true),
+          q.neq(q.field("callTypeCategory"), "medical")
+        )
+      )
+      .order("desc")
+      .collect();
+
+    // Group incidents by groupId
+    const groupedIncidents = groupIncidents(allIncidents);
+    const incidents = groupedIncidents.slice(0, limit);
+
+    // Enrich with update counts
+    const enrichedIncidents = await Promise.all(
+      incidents.map(async (incident) => {
+        const updates = await ctx.db
+          .query("incidentUpdates")
+          .withIndex("by_incident", (q) => q.eq("incidentId", incident._id))
+          .collect();
+
+        return {
+          ...incident,
+          syncStatus: "pending_close" as const,
+          updateCount: updates.length,
+          pendingUpdateCount: updates.filter((u) => !u.isSyncedToFacebook).length,
+        };
+      })
+    );
+
+    return enrichedIncidents;
+  },
+});
+
+/**
+ * Get ALL incidents for Mission Control
+ * Returns:
+ * - All active incidents (any sync status)
+ * - Closed incidents that still need Facebook update
+ * Each incident has a posting status for display
+ */
+export const getAllMissionControlIncidents = query({
+  args: {
+    tenantId: v.id("tenants"),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, { tenantId, limit = 100 }) => {
+    await requireTenantMember(ctx, tenantId);
+
+    // Get ALL active incidents
+    const activeIncidents = await ctx.db
+      .query("incidents")
+      .withIndex("by_tenant_status", (q) =>
+        q.eq("tenantId", tenantId).eq("status", "active")
+      )
+      .order("desc")
+      .collect();
+
+    // Get closed incidents that need Facebook update
+    const closedNeedingUpdate = await ctx.db
+      .query("incidents")
+      .withIndex("by_tenant_status", (q) =>
+        q.eq("tenantId", tenantId).eq("status", "closed")
+      )
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("isSyncedToFacebook"), true),
+          q.eq(q.field("needsFacebookUpdate"), true)
+        )
+      )
+      .order("desc")
+      .collect();
+
+    // Combine and group
+    const allIncidents = [...activeIncidents, ...closedNeedingUpdate];
+    const groupedIncidents = groupIncidents(allIncidents);
+    const incidents = groupedIncidents.slice(0, limit);
+
+    // Determine posting status for each incident
+    type PostingStatus = "pending" | "posted" | "pending_update" | "pending_close" | "failed";
+
+    const enrichedIncidents = await Promise.all(
+      incidents.map(async (incident) => {
+        const updates = await ctx.db
+          .query("incidentUpdates")
+          .withIndex("by_incident", (q) => q.eq("incidentId", incident._id))
+          .collect();
+
+        // Determine posting status
+        let postingStatus: PostingStatus;
+
+        if (incident.syncError) {
+          postingStatus = "failed";
+        } else if (incident.status === "closed" && incident.needsFacebookUpdate) {
+          postingStatus = "pending_close";
+        } else if (incident.needsFacebookUpdate) {
+          postingStatus = "pending_update";
+        } else if (incident.isSyncedToFacebook) {
+          postingStatus = "posted";
+        } else {
+          postingStatus = "pending";
+        }
+
+        return {
+          ...incident,
+          syncStatus: postingStatus,
+          updateCount: updates.length,
+          pendingUpdateCount: updates.filter((u) => !u.isSyncedToFacebook).length,
+        };
+      })
+    );
+
+    return enrichedIncidents;
   },
 });
 

@@ -70,10 +70,27 @@ export const listByIncident = query({
     // Enrich with creator info
     const enrichedUpdates = await Promise.all(
       updates.map(async (update) => {
-        const creator = await ctx.db
-          .query("users")
-          .withIndex("by_clerk_id", (q) => q.eq("clerkId", update.createdBy))
-          .unique();
+        let creator = null;
+
+        // Try to find creator - createdBy could be either a Clerk ID or a Convex user ID
+        if (update.createdBy) {
+          // First, try looking up by Clerk ID (most common case)
+          creator = await ctx.db
+            .query("users")
+            .withIndex("by_clerk_id", (q) => q.eq("clerkId", update.createdBy))
+            .unique();
+
+          // If not found by Clerk ID, try looking up as a Convex user ID
+          if (!creator) {
+            try {
+              // Check if it looks like a Convex ID (they typically start with a specific format)
+              const possibleUserId = update.createdBy as Id<"users">;
+              creator = await ctx.db.get(possibleUserId);
+            } catch {
+              // Not a valid Convex ID, that's okay
+            }
+          }
+        }
 
         return {
           ...update,

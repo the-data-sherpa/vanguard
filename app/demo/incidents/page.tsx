@@ -43,8 +43,8 @@ export default function DemoIncidentsPage() {
 
     const adapted = demoIncidents.map(adaptDemoIncident);
     return {
-      activeIncidents: adapted.filter((i) => i.status === "active"),
-      closedIncidents: adapted.filter((i) => i.status === "closed"),
+      activeIncidents: adapted.filter((i: Incident) => i.status === "active"),
+      closedIncidents: adapted.filter((i: Incident) => i.status === "closed"),
     };
   }, [demoIncidents]);
 

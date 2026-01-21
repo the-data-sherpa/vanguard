@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ConvexHttpClient } from "convex/browser";
-import { internal } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { auth } from "@clerk/nextjs/server";
-
-const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
 /**
  * Facebook OAuth callback handler
@@ -39,7 +35,18 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const tenantId = state as Id<"tenants">;
+  // Parse state - contains tenantId and slug
+  let tenantId: Id<"tenants">;
+  let tenantSlug: string;
+  try {
+    const stateData = JSON.parse(state);
+    tenantId = stateData.tenantId as Id<"tenants">;
+    tenantSlug = stateData.slug;
+  } catch {
+    // Fallback for old format (just tenantId string)
+    tenantId = state as Id<"tenants">;
+    tenantSlug = "";
+  }
 
   // Get the current user from Clerk
   const { userId } = await auth();
@@ -86,12 +93,9 @@ export async function GET(request: NextRequest) {
       connectedBy: userId,
     });
 
-    // Get tenant slug for redirect
-    const tenant = await getTenantSlug(tenantId);
-
     // Redirect back to settings with success
     return NextResponse.redirect(
-      new URL(`/tenant/${tenant?.slug || ""}/settings/social?connected=true`, request.url)
+      new URL(`/tenant/${tenantSlug}/settings/social?connected=true`, request.url)
     );
   } catch (error) {
     console.error("[Facebook OAuth] Error:", error);
@@ -169,60 +173,36 @@ async function saveConnectionViaHttp(
     connectedBy: string;
   }
 ) {
-  // Use Convex HTTP client to call the internal mutation
-  // This requires the Convex deployment to accept system-level calls
-  // For now, we'll use a workaround with a special mutation
+  // Use Convex HTTP endpoint to save the connection
+  const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
+  if (!convexUrl) {
+    throw new Error("NEXT_PUBLIC_CONVEX_URL not configured");
+  }
 
-  const response = await fetch(`${process.env.NEXT_PUBLIC_CONVEX_URL}/api/mutation`, {
+  // Convert .convex.cloud URL to .convex.site for HTTP actions
+  const httpUrl = convexUrl.replace('.convex.cloud', '.convex.site');
+  const endpoint = `${httpUrl}/facebook/connect`;
+
+  console.log("[Facebook] Saving connection to:", endpoint);
+
+  const response = await fetch(endpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      // Note: In production, you'd use a more secure method like
-      // signed webhooks or an internal API key
     },
     body: JSON.stringify({
-      path: "facebook:saveConnection",
-      args: {
-        tenantId,
-        pageId: data.pageId,
-        pageName: data.pageName,
-        pageToken: data.pageToken,
-        connectedBy: data.connectedBy,
-      },
+      tenantId,
+      ...data,
     }),
   });
 
   if (!response.ok) {
-    // Fallback: Use HTTP endpoint on Convex
-    // This will be set up in convex/http.ts
-    const httpResponse = await fetch(`${process.env.NEXT_PUBLIC_CONVEX_URL?.replace('.convex.cloud', '.convex.site')}/facebook/connect`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        tenantId,
-        ...data,
-      }),
-    });
-
-    if (!httpResponse.ok) {
-      throw new Error("Failed to save Facebook connection");
-    }
+    const errorText = await response.text();
+    console.error("[Facebook] Failed to save connection:", response.status, errorText);
+    throw new Error(`Failed to save Facebook connection: ${response.status}`);
   }
+
+  const result = await response.json();
+  console.log("[Facebook] Connection saved:", result);
 }
 
-async function getTenantSlug(tenantId: Id<"tenants">) {
-  try {
-    // Use Convex HTTP client
-    const response = await fetch(
-      `${process.env.NEXT_PUBLIC_CONVEX_URL?.replace('.convex.cloud', '.convex.site')}/tenants/${tenantId}`
-    );
-    if (response.ok) {
-      return response.json();
-    }
-  } catch {
-    // Ignore errors, we'll redirect to a default location
-  }
-  return null;
-}

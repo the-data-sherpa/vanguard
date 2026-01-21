@@ -127,7 +127,7 @@ export default function ApprovalsPage() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {pendingApprovals.map((tenant) => (
+          {pendingApprovals.map((tenant: PendingTenant) => (
             <Card key={tenant._id}>
               <CardContent className="p-6">
                 <div className="flex items-start justify-between gap-4">

@@ -6,12 +6,12 @@ type TickResult = {
   duration: number;
   incidents: unknown;
   weather: unknown;
+  facebookSync: unknown;
 };
 
 type MaintenanceTickResult = {
   duration: number;
   staleIncidents: unknown;
-  facebookSync: unknown;
 };
 
 /**
@@ -28,15 +28,20 @@ export const tick = internalAction({
     const startTime = Date.now();
     console.log("[SCHEDULER] Tick started");
 
-    // 1. Fetch external data (PulsePoint & Weather) in parallel
+    // 1. Fetch external data (PulsePoint & Weather) and sync to Facebook in parallel
     // These are the primary data sources that need frequent polling
-    const [incidentResult, weatherResult] = await Promise.all([
+    const [incidentResult, weatherResult, facebookResult] = await Promise.all([
       ctx.runAction(internal.sync.syncAllTenantIncidents).catch((error) => {
         console.error("[SCHEDULER] Incident sync failed:", error);
         return { error: String(error) };
       }),
       ctx.runAction(internal.sync.syncAllTenantWeather).catch((error) => {
         console.error("[SCHEDULER] Weather sync failed:", error);
+        return { error: String(error) };
+      }),
+      // Sync incidents/updates to Facebook for all tenants
+      ctx.runAction(internal.facebookSync.syncAllTenants).catch((error) => {
+        console.error("[SCHEDULER] Facebook sync failed:", error);
         return { error: String(error) };
       }),
     ]);
@@ -49,6 +54,7 @@ export const tick = internalAction({
       weather: Array.isArray(weatherResult)
         ? `${weatherResult.filter((r: { success: boolean }) => r.success).length} tenants synced`
         : "error",
+      facebook: facebookResult,
     });
 
     const duration = Date.now() - startTime;
@@ -58,6 +64,7 @@ export const tick = internalAction({
       duration,
       incidents: incidentResult,
       weather: weatherResult,
+      facebookSync: facebookResult,
     };
   },
 });
@@ -67,8 +74,9 @@ export const tick = internalAction({
  *
  * Handles:
  * - Closing stale incidents (not updated in 2+ hours)
- * - Syncing incidents/updates to Facebook
  * - Other periodic maintenance tasks
+ *
+ * Note: Facebook sync moved to main tick (every 2 min) for faster updates
  */
 export const maintenanceTick = internalAction({
   args: {},
@@ -76,20 +84,11 @@ export const maintenanceTick = internalAction({
     const startTime = Date.now();
     console.log("[MAINTENANCE] Tick started");
 
-    // Run maintenance tasks in parallel
-    const [staleResult, facebookResult] = await Promise.all([
-      // Close stale incidents for all tenants
-      ctx.runAction(internal.maintenance.closeAllStaleIncidents).catch((error) => {
-        console.error("[MAINTENANCE] Close stale incidents failed:", error);
-        return { error: String(error) };
-      }),
-
-      // Sync incidents to Facebook for all tenants
-      ctx.runAction(internal.facebookSync.syncAllTenants).catch((error) => {
-        console.error("[MAINTENANCE] Facebook sync failed:", error);
-        return { error: String(error) };
-      }),
-    ]);
+    // Close stale incidents for all tenants
+    const staleResult = await ctx.runAction(internal.maintenance.closeAllStaleIncidents).catch((error) => {
+      console.error("[MAINTENANCE] Close stale incidents failed:", error);
+      return { error: String(error) };
+    });
 
     const duration = Date.now() - startTime;
     console.log(`[MAINTENANCE] Tick completed in ${duration}ms`);
@@ -97,7 +96,6 @@ export const maintenanceTick = internalAction({
     return {
       duration,
       staleIncidents: staleResult,
-      facebookSync: facebookResult,
     };
   },
 });

@@ -9,7 +9,25 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Save, Loader2, Upload, X, ImageIcon } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Save, Loader2, Upload, X, ImageIcon, Clock } from "lucide-react";
+
+// Common US timezones
+const US_TIMEZONES = [
+  { value: "America/New_York", label: "Eastern Time (ET)" },
+  { value: "America/Chicago", label: "Central Time (CT)" },
+  { value: "America/Denver", label: "Mountain Time (MT)" },
+  { value: "America/Phoenix", label: "Arizona (MST)" },
+  { value: "America/Los_Angeles", label: "Pacific Time (PT)" },
+  { value: "America/Anchorage", label: "Alaska Time (AKT)" },
+  { value: "Pacific/Honolulu", label: "Hawaii Time (HST)" },
+];
 
 interface GeneralSettingsProps {
   tenant: {
@@ -19,6 +37,7 @@ interface GeneralSettingsProps {
     description?: string;
     logoUrl?: string;
     primaryColor?: string;
+    timezone?: string;
     slug: string;
     status: string;
     tier: string;
@@ -32,12 +51,16 @@ export function GeneralSettings({ tenant }: GeneralSettingsProps) {
   const [description, setDescription] = useState(tenant.description || "");
   const [primaryColor, setPrimaryColor] = useState(tenant.primaryColor || "#3b82f6");
   const [logoUrl, setLogoUrl] = useState(tenant.logoUrl || "");
+  const [timezone, setTimezone] = useState(tenant.timezone || "America/New_York");
   const [saving, setSaving] = useState(false);
+  const [savingTimezone, setSavingTimezone] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [timezoneMessage, setTimezoneMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const updateBranding = useMutation(api.tenants.updateBranding);
+  const updateTimezone = useMutation(api.tenants.updateTimezone);
   const generateUploadUrl = useMutation(api.files.generateUploadUrl);
   const saveFile = useMutation(api.files.saveFile);
 
@@ -132,6 +155,27 @@ export function GeneralSettings({ tenant }: GeneralSettingsProps) {
     }
   };
 
+  const handleTimezoneChange = async (newTimezone: string) => {
+    setTimezone(newTimezone);
+    setSavingTimezone(true);
+    setTimezoneMessage(null);
+
+    try {
+      await updateTimezone({
+        tenantId: tenant._id,
+        timezone: newTimezone,
+      });
+      setTimezoneMessage({ type: "success", text: "Timezone updated" });
+    } catch (error) {
+      setTimezoneMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "Failed to update timezone",
+      });
+    } finally {
+      setSavingTimezone(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Tenant Info Card */}
@@ -173,6 +217,57 @@ export function GeneralSettings({ tenant }: GeneralSettingsProps) {
               </span>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Timezone Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="h-5 w-5" />
+            Timezone
+          </CardTitle>
+          <CardDescription>
+            Set your organization&apos;s timezone for dispatch times and updates
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="timezone">Timezone</Label>
+            <div className="flex items-center gap-4">
+              <Select
+                value={timezone}
+                onValueChange={handleTimezoneChange}
+                disabled={savingTimezone}
+              >
+                <SelectTrigger className="w-64">
+                  <SelectValue placeholder="Select timezone" />
+                </SelectTrigger>
+                <SelectContent>
+                  {US_TIMEZONES.map((tz) => (
+                    <SelectItem key={tz.value} value={tz.value}>
+                      {tz.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {savingTimezone && (
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              )}
+              {timezoneMessage && (
+                <p
+                  className={`text-sm ${
+                    timezoneMessage.type === "success" ? "text-green-600" : "text-red-600"
+                  }`}
+                >
+                  {timezoneMessage.text}
+                </p>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              All times in incident posts and Mission Control will use this timezone
+            </p>
+          </div>
         </CardContent>
       </Card>
 

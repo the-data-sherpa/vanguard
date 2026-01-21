@@ -9,8 +9,10 @@
  */
 
 import type * as admin from "../admin.js";
+import type * as autoPostRules from "../autoPostRules.js";
 import type * as billing from "../billing.js";
 import type * as cacheHelpers from "../cacheHelpers.js";
+import type * as callTypes from "../callTypes.js";
 import type * as clerk from "../clerk.js";
 import type * as crons from "../crons.js";
 import type * as demo from "../demo.js";
@@ -42,8 +44,10 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
+  autoPostRules: typeof autoPostRules;
   billing: typeof billing;
   cacheHelpers: typeof cacheHelpers;
+  callTypes: typeof callTypes;
   clerk: typeof clerk;
   crons: typeof crons;
   demo: typeof demo;

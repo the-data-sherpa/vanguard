@@ -374,9 +374,16 @@ export const updateStatus = mutation({
       throw new Error("Only manual incidents can be closed. PulsePoint incidents are managed by sync.");
     }
 
+    // Flag for Facebook update if incident was already synced and is being closed
+    const needsFacebookUpdate =
+      status === "closed" &&
+      incident.status === "active" &&
+      incident.isSyncedToFacebook === true;
+
     await ctx.db.patch(id, {
       status,
       callClosedTime: status === "closed" ? callClosedTime || Date.now() : undefined,
+      ...(needsFacebookUpdate && { needsFacebookUpdate: true }),
     });
   },
 });
@@ -516,6 +523,12 @@ export const batchUpsertFromPulsePoint = internalMutation({
           continue;
         }
 
+        // Check if status changed to closed - need to update Facebook
+        const statusChangedToClosed =
+          existing.status === "active" &&
+          incident.status === "closed" &&
+          existing.isSyncedToFacebook === true;
+
         // Update existing incident
         await ctx.db.patch(existing._id, {
           callType: incident.callType,
@@ -528,6 +541,8 @@ export const batchUpsertFromPulsePoint = internalMutation({
           unitStatuses: incident.unitStatuses,
           status: incident.status,
           callClosedTime: incident.callClosedTime,
+          // Flag for Facebook update if status changed to closed
+          ...(statusChangedToClosed && { needsFacebookUpdate: true }),
         });
         updated++;
       } else {
@@ -630,6 +645,8 @@ export const closeStaleIncidents = internalMutation({
       await ctx.db.patch(incident._id, {
         status: "closed",
         callClosedTime: Date.now(),
+        // Flag for Facebook update if incident was synced
+        ...(incident.isSyncedToFacebook && { needsFacebookUpdate: true }),
       });
       closed++;
     }
