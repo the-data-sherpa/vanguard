@@ -9,6 +9,7 @@
  */
 
 import type * as admin from "../admin.js";
+import type * as adminHealth from "../adminHealth.js";
 import type * as analytics from "../analytics.js";
 import type * as autoPostRules from "../autoPostRules.js";
 import type * as billing from "../billing.js";
@@ -46,6 +47,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
+  adminHealth: typeof adminHealth;
   analytics: typeof analytics;
   autoPostRules: typeof autoPostRules;
   billing: typeof billing;
