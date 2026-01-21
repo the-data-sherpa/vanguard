@@ -363,8 +363,10 @@ async function postToFacebook(
   message: string
 ): Promise<{ id: string } | null> {
   try {
-    // Use v21.0 API version (same as ICAW)
+    // Use v21.0 API version
     const url = `https://graph.facebook.com/v21.0/${pageId}/feed`;
+    console.log(`[Facebook] Posting to page ${pageId}...`);
+
     const response = await fetch(url, {
       method: "POST",
       headers: {
@@ -377,12 +379,14 @@ async function postToFacebook(
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      console.error("[Facebook] Post failed:", error);
+      const errorText = await response.text();
+      console.error(`[Facebook] Post failed (${response.status}):`, errorText);
       return null;
     }
 
-    return response.json();
+    const result = await response.json();
+    console.log(`[Facebook] Post successful: ${result.id}`);
+    return result;
   } catch (error) {
     console.error("[Facebook] Post error:", error);
     return null;
@@ -391,16 +395,17 @@ async function postToFacebook(
 
 /**
  * Update an existing Facebook post
- * If update fails due to permissions, returns info to create a new post instead
+ * If update fails for any reason, creates a new post as fallback
+ * Facebook's API often restricts updating posts, so fallback is common
  */
 async function updateFacebookPost(
   postId: string,
   pageId: string,
   pageToken: string,
   message: string
-): Promise<{ success: boolean; newPostId?: string }> {
+): Promise<{ success: boolean; newPostId?: string; error?: string }> {
   try {
-    // Use v21.0 API version (same as ICAW)
+    // Use v21.0 API version
     const url = `https://graph.facebook.com/v21.0/${postId}`;
     const response = await fetch(url, {
       method: "POST",
@@ -415,27 +420,38 @@ async function updateFacebookPost(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("[Facebook] Update failed:", errorText);
+      console.log("[Facebook] Update failed (this is normal, will create new post):", errorText);
 
-      // Check if this is a permissions error - if so, create new post as fallback
-      if (errorText.includes("permission") || errorText.includes("Permission")) {
-        console.log("[Facebook] Cannot update existing post due to permissions, creating new post instead");
+      // Facebook often restricts updating posts - always fall back to creating new post
+      console.log("[Facebook] Creating new post as fallback...");
+      const newPostResult = await postToFacebook(pageId, pageToken, message);
 
-        // Create a new post as fallback
-        const newPostResult = await postToFacebook(pageId, pageToken, message);
-        if (newPostResult?.id) {
-          console.log(`[Facebook] Created new post ${newPostResult.id} as fallback`);
-          return { success: true, newPostId: newPostResult.id };
-        }
+      if (newPostResult?.id) {
+        console.log(`[Facebook] Successfully created new post ${newPostResult.id} as fallback`);
+        return { success: true, newPostId: newPostResult.id };
+      } else {
+        console.error("[Facebook] Fallback post creation also failed");
+        return { success: false, error: `Update failed and fallback also failed. Original error: ${errorText}` };
       }
-
-      return { success: false };
     }
 
     return { success: true };
   } catch (error) {
     console.error("[Facebook] Update error:", error);
-    return { success: false };
+
+    // Try fallback even on exceptions
+    console.log("[Facebook] Attempting fallback post creation after exception...");
+    try {
+      const newPostResult = await postToFacebook(pageId, pageToken, message);
+      if (newPostResult?.id) {
+        console.log(`[Facebook] Successfully created new post ${newPostResult.id} as fallback`);
+        return { success: true, newPostId: newPostResult.id };
+      }
+    } catch (fallbackError) {
+      console.error("[Facebook] Fallback also failed:", fallbackError);
+    }
+
+    return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
   }
 }
 
