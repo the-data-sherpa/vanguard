@@ -53,15 +53,15 @@ export default function DemoIncidentsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 md:space-y-6 overflow-hidden">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Incidents</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-xl md:text-2xl font-bold tracking-tight">Incidents</h1>
+          <p className="text-sm md:text-base text-muted-foreground">
             View all incident activity
           </p>
         </div>
-        <Badge variant="outline" className="text-xs">
+        <Badge variant="outline" className="text-xs self-start sm:self-auto">
           <span className="relative flex h-2 w-2 mr-2">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
             <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
@@ -71,11 +71,11 @@ export default function DemoIncidentsPage() {
       </div>
 
       <Tabs defaultValue="active" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="active">
+        <TabsList className="w-full sm:w-auto">
+          <TabsTrigger value="active" className="flex-1 sm:flex-none">
             Active ({activeIncidents.length})
           </TabsTrigger>
-          <TabsTrigger value="closed">
+          <TabsTrigger value="closed" className="flex-1 sm:flex-none">
             Closed ({closedIncidents.length})
           </TabsTrigger>
         </TabsList>

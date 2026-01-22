@@ -245,19 +245,19 @@ export default function DemoMissionControlPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6 overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Radio className="h-8 w-8" />
+          <h1 className="text-xl md:text-3xl font-bold flex items-center gap-2">
+            <Radio className="h-6 w-6 md:h-8 md:w-8" />
             Mission Control
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-sm md:text-base text-muted-foreground">
             Manage incident updates and social media posts
           </p>
         </div>
-        <Button variant="outline" disabled>
+        <Button variant="outline" disabled className="self-start sm:self-auto">
           Create Incident
         </Button>
       </div>
@@ -286,44 +286,44 @@ export default function DemoMissionControlPage() {
       )}
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:gap-4 md:grid-cols-4">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Incidents</CardTitle>
-            <Radio className="h-4 w-4 text-muted-foreground" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 md:p-6 md:pb-2">
+            <CardTitle className="text-xs md:text-sm font-medium">Active Incidents</CardTitle>
+            <Radio className="h-4 w-4 text-muted-foreground hidden sm:block" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats?.activeIncidents ?? 0}</div>
+          <CardContent className="p-3 pt-0 md:p-6 md:pt-0">
+            <div className="text-xl md:text-2xl font-bold">{stats?.activeIncidents ?? 0}</div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Posts</CardTitle>
-            <Clock className="h-4 w-4 text-yellow-500" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 md:p-6 md:pb-2">
+            <CardTitle className="text-xs md:text-sm font-medium">Pending Posts</CardTitle>
+            <Clock className="h-4 w-4 text-yellow-500 hidden sm:block" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats?.pendingPosts ?? 0}</div>
+          <CardContent className="p-3 pt-0 md:p-6 md:pt-0">
+            <div className="text-xl md:text-2xl font-bold">{stats?.pendingPosts ?? 0}</div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Posted</CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-500" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 md:p-6 md:pb-2">
+            <CardTitle className="text-xs md:text-sm font-medium">Posted</CardTitle>
+            <CheckCircle className="h-4 w-4 text-green-500 hidden sm:block" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats?.postedIncidents ?? 0}</div>
+          <CardContent className="p-3 pt-0 md:p-6 md:pt-0">
+            <div className="text-xl md:text-2xl font-bold">{stats?.postedIncidents ?? 0}</div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Failed</CardTitle>
-            <AlertCircle className="h-4 w-4 text-red-500" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 md:p-6 md:pb-2">
+            <CardTitle className="text-xs md:text-sm font-medium">Failed</CardTitle>
+            <AlertCircle className="h-4 w-4 text-red-500 hidden sm:block" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats?.failedPosts ?? 0}</div>
+          <CardContent className="p-3 pt-0 md:p-6 md:pt-0">
+            <div className="text-xl md:text-2xl font-bold">{stats?.failedPosts ?? 0}</div>
           </CardContent>
         </Card>
       </div>
@@ -338,25 +338,28 @@ export default function DemoMissionControlPage() {
 
       {/* Incident Tabs */}
       <Tabs defaultValue="pending" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="pending" className="gap-2">
-            <Clock className="h-4 w-4" />
-            Pending
+        <TabsList className="w-full sm:w-auto grid grid-cols-3 sm:flex">
+          <TabsTrigger value="pending" className="gap-1 md:gap-2 text-xs md:text-sm">
+            <Clock className="h-3 w-3 md:h-4 md:w-4" />
+            <span className="hidden sm:inline">Pending</span>
+            <span className="sm:hidden">Pend</span>
             {pendingPosts && pendingPosts.length > 0 && (
-              <Badge variant="secondary" className="ml-1">
+              <Badge variant="secondary" className="ml-1 text-xs">
                 {pendingPosts.length}
               </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="posted" className="gap-2">
-            <CheckCircle className="h-4 w-4" />
-            Posted
+          <TabsTrigger value="posted" className="gap-1 md:gap-2 text-xs md:text-sm">
+            <CheckCircle className="h-3 w-3 md:h-4 md:w-4" />
+            <span className="hidden sm:inline">Posted</span>
+            <span className="sm:hidden">Post</span>
           </TabsTrigger>
-          <TabsTrigger value="failed" className="gap-2">
-            <AlertCircle className="h-4 w-4" />
-            Failed
+          <TabsTrigger value="failed" className="gap-1 md:gap-2 text-xs md:text-sm">
+            <AlertCircle className="h-3 w-3 md:h-4 md:w-4" />
+            <span className="hidden sm:inline">Failed</span>
+            <span className="sm:hidden">Fail</span>
             {failedPosts && failedPosts.length > 0 && (
-              <Badge variant="destructive" className="ml-1">
+              <Badge variant="destructive" className="ml-1 text-xs">
                 {failedPosts.length}
               </Badge>
             )}
