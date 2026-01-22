@@ -163,7 +163,7 @@ export default function DemoPage() {
       <DashboardStats stats={dashboardStats} />
 
       {/* Main Content Grid */}
-      <div className="grid gap-4 md:gap-6 lg:grid-cols-3">
+      <div className="grid gap-4 md:gap-6 lg:grid-cols-3 overflow-hidden">
         {/* Active Incidents */}
         <div className="lg:col-span-2 min-w-0">
           <Card className="overflow-hidden">
@@ -193,9 +193,9 @@ export default function DemoPage() {
         </div>
 
         {/* Sidebar */}
-        <div className="space-y-4 md:space-y-6">
+        <div className="space-y-4 md:space-y-6 min-w-0">
           {/* Weather Alerts */}
-          <Card>
+          <Card className="overflow-hidden">
             <CardHeader className="flex flex-row items-center justify-between pb-2 md:pb-6">
               <CardTitle className="text-lg md:text-xl">Weather Alerts</CardTitle>
               <Button variant="ghost" size="sm" asChild>
@@ -205,7 +205,7 @@ export default function DemoPage() {
                 </Link>
               </Button>
             </CardHeader>
-            <CardContent>
+            <CardContent className="overflow-hidden">
               <WeatherAlertList
                 alerts={activeAlerts.slice(0, 3)}
                 compact
@@ -214,7 +214,7 @@ export default function DemoPage() {
           </Card>
 
           {/* Quick Stats */}
-          <Card>
+          <Card className="overflow-hidden">
             <CardHeader className="pb-2 md:pb-6">
               <CardTitle className="text-lg md:text-xl">Status Summary</CardTitle>
             </CardHeader>
