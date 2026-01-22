@@ -367,6 +367,7 @@ export const getAggregatedGroupData = internalQuery({
       return {
         units: incident.units || [],
         unitStatuses: incident.unitStatuses || [],
+        status: incident.status,
       };
     }
 
@@ -410,12 +411,18 @@ export const getAggregatedGroupData = internalQuery({
     const aggregatedUnits = Array.from(allUnits);
     const aggregatedStatuses = Array.from(unitStatusMap.values());
 
+    // Determine aggregated status: only "closed" if ALL incidents in the group are closed
+    const allClosed = groupedIncidents.every((inc) => inc.status === "closed");
+    const aggregatedStatus = allClosed ? "closed" : "active";
+
     // Log aggregation details if we combined from multiple incidents
     if (groupedIncidents.length > 1) {
       const originalUnitsCount = incident.units?.length || 0;
+      const closedCount = groupedIncidents.filter((inc) => inc.status === "closed").length;
       console.log(
         `[Facebook Sync] Unit aggregation: Combined ${groupedIncidents.length} incidents in group ${incident.groupId}. ` +
         `Original incident had ${originalUnitsCount} units, aggregated total: ${aggregatedUnits.length} units. ` +
+        `Status: ${closedCount}/${groupedIncidents.length} closed -> aggregated status: ${aggregatedStatus}. ` +
         `Units: ${aggregatedUnits.join(", ")}`
       );
     }
@@ -423,6 +430,7 @@ export const getAggregatedGroupData = internalQuery({
     return {
       units: aggregatedUnits,
       unitStatuses: aggregatedStatuses,
+      status: aggregatedStatus as "active" | "closed",
     };
   },
 });
@@ -843,9 +851,9 @@ export const syncNewIncidents = internalAction({
         incidentId: incident._id,
       });
 
-      // Create incident object with aggregated units for formatting
+      // Create incident object with aggregated units and status for formatting
       const incidentForFormatting = aggregatedData
-        ? { ...incident, units: aggregatedData.units, unitStatuses: aggregatedData.unitStatuses }
+        ? { ...incident, units: aggregatedData.units, unitStatuses: aggregatedData.unitStatuses, status: aggregatedData.status }
         : incident;
 
       // Format the post using template or default (pass unit legend for translations)
@@ -959,9 +967,9 @@ export const syncIncidentUpdates = internalAction({
         incidentId: incident._id,
       });
 
-      // Create incident object with aggregated units for formatting
+      // Create incident object with aggregated units and status for formatting
       const incidentForFormatting = aggregatedData
-        ? { ...incident, units: aggregatedData.units, unitStatuses: aggregatedData.unitStatuses }
+        ? { ...incident, units: aggregatedData.units, unitStatuses: aggregatedData.unitStatuses, status: aggregatedData.status }
         : incident;
 
       // Format the updated post (pass unit legend for translations)
