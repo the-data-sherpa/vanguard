@@ -351,6 +351,91 @@ export const getIncidentUpdates = internalQuery({
 });
 
 /**
+ * Get aggregated units and statuses from all incidents in a group
+ * Used when formatting Facebook posts to show all units responding to an incident
+ */
+export const getAggregatedGroupData = internalQuery({
+  args: {
+    incidentId: v.id("incidents"),
+  },
+  handler: async (ctx, { incidentId }) => {
+    const incident = await ctx.db.get(incidentId);
+    if (!incident) return null;
+
+    // If not in a group, return the incident's own data
+    if (!incident.groupId) {
+      return {
+        units: incident.units || [],
+        unitStatuses: incident.unitStatuses || [],
+        status: incident.status,
+      };
+    }
+
+    // Fetch all incidents in the group
+    const groupedIncidents = await ctx.db
+      .query("incidents")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", incident.tenantId))
+      .filter((q) => q.eq(q.field("groupId"), incident.groupId))
+      .collect();
+
+    // Aggregate units from all incidents (use Set to deduplicate)
+    const allUnits = new Set<string>();
+    const unitStatusMap = new Map<string, UnitStatus>();
+
+    for (const inc of groupedIncidents) {
+      // Add units
+      if (inc.units) {
+        for (const unit of inc.units) {
+          allUnits.add(unit);
+        }
+      }
+
+      // Merge unit statuses (keep the most recent for each unit)
+      if (inc.unitStatuses && Array.isArray(inc.unitStatuses)) {
+        for (const status of inc.unitStatuses as UnitStatus[]) {
+          const existing = unitStatusMap.get(status.unitId);
+          if (!existing) {
+            unitStatusMap.set(status.unitId, status);
+          } else {
+            // Keep the one with more recent timestamps
+            const existingTime = existing.timeDispatched || 0;
+            const newTime = status.timeDispatched || 0;
+            if (newTime > existingTime) {
+              unitStatusMap.set(status.unitId, status);
+            }
+          }
+        }
+      }
+    }
+
+    const aggregatedUnits = Array.from(allUnits);
+    const aggregatedStatuses = Array.from(unitStatusMap.values());
+
+    // Determine aggregated status: only "closed" if ALL incidents in the group are closed
+    const allClosed = groupedIncidents.every((inc) => inc.status === "closed");
+    const aggregatedStatus = allClosed ? "closed" : "active";
+
+    // Log aggregation details if we combined from multiple incidents
+    if (groupedIncidents.length > 1) {
+      const originalUnitsCount = incident.units?.length || 0;
+      const closedCount = groupedIncidents.filter((inc) => inc.status === "closed").length;
+      console.log(
+        `[Facebook Sync] Unit aggregation: Combined ${groupedIncidents.length} incidents in group ${incident.groupId}. ` +
+        `Original incident had ${originalUnitsCount} units, aggregated total: ${aggregatedUnits.length} units. ` +
+        `Status: ${closedCount}/${groupedIncidents.length} closed -> aggregated status: ${aggregatedStatus}. ` +
+        `Units: ${aggregatedUnits.join(", ")}`
+      );
+    }
+
+    return {
+      units: aggregatedUnits,
+      unitStatuses: aggregatedStatuses,
+      status: aggregatedStatus as "active" | "closed",
+    };
+  },
+});
+
+/**
  * Diagnostic query: Find incidents where Facebook sync may be stale
  *
  * Returns closed incidents that were synced to Facebook but where:
@@ -761,9 +846,19 @@ export const syncNewIncidents = internalAction({
         incidentId: incident._id,
       });
 
+      // Get aggregated units from all incidents in the group (if grouped)
+      const aggregatedData = await ctx.runQuery(internal.facebookSync.getAggregatedGroupData, {
+        incidentId: incident._id,
+      });
+
+      // Create incident object with aggregated units and status for formatting
+      const incidentForFormatting = aggregatedData
+        ? { ...incident, units: aggregatedData.units, unitStatuses: aggregatedData.unitStatuses, status: aggregatedData.status }
+        : incident;
+
       // Format the post using template or default (pass unit legend for translations)
       const message = formatIncidentPost(
-        incident,
+        incidentForFormatting,
         updates.map((u) => ({ content: u.content, createdAt: u.createdAt })),
         template,
         timezone,
@@ -784,6 +879,14 @@ export const syncNewIncidents = internalAction({
           incidentId: incident._id,
           facebookPostId: result.id,
         });
+
+        // Log if this incident is part of a group
+        if (incident.groupId) {
+          console.log(
+            `${logPrefix} Posted grouped incident ${incident._id} (group ${incident.groupId}) ` +
+            `with ${aggregatedData?.units?.length || 0} aggregated units as ${result.id}`
+          );
+        }
 
         // Mark updates as synced
         if (updates.length > 0) {
@@ -859,9 +962,19 @@ export const syncIncidentUpdates = internalAction({
         incidentId: incident._id,
       });
 
+      // Get aggregated units from all incidents in the group (if grouped)
+      const aggregatedData = await ctx.runQuery(internal.facebookSync.getAggregatedGroupData, {
+        incidentId: incident._id,
+      });
+
+      // Create incident object with aggregated units and status for formatting
+      const incidentForFormatting = aggregatedData
+        ? { ...incident, units: aggregatedData.units, unitStatuses: aggregatedData.unitStatuses, status: aggregatedData.status }
+        : incident;
+
       // Format the updated post (pass unit legend for translations)
       const message = formatIncidentPost(
-        incident,
+        incidentForFormatting,
         updates.map((u) => ({ content: u.content, createdAt: u.createdAt })),
         template,
         timezone,
