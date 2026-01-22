@@ -22,6 +22,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { TrialBanner, SubscriptionGuard } from '@/components/billing';
 import { TenantSelector } from './TenantSelector';
+import { MobileNav } from './MobileNav';
 
 interface TenantLayoutProps {
   tenantSlug: string;
@@ -126,11 +127,12 @@ export function TenantLayout({ tenantSlug, tenantName, tenantId, children }: Ten
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto px-4 flex h-14 items-center justify-between">
           <div className="flex items-center">
+            <MobileNav navItems={navItems} title={tenantName} />
             <TenantSelector
               currentTenantSlug={tenantSlug}
               currentTenantName={tenantName}
             />
-            <nav className="ml-6 flex items-center space-x-6 text-sm font-medium">
+            <nav className="ml-6 hidden md:flex items-center space-x-6 text-sm font-medium">
               {navItems.map((item) => {
                 const isActive = item.exact
                   ? pathname === item.href
