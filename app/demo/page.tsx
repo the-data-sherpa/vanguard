@@ -117,7 +117,7 @@ export default function DemoPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6 overflow-hidden">
       {/* Real-time indicator */}
       <div className="flex justify-end">
         <Badge variant="outline" className="text-xs">
@@ -131,18 +131,20 @@ export default function DemoPage() {
 
       {/* Weather Alert Banner */}
       {activeAlerts.length > 0 && (
-        <div className="rounded-lg border bg-amber-50 dark:bg-amber-950/30 p-4">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5" />
-            <div className="flex-1">
-              <p className="font-medium text-amber-900 dark:text-amber-100">
-                {activeAlerts.length} Weather Alert{activeAlerts.length !== 1 ? "s" : ""} Active
-              </p>
-              <p className="text-sm text-amber-700 dark:text-amber-300">
-                {activeAlerts[0].headline}
-              </p>
+        <div className="rounded-lg border bg-amber-50 dark:bg-amber-950/30 p-3 md:p-4">
+          <div className="flex flex-col sm:flex-row sm:items-start gap-3">
+            <div className="flex items-start gap-3 flex-1 min-w-0">
+              <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-amber-900 dark:text-amber-100">
+                  {activeAlerts.length} Weather Alert{activeAlerts.length !== 1 ? "s" : ""} Active
+                </p>
+                <p className="text-sm text-amber-700 dark:text-amber-300 line-clamp-2">
+                  {activeAlerts[0].headline}
+                </p>
+              </div>
             </div>
-            <Button variant="outline" size="sm" asChild>
+            <Button variant="outline" size="sm" asChild className="shrink-0 self-start sm:self-auto">
               <Link href="/demo/weather">View All</Link>
             </Button>
           </div>
@@ -161,12 +163,12 @@ export default function DemoPage() {
       <DashboardStats stats={dashboardStats} />
 
       {/* Main Content Grid */}
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-4 md:gap-6 lg:grid-cols-3">
         {/* Active Incidents */}
-        <div className="lg:col-span-2">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Active Incidents</CardTitle>
+        <div className="lg:col-span-2 min-w-0">
+          <Card className="overflow-hidden">
+            <CardHeader className="flex flex-row items-center justify-between pb-2 md:pb-6">
+              <CardTitle className="text-lg md:text-xl">Active Incidents</CardTitle>
               <Button variant="ghost" size="sm" asChild>
                 <Link href="/demo/incidents">
                   View All
@@ -174,7 +176,7 @@ export default function DemoPage() {
                 </Link>
               </Button>
             </CardHeader>
-            <CardContent>
+            <CardContent className="overflow-hidden">
               {activeIncidents.length > 0 ? (
                 <IncidentList
                   incidents={activeIncidents.slice(0, 6)}
@@ -191,11 +193,11 @@ export default function DemoPage() {
         </div>
 
         {/* Sidebar */}
-        <div className="space-y-6">
+        <div className="space-y-4 md:space-y-6">
           {/* Weather Alerts */}
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Weather Alerts</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between pb-2 md:pb-6">
+              <CardTitle className="text-lg md:text-xl">Weather Alerts</CardTitle>
               <Button variant="ghost" size="sm" asChild>
                 <Link href="/demo/weather">
                   View All
@@ -213,8 +215,8 @@ export default function DemoPage() {
 
           {/* Quick Stats */}
           <Card>
-            <CardHeader>
-              <CardTitle>Status Summary</CardTitle>
+            <CardHeader className="pb-2 md:pb-6">
+              <CardTitle className="text-lg md:text-xl">Status Summary</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex justify-between">
