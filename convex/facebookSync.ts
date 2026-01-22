@@ -350,6 +350,56 @@ export const getIncidentUpdates = internalQuery({
   },
 });
 
+/**
+ * Diagnostic query: Find incidents where Facebook sync may be stale
+ *
+ * Returns closed incidents that were synced to Facebook but where:
+ * - The incident closed AFTER the last Facebook sync, OR
+ * - The incident has a pending update flag with an error
+ *
+ * This helps identify incidents that might have missed their closing update.
+ */
+export const getIncidentsWithStaleFacebookSync = internalQuery({
+  args: {
+    tenantId: v.id("tenants"),
+  },
+  handler: async (ctx, { tenantId }) => {
+    const incidents = await ctx.db
+      .query("incidents")
+      .withIndex("by_tenant_status", (q) =>
+        q.eq("tenantId", tenantId).eq("status", "closed")
+      )
+      .filter((q) => q.eq(q.field("isSyncedToFacebook"), true))
+      .collect();
+
+    const staleIncidents = incidents.filter((incident) => {
+      // Case 1: Closed after last sync (or never synced after initial post)
+      const closedAfterSync =
+        incident.callClosedTime &&
+        (!incident.facebookSyncedAt ||
+          incident.callClosedTime > incident.facebookSyncedAt);
+
+      // Case 2: Has pending update with an error (stuck in retry)
+      const hasUpdateError =
+        incident.needsFacebookUpdate === true && incident.syncError;
+
+      return closedAfterSync || hasUpdateError;
+    });
+
+    return staleIncidents.map((incident) => ({
+      _id: incident._id,
+      externalId: incident.externalId,
+      callType: incident.callType,
+      fullAddress: incident.fullAddress,
+      callClosedTime: incident.callClosedTime,
+      facebookSyncedAt: incident.facebookSyncedAt,
+      needsFacebookUpdate: incident.needsFacebookUpdate,
+      syncError: incident.syncError,
+      facebookPostId: incident.facebookPostId,
+    }));
+  },
+});
+
 // ===================
 // Internal Mutations
 // ===================
@@ -368,13 +418,15 @@ export const markIncidentSynced = internalMutation({
     const incident = await ctx.db.get(incidentId);
     if (!incident) return;
 
+    const now = Date.now();
     const syncData = {
       isSyncedToFacebook: true,
       facebookPostId,
       needsFacebookUpdate: false,
-      lastSyncAttempt: Date.now(),
+      lastSyncAttempt: now,
       syncError: undefined,
       facebookSyncAttempts: 0, // Reset on success
+      facebookSyncedAt: now, // Track when successfully synced for diagnostics
     };
 
     // Mark the primary incident
@@ -434,9 +486,12 @@ export const clearUpdateFlag = internalMutation({
     incidentId: v.id("incidents"),
   },
   handler: async (ctx, { incidentId }) => {
+    const now = Date.now();
     await ctx.db.patch(incidentId, {
       needsFacebookUpdate: false,
-      lastSyncAttempt: Date.now(),
+      lastSyncAttempt: now,
+      facebookSyncedAt: now, // Track when successfully synced for diagnostics
+      syncError: undefined, // Clear any previous error
     });
   },
 });
@@ -457,6 +512,25 @@ export const markUpdatesSynced = internalMutation({
         syncError: undefined,
       });
     }
+  },
+});
+
+/**
+ * Record a failed Facebook update attempt
+ * Unlike initial sync failures, update failures don't increment retry counter
+ * since updates will keep retrying until successful
+ */
+export const markUpdateFailed = internalMutation({
+  args: {
+    incidentId: v.id("incidents"),
+    error: v.string(),
+  },
+  handler: async (ctx, { incidentId, error }) => {
+    await ctx.db.patch(incidentId, {
+      lastSyncAttempt: Date.now(),
+      syncError: error,
+      // Note: needsFacebookUpdate stays true so it retries
+    });
   },
 });
 
@@ -828,6 +902,12 @@ export const syncIncidentUpdates = internalAction({
         updated++;
         console.log(`[Facebook Sync] Updated post for incident ${incident._id}`);
       } else {
+        // Record the failure for visibility
+        await ctx.runMutation(internal.facebookSync.markUpdateFailed, {
+          incidentId: incident._id,
+          error: result.error || "Unknown error during Facebook update",
+        });
+        console.error(`[Facebook Sync] Failed to update post for incident ${incident._id}: ${result.error}`);
         failed++;
       }
     }

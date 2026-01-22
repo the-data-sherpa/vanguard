@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import type { Incident } from '@/lib/types';
 import { CallTypeBadge } from './CallTypeBadge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { IncidentCard } from './IncidentCard';
 
 interface IncidentTableProps {
   incidents: Incident[];
@@ -33,7 +34,22 @@ export function IncidentTable({ incidents, onRowClick, isLoading }: IncidentTabl
   }
 
   return (
-    <div className="rounded-md border">
+    <>
+      {/* Mobile Card View */}
+      <div className="md:hidden space-y-4">
+        {incidents.map((incident) => (
+          <IncidentCard
+            key={incident.id}
+            incident={incident}
+            onClick={onRowClick ? () => onRowClick(incident) : undefined}
+            expandable={true}
+            showStatusBadge={true}
+          />
+        ))}
+      </div>
+
+      {/* Desktop Table View */}
+      <div className="hidden md:block rounded-md border">
       <Table>
         <TableHeader>
           <TableRow>
@@ -89,6 +105,7 @@ export function IncidentTable({ incidents, onRowClick, isLoading }: IncidentTabl
         </TableBody>
       </Table>
     </div>
+    </>
   );
 }
 

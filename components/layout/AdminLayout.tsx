@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useQuery } from 'convex/react';
@@ -19,6 +20,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { MobileNav } from './MobileNav';
+import { BottomNav } from './BottomNav';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -27,6 +30,7 @@ interface AdminLayoutProps {
 export function AdminLayout({ children }: AdminLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const currentUser = useQuery(api.users.getCurrentUser);
   const pendingApprovals = useQuery(api.admin.getPendingApprovals);
   const userTenant = useQuery(api.users.getCurrentUserTenant);
@@ -84,11 +88,12 @@ export function AdminLayout({ children }: AdminLayoutProps) {
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto px-4 flex h-14 items-center justify-between">
           <div className="flex items-center">
+            <MobileNav navItems={navItems} title="Vanguard Admin" titleBadge="Platform" open={mobileNavOpen} onOpenChange={setMobileNavOpen} />
             <Link href="/admin" className="mr-6 flex items-center space-x-2">
               <span className="font-bold">Vanguard Admin</span>
               <Badge variant="secondary" className="text-xs">Platform</Badge>
             </Link>
-            <nav className="flex items-center space-x-6 text-sm font-medium">
+            <nav className="hidden md:flex items-center space-x-6 text-sm font-medium">
               {navItems.map((item) => {
                 const isActive = item.exact
                   ? pathname === item.href
@@ -188,7 +193,17 @@ export function AdminLayout({ children }: AdminLayoutProps) {
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-6">{children}</main>
+      <main className="container mx-auto px-4 py-6 pb-20 md:pb-6 overflow-x-hidden">{children}</main>
+
+      {/* Bottom Navigation for Mobile */}
+      <BottomNav
+        items={[
+          { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
+          { href: '/admin/approvals', label: 'Approvals', icon: ClipboardCheck },
+          { href: '/admin/tenants', label: 'Tenants', icon: Building2 },
+        ]}
+        onMoreClick={() => setMobileNavOpen(true)}
+      />
     </div>
   );
 }

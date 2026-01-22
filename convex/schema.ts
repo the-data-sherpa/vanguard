@@ -278,6 +278,7 @@ export default defineSchema({
     lastSyncAttempt: v.optional(v.number()),
     syncError: v.optional(v.string()),
     facebookSyncAttempts: v.optional(v.number()), // Retry counter - stops after MAX_SYNC_ATTEMPTS
+    facebookSyncedAt: v.optional(v.number()), // Timestamp of last successful Facebook sync (for diagnostics)
   })
     .index("by_tenant", ["tenantId"])
     .index("by_tenant_status", ["tenantId", "status"])

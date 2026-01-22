@@ -651,7 +651,7 @@ function SocialSettingsContent({ params }: SocialSettingsPageProps) {
 
       {/* Page Selection Modal (shown after OAuth with multiple pages) */}
       <Dialog open={showPageSelectionModal} onOpenChange={setShowPageSelectionModal}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-full sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Select Facebook Pages to Connect</DialogTitle>
             <DialogDescription>
@@ -702,7 +702,7 @@ function SocialSettingsContent({ params }: SocialSettingsPageProps) {
 
       {/* Switch Active Page Confirmation Dialog */}
       <Dialog open={showSwitchPageDialog} onOpenChange={setShowSwitchPageDialog}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-full sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Switch Active Page?</DialogTitle>
             <DialogDescription>
@@ -920,7 +920,7 @@ function AutoPostRulesCard({ tenantId, isConnected }: { tenantId: Id<"tenants">;
           <p className="text-sm text-muted-foreground">
             Select which types of incidents should be automatically posted
           </p>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {CALL_TYPE_CATEGORIES.map((type) => (
               <div
                 key={type.id}
@@ -968,7 +968,7 @@ function AutoPostRulesCard({ tenantId, isConnected }: { tenantId: Id<"tenants">;
         </div>
 
         {/* Advanced Options */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="min-units">Minimum Units</Label>
             <Input
@@ -1377,7 +1377,7 @@ function PostTemplatesCard({ tenantId }: { tenantId: Id<"tenants"> }) {
 
       {/* Preview Dialog */}
       <Dialog open={showPreviewDialog} onOpenChange={setShowPreviewDialog}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-full sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Template Preview</DialogTitle>
             <DialogDescription>
@@ -1473,7 +1473,7 @@ function TemplateFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-full md:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
@@ -1541,7 +1541,7 @@ function TemplateFormDialog({
           </div>
 
           {/* Options */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="flex items-center space-x-2">
               <Switch
                 id="include-units"
