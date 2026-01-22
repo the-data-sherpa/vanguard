@@ -592,6 +592,8 @@ export const batchUpsertFromPulsePoint = internalMutation({
           .collect();
 
         let groupId: Id<"incidentGroups"> | undefined;
+        // Track if any related incident is already synced to Facebook
+        let syncedRelatedIncident: typeof relatedIncidents[0] | undefined;
 
         if (relatedIncidents.length > 0) {
           // Found related incidents - check if any already have a group
@@ -616,10 +618,25 @@ export const batchUpsertFromPulsePoint = internalMutation({
             // Link the first related incident to the new group
             await ctx.db.patch(relatedIncidents[0]._id, { groupId });
           }
+
+          // Check if any related incident is already synced to Facebook
+          // If so, we need to inherit the sync status and trigger an update
+          syncedRelatedIncident = relatedIncidents.find((i) => i.isSyncedToFacebook === true);
+          if (syncedRelatedIncident) {
+            // Trigger a Facebook update on the synced incident to include the new units
+            await ctx.db.patch(syncedRelatedIncident._id, { needsFacebookUpdate: true });
+            console.log(
+              `[Incidents] Auto-grouping: New incident joining synced group. ` +
+              `Inheriting facebookPostId=${syncedRelatedIncident.facebookPostId} from incident ${syncedRelatedIncident._id}. ` +
+              `Triggered update on synced incident. Address: ${incident.normalizedAddress}`
+            );
+          }
+
           grouped++;
         }
 
         // Create new incident (with groupId if auto-grouped)
+        // If a related incident is already synced, inherit the sync status
         await ctx.db.insert("incidents", {
           tenantId,
           source: "pulsepoint",
@@ -636,6 +653,11 @@ export const batchUpsertFromPulsePoint = internalMutation({
           callReceivedTime: incident.callReceivedTime,
           callClosedTime: incident.callClosedTime,
           groupId,
+          // Inherit Facebook sync status if joining a group with an already-synced incident
+          ...(syncedRelatedIncident && {
+            isSyncedToFacebook: true,
+            facebookPostId: syncedRelatedIncident.facebookPostId,
+          }),
         });
         created++;
       }
