@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/tooltip";
 import { AlertCircle, Clock } from "lucide-react";
 import { Id } from "@/convex/_generated/dataModel";
+import { ErrorLogCardView } from "./ErrorLogCardView";
 
 interface ErrorLogEntry {
   _id: Id<"auditLogs">;
@@ -90,7 +91,14 @@ export function ErrorLogTable({ errors }: ErrorLogTableProps) {
   }
 
   return (
-    <div className="rounded-md border">
+    <>
+      {/* Mobile Card View */}
+      <div className="md:hidden">
+        <ErrorLogCardView errors={errors} />
+      </div>
+
+      {/* Desktop Table View */}
+      <div className="hidden md:block rounded-md border">
       <Table>
         <TableHeader>
           <TableRow>
@@ -156,5 +164,6 @@ export function ErrorLogTable({ errors }: ErrorLogTableProps) {
         </TableBody>
       </Table>
     </div>
+    </>
   );
 }

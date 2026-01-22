@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useQuery } from 'convex/react';
@@ -23,6 +23,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { TrialBanner, SubscriptionGuard } from '@/components/billing';
 import { TenantSelector } from './TenantSelector';
 import { MobileNav } from './MobileNav';
+import { BottomNav } from './BottomNav';
 
 interface TenantLayoutProps {
   tenantSlug: string;
@@ -34,6 +35,7 @@ interface TenantLayoutProps {
 export function TenantLayout({ tenantSlug, tenantName, tenantId, children }: TenantLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const currentUser = useQuery(api.users.getCurrentUser);
   const tenant = useQuery(api.tenants.getBySlug, { slug: tenantSlug });
   const userTenant = useQuery(api.users.getCurrentUserTenant);
@@ -127,7 +129,7 @@ export function TenantLayout({ tenantSlug, tenantName, tenantId, children }: Ten
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto px-4 flex h-14 items-center justify-between">
           <div className="flex items-center">
-            <MobileNav navItems={navItems} title={tenantName} />
+            <MobileNav navItems={navItems} title={tenantName} open={mobileNavOpen} onOpenChange={setMobileNavOpen} />
             <TenantSelector
               currentTenantSlug={tenantSlug}
               currentTenantName={tenantName}
@@ -250,7 +252,7 @@ export function TenantLayout({ tenantSlug, tenantName, tenantId, children }: Ten
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-6">
+      <main className="container mx-auto px-4 py-6 pb-20 md:pb-6 overflow-x-hidden">
         {tenant?._id ? (
           <SubscriptionGuard
             tenantId={tenant._id}
@@ -263,6 +265,16 @@ export function TenantLayout({ tenantSlug, tenantName, tenantId, children }: Ten
           children
         )}
       </main>
+
+      {/* Bottom Navigation for Mobile */}
+      <BottomNav
+        items={[
+          { href: `/tenant/${tenantSlug}`, label: 'Home', icon: Home, exact: true },
+          { href: `/tenant/${tenantSlug}/incidents`, label: 'Incidents', icon: AlertTriangle },
+          { href: `/tenant/${tenantSlug}/weather`, label: 'Weather', icon: CloudRain },
+        ]}
+        onMoreClick={() => setMobileNavOpen(true)}
+      />
     </div>
   );
 }

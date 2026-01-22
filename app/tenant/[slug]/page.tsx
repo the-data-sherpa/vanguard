@@ -90,7 +90,7 @@ export default function TenantDashboard() {
     : null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 overflow-x-hidden">
       {/* Real-time indicator */}
       <div className="flex justify-end">
         <Badge variant="outline" className="text-xs">
@@ -119,10 +119,10 @@ export default function TenantDashboard() {
       <DashboardStats stats={dashboardStats} />
 
       {/* Main Content Grid */}
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-6 lg:grid-cols-3 overflow-hidden">
         {/* Active Incidents */}
-        <div className="lg:col-span-2">
-          <Card>
+        <div className="lg:col-span-2 min-w-0">
+          <Card className="overflow-hidden">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Active Incidents</CardTitle>
               <Button variant="ghost" size="sm" asChild>
@@ -132,7 +132,7 @@ export default function TenantDashboard() {
                 </Link>
               </Button>
             </CardHeader>
-            <CardContent>
+            <CardContent className="overflow-hidden">
               {activeIncidents.length > 0 ? (
                 <IncidentList
                   incidents={activeIncidents.slice(0, 6)}
@@ -149,10 +149,10 @@ export default function TenantDashboard() {
         </div>
 
         {/* Sidebar */}
-        <div className="space-y-6">
+        <div className="space-y-6 min-w-0">
           {/* Weather Alerts */}
           {tenant.features?.weatherAlerts && (
-            <Card>
+            <Card className="overflow-hidden">
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Weather Alerts</CardTitle>
                 <Button variant="ghost" size="sm" asChild>
@@ -162,7 +162,7 @@ export default function TenantDashboard() {
                   </Link>
                 </Button>
               </CardHeader>
-              <CardContent>
+              <CardContent className="overflow-hidden">
                 <WeatherAlertList
                   alerts={weatherAlerts.slice(0, 3)}
                   compact
@@ -172,7 +172,7 @@ export default function TenantDashboard() {
           )}
 
           {/* Quick Stats */}
-          <Card>
+          <Card className="overflow-hidden">
             <CardHeader>
               <CardTitle>Status Summary</CardTitle>
             </CardHeader>

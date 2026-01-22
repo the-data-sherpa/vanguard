@@ -27,11 +27,18 @@ interface MobileNavProps {
   navItems: NavItem[];
   title: string;
   titleBadge?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-export function MobileNav({ navItems, title, titleBadge }: MobileNavProps) {
-  const [open, setOpen] = useState(false);
+export function MobileNav({ navItems, title, titleBadge, open: controlledOpen, onOpenChange }: MobileNavProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
   const pathname = usePathname();
+
+  // Support both controlled and uncontrolled modes
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = isControlled ? (onOpenChange ?? (() => {})) : setInternalOpen;
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>

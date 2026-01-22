@@ -39,6 +39,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { RoleSelector } from "./RoleSelector";
+import { UserCardView } from "./UserCardView";
 
 interface UserTableProps {
   users: Doc<"users">[];
@@ -144,7 +145,23 @@ export function UserTable({
 
   return (
     <>
-      <div className="rounded-md border">
+      {/* Mobile Card View */}
+      <div className="md:hidden">
+        <UserCardView
+          users={users}
+          currentUserId={currentUserId}
+          currentUserRole={currentUserRole}
+          onRoleChange={(user) => {
+            setRoleChangeUser(user);
+            setSelectedRole((user.tenantRole as "owner" | "user") || "user");
+          }}
+          onRemove={setRemoveUser}
+          onBan={setBanUser}
+        />
+      </div>
+
+      {/* Desktop Table View */}
+      <div className="hidden md:block rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>

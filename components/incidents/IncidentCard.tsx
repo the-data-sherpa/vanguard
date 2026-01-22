@@ -108,7 +108,7 @@ export function IncidentCard({
 
   return (
     <Card
-      className={`transition-shadow hover:shadow-lg border-l-4 ${getPriorityBorderClass(priority)} ${getPriorityCardClasses(priority)} ${canExpand || onClick ? 'cursor-pointer' : ''}`}
+      className={`transition-shadow hover:shadow-lg border-l-4 min-w-0 overflow-hidden ${getPriorityBorderClass(priority)} ${getPriorityCardClasses(priority)} ${canExpand || onClick ? 'cursor-pointer' : ''}`}
       onClick={handleCardClick}
     >
       <CardContent className="p-4 space-y-3">

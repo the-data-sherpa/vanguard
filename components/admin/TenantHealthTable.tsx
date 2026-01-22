@@ -32,6 +32,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { HealthCardView } from "./HealthCardView";
 
 interface TenantHealthData {
   tenantId: Id<"tenants">;
@@ -142,7 +143,18 @@ export function TenantHealthTable({ data }: TenantHealthTableProps) {
   }
 
   return (
-    <div className="rounded-md border">
+    <>
+      {/* Mobile Card View */}
+      <div className="md:hidden">
+        <HealthCardView
+          data={data}
+          loadingTenant={loadingTenant}
+          onSync={handleSync}
+        />
+      </div>
+
+      {/* Desktop Table View */}
+      <div className="hidden md:block rounded-md border">
       <Table>
         <TableHeader>
           <TableRow>
@@ -293,5 +305,6 @@ export function TenantHealthTable({ data }: TenantHealthTableProps) {
         </TableBody>
       </Table>
     </div>
+    </>
   );
 }

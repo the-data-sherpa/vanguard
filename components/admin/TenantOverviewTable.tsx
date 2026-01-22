@@ -43,6 +43,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
+import { TenantCardView } from "./TenantCardView";
 
 interface TenantData {
   _id: Id<"tenants">;
@@ -177,7 +178,19 @@ export function TenantOverviewTable({
 
   return (
     <>
-      <div className="rounded-md border">
+      {/* Mobile Card View */}
+      <div className="md:hidden">
+        <TenantCardView
+          tenants={displayTenants}
+          syncingTenant={syncingTenant}
+          onTriggerSync={handleTriggerSync}
+          onSuspend={setSuspendTenant}
+          onReactivate={setReactivateTenant}
+        />
+      </div>
+
+      {/* Desktop Table View */}
+      <div className="hidden md:block rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
