@@ -132,62 +132,169 @@ function shouldPostAlert(alert: Doc<"weatherAlerts">): { shouldPost: boolean; re
 // ===================
 
 /**
+ * Severity to emoji mapping
+ */
+const SEVERITY_EMOJI: Record<string, string> = {
+  Extreme: "🔴",
+  Severe: "🟠",
+  Moderate: "🟡",
+  Minor: "🟢",
+  Unknown: "⚠️",
+};
+
+/**
+ * Parse NWS structured description into sections
+ * NWS descriptions use * WHAT..., * WHERE..., * WHEN..., * IMPACTS... format
+ */
+function parseNWSDescription(description: string): {
+  what?: string;
+  where?: string;
+  when?: string;
+  impacts?: string;
+  additional?: string;
+} {
+  const sections: Record<string, string> = {};
+
+  // Match sections like "* WHAT..." or "* ADDITIONAL DETAILS..."
+  const sectionRegex = /\*\s*(WHAT|WHERE|WHEN|IMPACTS|ADDITIONAL DETAILS)\.{3}([^*]*)/gi;
+  let match;
+
+  while ((match = sectionRegex.exec(description)) !== null) {
+    const key = match[1].toLowerCase().replace(" details", "");
+    // Clean up the text: trim and normalize whitespace
+    const value = match[2].trim().replace(/\s+/g, " ");
+    sections[key] = value;
+  }
+
+  return {
+    what: sections["what"],
+    where: sections["where"],
+    when: sections["when"],
+    impacts: sections["impacts"],
+    additional: sections["additional"],
+  };
+}
+
+/**
+ * Truncate instruction text to approximately 3-4 sentences
+ */
+function truncateInstructions(instruction: string, maxSentences: number = 3): string {
+  // Split by sentence-ending punctuation followed by space or newline
+  const sentences = instruction.split(/(?<=[.!?])\s+/).filter((s) => s.trim());
+
+  if (sentences.length <= maxSentences) {
+    return instruction.trim();
+  }
+
+  return sentences.slice(0, maxSentences).join(" ").trim();
+}
+
+/**
+ * Extract state abbreviations from zone codes for hashtags
+ */
+function extractStateHashtags(zones: string[]): string[] {
+  const states = new Set<string>();
+
+  for (const zone of zones) {
+    // Zone URLs look like "https://api.weather.gov/zones/forecast/NCZ060"
+    const match = zone.match(/\/([A-Z]{2})Z\d{3}$/);
+    if (match) {
+      states.add(match[1]);
+    }
+  }
+
+  // Convert to hashtags (e.g., NC -> #NCwx)
+  return Array.from(states).map((state) => `#${state}wx`);
+}
+
+/**
  * Format a weather alert for Facebook posting
  */
 function formatWeatherPost(alert: Doc<"weatherAlerts">, tenantName?: string, timezone?: string): string {
   const lines: string[] = [];
   const tz = timezone || "America/New_York";
 
-  // Header
-  lines.push(`⚠️ WEATHER ALERT: ${alert.event}`);
-  lines.push("");
+  // Header with severity emoji and event name in caps
+  const emoji = SEVERITY_EMOJI[alert.severity] || "⚠️";
+  lines.push(`${emoji} ${alert.event.toUpperCase()}`);
 
-  // Headline
-  lines.push(alert.headline);
-  lines.push("");
+  // Parse structured description
+  const parsed = alert.description ? parseNWSDescription(alert.description) : {};
 
-  // Description (truncated to 500 chars)
-  if (alert.description) {
-    const description = alert.description.length > 500
-      ? alert.description.substring(0, 497) + "..."
-      : alert.description;
-    lines.push(description);
-    lines.push("");
+  // WHERE first (location context)
+  if (parsed.where) {
+    lines.push(`📍 WHERE: ${parsed.where}`);
   }
 
-  // Affected areas (extract zone names if available)
-  if (alert.affectedZones && alert.affectedZones.length > 0) {
-    // Zone URLs look like "https://api.weather.gov/zones/forecast/NCZ060"
-    // Extract just the zone codes
-    const zoneCodes = alert.affectedZones.map((zone) => {
-      const match = zone.match(/\/([A-Z]{2}Z\d{3})$/);
-      return match ? match[1] : zone;
-    });
-    lines.push(`📍 Affected Areas: ${zoneCodes.join(", ")}`);
+  lines.push("");
+
+  // WHAT
+  if (parsed.what) {
+    lines.push(`❄️ WHAT: ${parsed.what}`);
   }
 
-  // Timing
-  const formatTime = (timestamp: number): string => {
+  lines.push("");
+
+  // WHEN with dates
+  const formatDate = (timestamp: number): string => {
     const date = new Date(timestamp);
     return date.toLocaleString("en-US", {
-      weekday: "short",
+      weekday: "long",
       month: "short",
       day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
       timeZone: tz,
     });
   };
 
-  if (alert.onset || alert.expires) {
-    const onset = alert.onset ? formatTime(alert.onset) : "Now";
-    const expires = formatTime(alert.expires);
-    lines.push(`⏰ Effective: ${onset} - ${expires}`);
+  if (parsed.when) {
+    // Use 'ends' for actual event end time, fall back to 'expires'
+    const endsTimestamp = alert.ends || alert.expires;
+    const onsetDate = alert.onset ? formatDate(alert.onset) : null;
+    const endsDate = formatDate(endsTimestamp);
+
+    let whenText = `⏰ WHEN: ${parsed.when}`;
+    if (onsetDate && endsDate) {
+      whenText += ` (${onsetDate} - ${endsDate})`;
+    }
+    lines.push(whenText);
   }
 
   lines.push("");
-  lines.push("Stay safe and monitor conditions.");
+
+  // IMPACTS
+  if (parsed.impacts) {
+    lines.push(`⚠️ IMPACTS:`);
+    lines.push(parsed.impacts);
+  }
+
+  lines.push("");
+
+  // INSTRUCTIONS (truncated)
+  if (alert.instruction) {
+    lines.push(`📋 INSTRUCTIONS:`);
+    lines.push(truncateInstructions(alert.instruction, 2));
+  }
+
+  lines.push("");
+
+  // Hashtags from affected zones + event type
+  const hashtags: string[] = [];
+
+  if (alert.affectedZones && alert.affectedZones.length > 0) {
+    hashtags.push(...extractStateHashtags(alert.affectedZones));
+  }
+
+  // Add event-based hashtag
+  const eventHashtag = alert.event.replace(/\s+/g, "");
+  hashtags.push(`#${eventHashtag}`);
+
+  // Add NWS office hashtag from headline if available
+  const nwsMatch = alert.headline.match(/NWS\s+([\w-]+)/i);
+  if (nwsMatch) {
+    hashtags.push(`#NWS${nwsMatch[1].replace(/[^a-zA-Z]/g, "")}`);
+  }
+
+  lines.push(hashtags.join(" "));
 
   return lines.join("\n");
 }
