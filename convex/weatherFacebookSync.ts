@@ -75,7 +75,7 @@ const ALWAYS_POST_EVENTS = [
 /**
  * Minimum score threshold for auto-posting (if not an always-post event)
  */
-const AUTO_POST_THRESHOLD = 60;
+const AUTO_POST_THRESHOLD = 55;
 
 /**
  * Recurring post interval (6 hours in milliseconds)
@@ -111,6 +111,11 @@ function shouldPostAlert(alert: Doc<"weatherAlerts">): { shouldPost: boolean; re
   // Check if it's an always-post event
   if (ALWAYS_POST_EVENTS.includes(alert.event)) {
     return { shouldPost: true, reason: `Critical event: ${alert.event}` };
+  }
+
+  // Extreme severity always posts regardless of other factors
+  if (alert.severity === "Extreme") {
+    return { shouldPost: true, reason: "Extreme severity alert" };
   }
 
   // Calculate threat score

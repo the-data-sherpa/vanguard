@@ -145,7 +145,7 @@ export function WeatherAlertCard({ alert, onClick, compact = false }: WeatherAle
               <TrendingUp className="h-4 w-4" />
               <span className="font-medium text-sm">Threat Score: {threatScore}/100</span>
             </div>
-            {threatScore >= 60 && (
+            {(threatScore >= 55 || alert.severity === "Extreme") && (
               <Badge variant="outline" className="text-xs">
                 Auto-Post Eligible
               </Badge>
