@@ -193,6 +193,13 @@ interface PulsePointDecryptedResponse {
 // NWS Types
 // ===================
 
+interface NWSAlertReference {
+  "@id": string;
+  identifier: string;
+  sender: string;
+  sent: string;
+}
+
 interface NWSAlert {
   id: string;
   properties: {
@@ -209,6 +216,8 @@ interface NWSAlert {
     expires: string;
     ends?: string;
     affectedZones?: string[];
+    messageType?: string; // "Alert", "Update", or "Cancel"
+    references?: NWSAlertReference[]; // References to previous alerts in update chain
   };
 }
 
@@ -606,6 +615,8 @@ export const syncWeatherForTenant = internalAction({
       expires: number;
       ends?: number;
       affectedZones?: string[];
+      messageType?: "Alert" | "Update" | "Cancel";
+      references?: string[]; // Array of referenced nwsIds
     }> = [];
 
     try {
@@ -633,6 +644,15 @@ export const syncWeatherForTenant = internalAction({
       for (const alert of alerts) {
         const props = alert.properties;
 
+        // Map messageType to our enum
+        let messageType: "Alert" | "Update" | "Cancel" | undefined;
+        if (props.messageType === "Alert" || props.messageType === "Update" || props.messageType === "Cancel") {
+          messageType = props.messageType;
+        }
+
+        // Extract referenced nwsIds from references array
+        const references = props.references?.map((ref) => ref.identifier).filter(Boolean);
+
         allAlerts.push({
           nwsId: props.id,
           event: props.event,
@@ -647,6 +667,8 @@ export const syncWeatherForTenant = internalAction({
           expires: new Date(props.expires).getTime(),
           ends: props.ends ? new Date(props.ends).getTime() : undefined,
           affectedZones: props.affectedZones,
+          messageType,
+          references: references?.length ? references : undefined,
         });
       }
 
