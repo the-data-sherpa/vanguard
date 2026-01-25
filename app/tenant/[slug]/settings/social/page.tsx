@@ -60,6 +60,7 @@ interface SocialSettingsPageProps {
 // Available call type categories for filtering
 const CALL_TYPE_CATEGORIES = [
   { id: "fire", label: "Fire", description: "Structure fires, brush fires, etc." },
+  { id: "alarm", label: "Alarms", description: "Fire alarms, smoke detectors, CO alarms" },
   { id: "medical", label: "Medical/EMS", description: "Medical emergencies" },
   { id: "traffic", label: "Traffic", description: "Vehicle accidents, traffic hazards" },
   { id: "rescue", label: "Rescue", description: "Technical rescues, water rescues" },
