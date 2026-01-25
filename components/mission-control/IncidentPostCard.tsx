@@ -143,7 +143,7 @@ export function IncidentPostCard({ incident, tenantId, isOwner = false }: Incide
                   <Badge variant="secondary">Closed</Badge>
                 )}
               </div>
-              <CardTitle className="text-lg font-semibold flex items-center gap-2">
+              <CardTitle className="text-lg font-semibold flex items-center gap-2 min-w-0">
                 <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                 <span className="truncate">{incident.fullAddress}</span>
               </CardTitle>
