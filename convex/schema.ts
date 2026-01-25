@@ -82,6 +82,12 @@ const alertStatus = v.union(
   v.literal("cancelled")
 );
 
+const alertMessageType = v.union(
+  v.literal("Alert"),
+  v.literal("Update"),
+  v.literal("Cancel")
+);
+
 // ===================
 // Schema Definition
 // ===================
@@ -321,10 +327,15 @@ export default defineSchema({
     affectedZones: v.optional(v.array(v.string())),
     status: alertStatus,
 
+    // NWS Update Chain Tracking
+    messageType: v.optional(alertMessageType), // Alert, Update, or Cancel
+    previousNwsIds: v.optional(v.array(v.string())), // Chain of previous nwsIds for update tracking
+
     // Social Sync
     isSyncedToFacebook: v.optional(v.boolean()),
     facebookPostId: v.optional(v.string()),
     lastFacebookPostTime: v.optional(v.number()),
+    needsFacebookUpdate: v.optional(v.boolean()), // Flag to trigger immediate post on NWS update
   })
     .index("by_tenant", ["tenantId"])
     .index("by_tenant_status", ["tenantId", "status"])

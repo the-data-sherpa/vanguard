@@ -100,6 +100,12 @@ function shouldPostAlert(alert: Doc<"weatherAlerts">): { shouldPost: boolean; re
     return { shouldPost: false, reason: "Alert has expired" };
   }
 
+  // Check if this alert was updated by NWS (new nwsId in the chain)
+  // This bypasses the 6-hour check to post updates immediately
+  if (alert.needsFacebookUpdate) {
+    return { shouldPost: true, reason: "NWS issued update to alert" };
+  }
+
   // Check if this was posted recently (within 6 hours)
   if (alert.lastFacebookPostTime) {
     const timeSinceLastPost = Date.now() - alert.lastFacebookPostTime;
@@ -384,6 +390,7 @@ export const markWeatherAlertPosted = internalMutation({
       isSyncedToFacebook: true,
       facebookPostId,
       lastFacebookPostTime: Date.now(),
+      needsFacebookUpdate: false, // Clear the update flag after posting
     });
   },
 });
