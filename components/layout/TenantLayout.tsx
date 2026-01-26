@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useQuery } from 'convex/react';
 import { api } from '@/convex/_generated/api';
 import { SignOutButton } from '@clerk/nextjs';
-import { Home, AlertTriangle, CloudRain, Settings, Users, User, CreditCard, Radio, Building2, Shield, LogOut, Check, BarChart3 } from 'lucide-react';
+import { Home, AlertTriangle, CloudRain, Settings, Users, User, CreditCard, Radio, Building2, Shield, LogOut, Check, BarChart3, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ThemeToggle } from '@/components/theme-toggle';
 import {
@@ -236,6 +236,15 @@ export function TenantLayout({ tenantSlug, tenantName, tenantId, children }: Ten
                     </DropdownMenuItem>
                   </>
                 )}
+
+                {/* Support */}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <a href="mailto:support@vanguardalerts.com" className="flex items-center">
+                    <HelpCircle className="mr-2 h-4 w-4" />
+                    Support
+                  </a>
+                </DropdownMenuItem>
 
                 {/* Sign Out */}
                 <DropdownMenuSeparator />
