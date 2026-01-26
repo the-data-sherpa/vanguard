@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   LineChart,
   Line,
@@ -10,7 +11,8 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import { TrendingUp } from "lucide-react";
+import { TrendingUp, Layers, BarChart3 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { AnalyticsCard } from "./AnalyticsCard";
 
 interface TrendData {
@@ -47,7 +49,8 @@ function formatDate(dateStr: string) {
   });
 }
 
-export function IncidentTrendChart({ data, showCategories = false }: IncidentTrendChartProps) {
+export function IncidentTrendChart({ data, showCategories: initialShowCategories = false }: IncidentTrendChartProps) {
+  const [showCategories, setShowCategories] = useState(initialShowCategories);
   if (data.length === 0) {
     return (
       <AnalyticsCard title="Incident Trends" icon={<TrendingUp className="h-4 w-4" />}>
@@ -59,7 +62,36 @@ export function IncidentTrendChart({ data, showCategories = false }: IncidentTre
   }
 
   return (
-    <AnalyticsCard title="Incident Trends" icon={<TrendingUp className="h-4 w-4" />}>
+    <AnalyticsCard 
+      title="Incident Trends" 
+      icon={
+        <div className="flex items-center gap-2">
+          <TrendingUp className="h-4 w-4" />
+          <div className="flex border rounded-md overflow-hidden ml-2">
+            <Button
+              variant={!showCategories ? "secondary" : "ghost"}
+              size="sm"
+              className="h-6 px-2 rounded-none text-xs"
+              onClick={() => setShowCategories(false)}
+              title="Total incidents"
+            >
+              <BarChart3 className="h-3 w-3 mr-1" />
+              Total
+            </Button>
+            <Button
+              variant={showCategories ? "secondary" : "ghost"}
+              size="sm"
+              className="h-6 px-2 rounded-none text-xs"
+              onClick={() => setShowCategories(true)}
+              title="By category"
+            >
+              <Layers className="h-3 w-3 mr-1" />
+              By Type
+            </Button>
+          </div>
+        </div>
+      }
+    >
       <div className="h-[250px]">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
