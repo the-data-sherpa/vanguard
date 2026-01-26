@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { query, mutation, action, QueryCtx, MutationCtx } from "./_generated/server";
+import { query, mutation, internalMutation, action, QueryCtx, MutationCtx } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 
@@ -923,11 +923,13 @@ export const triggerTenantSync = action({
  * This subtracts 7 days from all existing trial end dates.
  * Trials that have already used more than 7 days will be expired
  * by the next maintenance run.
+ * 
+ * This is an internalMutation so it can be run from the Convex dashboard
+ * without authentication (one-time admin operation).
  */
-export const migrateTrialDuration = mutation({
+export const migrateTrialDuration = internalMutation({
   args: {},
   handler: async (ctx) => {
-    await requirePlatformAdmin(ctx);
     
     const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
     
