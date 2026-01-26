@@ -235,7 +235,7 @@ export default function OnboardingPage() {
 
             <div className="pt-4">
               <Badge variant="secondary" className="mb-4">
-                14-day free trial after approval - No credit card required
+                7-day free trial after approval - No credit card required
               </Badge>
             </div>
 

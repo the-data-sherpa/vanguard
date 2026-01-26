@@ -89,7 +89,7 @@ export default function AdminBillingPage() {
           <CardContent>
             <div className="text-2xl font-bold">{stats.trialsInProgress}</div>
             <p className="text-xs text-muted-foreground">
-              14-day trials in progress
+              7-day trials in progress
             </p>
           </CardContent>
         </Card>

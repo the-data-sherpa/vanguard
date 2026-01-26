@@ -106,7 +106,7 @@ export default function LandingPage() {
           <div className="text-center space-y-8 max-w-4xl mx-auto">
             <Badge variant="secondary" className="px-4 py-1.5">
               <Zap className="h-3 w-3 mr-1.5 inline" />
-              14-Day Free Trial — No Credit Card Required
+              7-Day Free Trial — No Credit Card Required
             </Badge>
             <h1 className="text-4xl md:text-6xl font-bold tracking-tight">
               Community Incident Awareness
@@ -375,7 +375,7 @@ export default function LandingPage() {
           <div className="max-w-lg mx-auto">
             <Card className="relative overflow-hidden border-2 border-primary">
               <div className="absolute top-0 right-0 bg-primary text-primary-foreground px-3 py-1 text-sm font-medium rounded-bl-lg">
-                14-Day Free Trial
+                7-Day Free Trial
               </div>
               <CardHeader className="text-center pt-8">
                 <CardTitle className="text-2xl">Vanguard</CardTitle>
@@ -429,7 +429,7 @@ export default function LandingPage() {
             Ready to Keep Your Community Informed?
           </h2>
           <p className="text-xl opacity-90">
-            Start your 14-day free trial today. No credit card required.
+            Start your 7-day free trial today. No credit card required.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <AuthButtons variant="cta" />

@@ -119,7 +119,7 @@ export default function DemoLayout({ children }: { children: React.ReactNode }) 
           <div className="container mx-auto px-4 py-8 text-center">
             <h2 className="text-2xl font-bold mb-2">Ready to get started?</h2>
             <p className="text-muted-foreground mb-4 max-w-lg mx-auto">
-              Start your 14-day free trial today. No credit card required.
+              Start your 7-day free trial today. No credit card required.
               Full access to all features.
             </p>
             <div className="flex gap-4 justify-center">
