@@ -12,6 +12,8 @@ import {
   WeatherAlertSummary,
   HistoryTimeline,
   PublicIncidentCard,
+  BusiestHours,
+  LastHourActivity,
 } from "@/components/status";
 
 export default function PublicStatusPage() {
@@ -22,9 +24,11 @@ export default function PublicStatusPage() {
   const incidents = useQuery(api.status.getPublicIncidents, { slug });
   const alerts = useQuery(api.status.getPublicWeatherAlerts, { slug });
   const history = useQuery(api.status.getIncidentHistory, { slug, days: 30 });
+  const hourlyStats = useQuery(api.status.getHourlyStats, { slug });
+  const recentIncidents = useQuery(api.status.getRecentIncidents, { slug });
 
   // Loading state
-  if (tenantInfo === undefined || incidents === undefined || alerts === undefined || history === undefined) {
+  if (tenantInfo === undefined || incidents === undefined || alerts === undefined || history === undefined || hourlyStats === undefined || recentIncidents === undefined) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -137,6 +141,16 @@ export default function PublicStatusPage() {
           {/* Weather Alerts */}
           {alerts && alerts.length > 0 && (
             <WeatherAlertSummary alerts={alerts} />
+          )}
+
+          {/* Last Hour Activity */}
+          {recentIncidents && (
+            <LastHourActivity incidents={recentIncidents} />
+          )}
+
+          {/* Busiest Hours Heatmap */}
+          {hourlyStats && hourlyStats.length > 0 && (
+            <BusiestHours hourlyData={hourlyStats} />
           )}
 
           {/* History Timeline */}

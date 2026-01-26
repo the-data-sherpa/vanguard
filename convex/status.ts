@@ -379,6 +379,84 @@ export const getPublicWeatherAlertsInternal = internalQuery({
 });
 
 /**
+ * Get hourly incident breakdown for the busiest hours heatmap.
+ * Aggregates incident counts by hour of day over the last 7 days.
+ */
+export const getHourlyStats = query({
+  args: { slug: v.string() },
+  handler: async (ctx, { slug }) => {
+    const tenant = await ctx.db
+      .query("tenants")
+      .withIndex("by_slug", (q) => q.eq("slug", slug))
+      .unique();
+
+    if (!tenant) return null;
+    if (tenant.status !== "active") return null;
+    if (!tenant.features?.publicStatusPage) return null;
+
+    // Get incidents from last 7 days
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - 7);
+    startDate.setHours(0, 0, 0, 0);
+
+    const incidents = await ctx.db
+      .query("incidents")
+      .withIndex("by_tenant_time", (q) => q.eq("tenantId", tenant._id))
+      .filter((q) => q.gte(q.field("callReceivedTime"), startDate.getTime()))
+      .collect();
+
+    // Initialize hourly counts
+    const hourlyCounts: number[] = Array(24).fill(0);
+
+    // Count incidents per hour
+    for (const incident of incidents) {
+      const date = new Date(incident.callReceivedTime);
+      const hour = date.getHours();
+      hourlyCounts[hour]++;
+    }
+
+    // Return as array of {hour, count}
+    return hourlyCounts.map((count, hour) => ({ hour, count }));
+  },
+});
+
+/**
+ * Get recent incidents for the last hour activity feed.
+ * Returns incidents from the last 2 hours with timestamps.
+ */
+export const getRecentIncidents = query({
+  args: { slug: v.string() },
+  handler: async (ctx, { slug }) => {
+    const tenant = await ctx.db
+      .query("tenants")
+      .withIndex("by_slug", (q) => q.eq("slug", slug))
+      .unique();
+
+    if (!tenant) return null;
+    if (tenant.status !== "active") return null;
+    if (!tenant.features?.publicStatusPage) return null;
+
+    // Get incidents from last 2 hours
+    const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000;
+
+    const incidents = await ctx.db
+      .query("incidents")
+      .withIndex("by_tenant_time", (q) => q.eq("tenantId", tenant._id))
+      .filter((q) => q.gte(q.field("callReceivedTime"), twoHoursAgo))
+      .order("desc")
+      .take(50);
+
+    return incidents.map((incident) => ({
+      _id: incident._id,
+      callType: incident.callType,
+      callTypeCategory: incident.callTypeCategory || "other",
+      timestamp: incident.callReceivedTime,
+      address: incident.fullAddress,
+    }));
+  },
+});
+
+/**
  * Internal: Get incident history for the last N days.
  */
 export const getIncidentHistoryInternal = internalQuery({
