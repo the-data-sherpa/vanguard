@@ -8,6 +8,7 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  Cell,
 } from "recharts";
 import { Truck } from "lucide-react";
 import { AnalyticsCard } from "./AnalyticsCard";
@@ -21,6 +22,7 @@ interface UnitData {
 interface UnitUtilizationChartProps {
   data: UnitData[];
   limit?: number;
+  onUnitClick?: (unitId: string) => void;
 }
 
 function formatTime(ms: number | null): string {
@@ -32,12 +34,19 @@ function formatTime(ms: number | null): string {
   return `${hours}h ${mins}m`;
 }
 
-export function UnitUtilizationChart({ data, limit = 10 }: UnitUtilizationChartProps) {
+export function UnitUtilizationChart({ data, limit = 10, onUnitClick }: UnitUtilizationChartProps) {
   const chartData = data.slice(0, limit).map((d) => ({
     unit: d.unitId,
     dispatches: d.dispatchCount,
     avgTime: d.avgOnSceneTime,
   }));
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handleBarClick = (data: any) => {
+    if (onUnitClick && data?.unit) {
+      onUnitClick(data.unit);
+    }
+  };
 
   if (chartData.length === 0) {
     return (
@@ -50,7 +59,10 @@ export function UnitUtilizationChart({ data, limit = 10 }: UnitUtilizationChartP
   }
 
   return (
-    <AnalyticsCard title="Unit Activity (Top 10)" icon={<Truck className="h-4 w-4" />}>
+    <AnalyticsCard 
+      title={onUnitClick ? "Unit Activity (Top 10) — Click for details" : "Unit Activity (Top 10)"} 
+      icon={<Truck className="h-4 w-4" />}
+    >
       <div className="h-[250px]">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
@@ -94,7 +106,16 @@ export function UnitUtilizationChart({ data, limit = 10 }: UnitUtilizationChartP
               fill="#6366f1"
               radius={[0, 4, 4, 0]}
               name="Dispatches"
-            />
+              onClick={handleBarClick}
+              className={onUnitClick ? "cursor-pointer" : ""}
+            >
+              {chartData.map((entry, index) => (
+                <Cell 
+                  key={`cell-${index}`} 
+                  className={onUnitClick ? "hover:opacity-80 transition-opacity" : ""}
+                />
+              ))}
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
       </div>

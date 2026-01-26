@@ -16,6 +16,10 @@ import {
   BusyTimesHeatmap,
   UnitUtilizationChart,
   ResponseTimeChart,
+  WeatherCorrelationChart,
+  UnitDrillDown,
+  DashboardCustomizer,
+  useDashboardVisibility,
   AnalyticsCardSkeleton,
 } from "@/components/analytics";
 
@@ -23,6 +27,8 @@ export default function AnalyticsPage() {
   const params = useParams();
   const slug = params.slug as string;
   const [dateRange, setDateRange] = useState<DateRange>(getDefaultDateRange);
+  const [selectedUnit, setSelectedUnit] = useState<string | null>(null);
+  const [visibility, setVisibility] = useDashboardVisibility(slug);
 
   const tenant = useQuery(api.tenants.getBySlug, { slug });
   const tenantId = tenant?._id;
@@ -40,35 +46,42 @@ export default function AnalyticsPage() {
 
   const trendData = useQuery(
     api.analytics.getIncidentTrends,
-    tenantId && hasAnalytics
+    tenantId && hasAnalytics && visibility.incidentTrends
       ? { tenantId, startTime: dateRange.startTime, endTime: dateRange.endTime }
       : "skip"
   );
 
   const callTypeData = useQuery(
     api.analytics.getCallTypeDistribution,
-    tenantId && hasAnalytics
+    tenantId && hasAnalytics && visibility.callTypes
       ? { tenantId, startTime: dateRange.startTime, endTime: dateRange.endTime }
       : "skip"
   );
 
   const heatmapData = useQuery(
     api.analytics.getHourlyHeatmap,
-    tenantId && hasAnalytics
+    tenantId && hasAnalytics && visibility.busyTimes
       ? { tenantId, startTime: dateRange.startTime, endTime: dateRange.endTime }
       : "skip"
   );
 
   const unitData = useQuery(
     api.analytics.getUnitUtilization,
-    tenantId && hasAnalytics
+    tenantId && hasAnalytics && visibility.unitActivity
       ? { tenantId, startTime: dateRange.startTime, endTime: dateRange.endTime }
       : "skip"
   );
 
   const responseTimeData = useQuery(
     api.analytics.getResponseTimeStats,
-    tenantId && hasAnalytics
+    tenantId && hasAnalytics && visibility.responseTimes
+      ? { tenantId, startTime: dateRange.startTime, endTime: dateRange.endTime }
+      : "skip"
+  );
+
+  const weatherCorrelationData = useQuery(
+    api.analytics.getWeatherCorrelation,
+    tenantId && hasAnalytics && visibility.weatherCorrelation
       ? { tenantId, startTime: dateRange.startTime, endTime: dateRange.endTime }
       : "skip"
   );
@@ -112,12 +125,17 @@ export default function AnalyticsPage() {
     );
   }
 
-  const isLoading =
-    summaryStats === undefined ||
-    trendData === undefined ||
-    callTypeData === undefined ||
-    heatmapData === undefined ||
-    unitData === undefined;
+  const isLoading = summaryStats === undefined;
+
+  // Count visible charts for layout
+  const visibleCharts = [
+    visibility.incidentTrends,
+    visibility.callTypes,
+    visibility.busyTimes,
+    visibility.unitActivity,
+    visibility.responseTimes && responseTimeData !== null,
+    visibility.weatherCorrelation,
+  ].filter(Boolean).length;
 
   return (
     <div className="space-y-6">
@@ -132,7 +150,10 @@ export default function AnalyticsPage() {
             Detailed analytics and reporting for your incidents
           </p>
         </div>
-        <DateRangePicker value={dateRange} onChange={setDateRange} />
+        <div className="flex items-center gap-2">
+          <DashboardCustomizer value={visibility} onChange={setVisibility} />
+          <DateRangePicker value={dateRange} onChange={setDateRange} />
+        </div>
       </div>
 
       {/* Summary Stats */}
@@ -144,13 +165,13 @@ export default function AnalyticsPage() {
                 <AlertTriangle className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <p className="text-2xl font-bold">
+                <div className="text-2xl font-bold">
                   {isLoading ? (
                     <Skeleton className="h-8 w-16" />
                   ) : (
                     summaryStats?.totalIncidents ?? 0
                   )}
-                </p>
+                </div>
                 <p className="text-sm text-muted-foreground">Total Incidents</p>
               </div>
             </div>
@@ -164,13 +185,13 @@ export default function AnalyticsPage() {
                 <Truck className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <p className="text-2xl font-bold">
+                <div className="text-2xl font-bold">
                   {isLoading ? (
                     <Skeleton className="h-8 w-16" />
                   ) : (
                     summaryStats?.uniqueUnits ?? 0
                   )}
-                </p>
+                </div>
                 <p className="text-sm text-muted-foreground">Unique Units</p>
               </div>
             </div>
@@ -184,13 +205,13 @@ export default function AnalyticsPage() {
                 <Activity className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <p className="text-2xl font-bold">
+                <div className="text-2xl font-bold">
                   {isLoading ? (
                     <Skeleton className="h-8 w-16" />
                   ) : (
                     summaryStats?.avgDailyIncidents ?? 0
                   )}
-                </p>
+                </div>
                 <p className="text-sm text-muted-foreground">Avg Daily Incidents</p>
               </div>
             </div>
@@ -199,36 +220,79 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Charts */}
-      {isLoading ? (
-        <div className="grid gap-6 lg:grid-cols-2">
-          <AnalyticsCardSkeleton className="lg:col-span-2" />
-          <AnalyticsCardSkeleton />
-          <AnalyticsCardSkeleton />
-          <AnalyticsCardSkeleton />
-          <AnalyticsCardSkeleton />
-        </div>
+      {visibleCharts === 0 ? (
+        <Card className="border-dashed">
+          <CardContent className="py-12 text-center text-muted-foreground">
+            No charts visible. Use the Customize button to show charts.
+          </CardContent>
+        </Card>
       ) : (
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Trend Chart - Full Width */}
-          <div className="lg:col-span-2">
-            <IncidentTrendChart data={trendData || []} />
-          </div>
+          {visibility.incidentTrends && (
+            <div className="lg:col-span-2">
+              {trendData === undefined ? (
+                <AnalyticsCardSkeleton />
+              ) : (
+                <IncidentTrendChart data={trendData || []} />
+              )}
+            </div>
+          )}
 
           {/* Call Type Distribution */}
-          <CallTypeChart data={callTypeData || { fire: 0, medical: 0, rescue: 0, traffic: 0, hazmat: 0, other: 0 }} />
+          {visibility.callTypes && (
+            callTypeData === undefined ? (
+              <AnalyticsCardSkeleton />
+            ) : (
+              <CallTypeChart data={callTypeData || { fire: 0, medical: 0, rescue: 0, traffic: 0, hazmat: 0, other: 0 }} />
+            )
+          )}
 
           {/* Busy Times Heatmap */}
-          <BusyTimesHeatmap data={heatmapData || []} />
+          {visibility.busyTimes && (
+            heatmapData === undefined ? (
+              <AnalyticsCardSkeleton />
+            ) : (
+              <BusyTimesHeatmap data={heatmapData || []} />
+            )
+          )}
 
           {/* Unit Utilization */}
-          <UnitUtilizationChart data={unitData || []} />
+          {visibility.unitActivity && (
+            unitData === undefined ? (
+              <AnalyticsCardSkeleton />
+            ) : (
+              <UnitUtilizationChart 
+                data={unitData || []} 
+                onUnitClick={(unitId) => setSelectedUnit(unitId)}
+              />
+            )
+          )}
 
-          {/* Response Time - Only show if data available */}
-          {responseTimeData !== undefined && responseTimeData !== null && (
+          {/* Response Time */}
+          {visibility.responseTimes && responseTimeData !== undefined && responseTimeData !== null && (
             <ResponseTimeChart data={responseTimeData} />
+          )}
+
+          {/* Weather Correlation */}
+          {visibility.weatherCorrelation && (
+            weatherCorrelationData === undefined ? (
+              <AnalyticsCardSkeleton />
+            ) : (
+              <WeatherCorrelationChart data={weatherCorrelationData} />
+            )
           )}
         </div>
       )}
+
+      {/* Unit Drill-Down Dialog */}
+      <UnitDrillDown
+        tenantId={tenantId}
+        unitId={selectedUnit}
+        startTime={dateRange.startTime}
+        endTime={dateRange.endTime}
+        onClose={() => setSelectedUnit(null)}
+      />
     </div>
   );
 }

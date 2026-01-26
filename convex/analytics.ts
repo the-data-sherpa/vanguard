@@ -396,3 +396,183 @@ export const getSummaryStats = query({
     };
   },
 });
+
+/**
+ * Get weather correlation data - compare incident rates during weather alerts vs normal days.
+ * Returns { normalDays, normalIncidents, normalAvgPerDay, alertDays, alertIncidents, alertAvgPerDay, byAlertType }.
+ */
+export const getWeatherCorrelation = query({
+  args: {
+    tenantId: v.id("tenants"),
+    startTime: v.optional(v.number()),
+    endTime: v.optional(v.number()),
+  },
+  handler: async (ctx, { tenantId, startTime, endTime }) => {
+    const now = Date.now();
+    const effectiveEndTime = endTime ?? now;
+    const effectiveStartTime = startTime ?? (now - 30 * 24 * 60 * 60 * 1000);
+
+    // Get all incidents in range
+    const incidents = await ctx.db
+      .query("incidents")
+      .withIndex("by_tenant_time", (q) => q.eq("tenantId", tenantId))
+      .filter((q) =>
+        q.and(
+          q.gte(q.field("callReceivedTime"), effectiveStartTime),
+          q.lte(q.field("callReceivedTime"), effectiveEndTime)
+        )
+      )
+      .collect();
+
+    // Get all weather alerts in range (active during this period)
+    const weatherAlerts = await ctx.db
+      .query("weatherAlerts")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId))
+      .collect();
+
+    // Filter to alerts that overlap with our time range
+    const relevantAlerts = weatherAlerts.filter(alert => {
+      const alertStart = alert.onset ?? (alert._creationTime);
+      const alertEnd = alert.expires ?? alert.ends ?? alertStart;
+      return alertStart <= effectiveEndTime && alertEnd >= effectiveStartTime;
+    });
+
+    // Build a set of days that had active weather alerts
+    const alertDaysSet = new Set<string>();
+    const alertTypeByDay: Record<string, Set<string>> = {};
+
+    for (const alert of relevantAlerts) {
+      const alertStart = new Date(alert.onset ?? alert._creationTime);
+      const alertEnd = new Date(alert.expires ?? alert.ends ?? alert._creationTime);
+      
+      // Clamp to our date range
+      const start = new Date(Math.max(alertStart.getTime(), effectiveStartTime));
+      const end = new Date(Math.min(alertEnd.getTime(), effectiveEndTime));
+      
+      // Mark each day the alert was active
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const dateStr = d.toISOString().split("T")[0];
+        alertDaysSet.add(dateStr);
+        
+        if (!alertTypeByDay[dateStr]) {
+          alertTypeByDay[dateStr] = new Set();
+        }
+        alertTypeByDay[dateStr].add(alert.event);
+      }
+    }
+
+    // Count incidents by day and categorize
+    const incidentsByDay: Record<string, number> = {};
+    
+    for (const incident of incidents) {
+      const dateStr = new Date(incident.callReceivedTime).toISOString().split("T")[0];
+      incidentsByDay[dateStr] = (incidentsByDay[dateStr] || 0) + 1;
+    }
+
+    // Calculate totals
+    let normalDays = 0;
+    let normalIncidents = 0;
+    let alertDays = 0;
+    let alertIncidents = 0;
+
+    // Track by alert type
+    const alertTypeStats: Record<string, { days: Set<string>; incidents: number }> = {};
+
+    // Get all days in range
+    const startDate = new Date(effectiveStartTime);
+    startDate.setHours(0, 0, 0, 0);
+    const endDate = new Date(effectiveEndTime);
+    
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().split("T")[0];
+      const dayIncidents = incidentsByDay[dateStr] || 0;
+      
+      if (alertDaysSet.has(dateStr)) {
+        alertDays++;
+        alertIncidents += dayIncidents;
+        
+        // Track by alert type
+        const types = alertTypeByDay[dateStr];
+        if (types) {
+          for (const eventType of types) {
+            if (!alertTypeStats[eventType]) {
+              alertTypeStats[eventType] = { days: new Set(), incidents: 0 };
+            }
+            alertTypeStats[eventType].days.add(dateStr);
+            alertTypeStats[eventType].incidents += dayIncidents;
+          }
+        }
+      } else {
+        normalDays++;
+        normalIncidents += dayIncidents;
+      }
+    }
+
+    // Convert alert type stats to array
+    const byAlertType = Object.entries(alertTypeStats)
+      .map(([event, stats]) => ({
+        event,
+        days: stats.days.size,
+        incidents: stats.incidents,
+        avgPerDay: stats.days.size > 0 ? stats.incidents / stats.days.size : 0,
+      }))
+      .sort((a, b) => b.avgPerDay - a.avgPerDay);
+
+    return {
+      normalDays,
+      normalIncidents,
+      normalAvgPerDay: normalDays > 0 ? normalIncidents / normalDays : 0,
+      alertDays,
+      alertIncidents,
+      alertAvgPerDay: alertDays > 0 ? alertIncidents / alertDays : 0,
+      byAlertType,
+    };
+  },
+});
+
+/**
+ * Get incidents for a specific unit (for drill-down).
+ * Returns array of incidents that the unit responded to.
+ */
+export const getUnitIncidents = query({
+  args: {
+    tenantId: v.id("tenants"),
+    unitId: v.string(),
+    startTime: v.optional(v.number()),
+    endTime: v.optional(v.number()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, { tenantId, unitId, startTime, endTime, limit = 50 }) => {
+    const now = Date.now();
+    const effectiveEndTime = endTime ?? now;
+    const effectiveStartTime = startTime ?? (now - 30 * 24 * 60 * 60 * 1000);
+
+    const incidents = await ctx.db
+      .query("incidents")
+      .withIndex("by_tenant_time", (q) => q.eq("tenantId", tenantId))
+      .filter((q) =>
+        q.and(
+          q.gte(q.field("callReceivedTime"), effectiveStartTime),
+          q.lte(q.field("callReceivedTime"), effectiveEndTime)
+        )
+      )
+      .order("desc")
+      .collect();
+
+    // Filter to incidents with this unit
+    const unitIncidents = incidents
+      .filter(incident => incident.units?.includes(unitId))
+      .slice(0, limit)
+      .map(incident => ({
+        _id: incident._id,
+        callType: incident.callType,
+        callTypeCategory: incident.callTypeCategory,
+        fullAddress: incident.fullAddress,
+        callReceivedTime: incident.callReceivedTime,
+        status: incident.status,
+        units: incident.units,
+      }));
+
+    return unitIncidents;
+  },
+});

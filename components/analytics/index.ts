@@ -5,3 +5,11 @@ export { CallTypeChart } from "./CallTypeChart";
 export { BusyTimesHeatmap } from "./BusyTimesHeatmap";
 export { UnitUtilizationChart } from "./UnitUtilizationChart";
 export { ResponseTimeChart } from "./ResponseTimeChart";
+export { WeatherCorrelationChart } from "./WeatherCorrelationChart";
+export { UnitDrillDown } from "./UnitDrillDown";
+export { 
+  DashboardCustomizer, 
+  useDashboardVisibility, 
+  getDefaultVisibility,
+  type DashboardVisibility 
+} from "./DashboardCustomizer";
