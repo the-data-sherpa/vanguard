@@ -46,7 +46,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-xl font-semibold mb-4">Subscription and Billing</h2>
             <p className="text-muted-foreground mb-4">
-              Access to Vanguard requires a paid subscription after a 14-day trial period. By subscribing, you agree to:
+              Access to Vanguard requires a paid subscription after a 7-day trial period. By subscribing, you agree to:
             </p>
             <ul className="list-disc list-inside text-muted-foreground space-y-2">
               <li>Pay the applicable subscription fees</li>

@@ -198,7 +198,7 @@ export const getStats = query({
 // ===================
 
 // Trial duration constant
-const TRIAL_DURATION_DAYS = 14;
+const TRIAL_DURATION_DAYS = 7;
 const TRIAL_DURATION_MS = TRIAL_DURATION_DAYS * 24 * 60 * 60 * 1000;
 
 /**

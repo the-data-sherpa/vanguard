@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { query, mutation, action, QueryCtx, MutationCtx } from "./_generated/server";
+import { query, mutation, internalMutation, action, QueryCtx, MutationCtx } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 
@@ -683,7 +683,7 @@ export const getTenantAuditLogs = query({
 // ===================
 
 // Trial duration constant
-const TRIAL_DURATION_DAYS = 14;
+const TRIAL_DURATION_DAYS = 7;
 const TRIAL_DURATION_MS = TRIAL_DURATION_DAYS * 24 * 60 * 60 * 1000;
 
 /**
@@ -909,5 +909,100 @@ export const triggerTenantSync = action({
     }
 
     return { success: true, syncType };
+  },
+});
+
+// ===================
+// Migrations
+// ===================
+
+/**
+ * One-time migration: Adjust existing trials from 14-day to 7-day
+ * Run this once after deploying the trial duration change.
+ * 
+ * This subtracts 7 days from all existing trial end dates.
+ * Trials that have already used more than 7 days will be expired
+ * by the next maintenance run.
+ * 
+ * This is an internalMutation so it can be run from the Convex dashboard
+ * without authentication (one-time admin operation).
+ */
+export const migrateTrialDuration = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    
+    const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+    
+    // Find all tenants currently on trial
+    const allTenants = await ctx.db.query("tenants").collect();
+    const trialingTenants = allTenants.filter(
+      t => t.subscriptionStatus === "trialing" && t.trialEndsAt
+    );
+    
+    console.log(`[Migration] Found ${trialingTenants.length} tenants with active trials`);
+    
+    const results = {
+      updated: 0,
+      alreadyExpired: 0,
+      errors: 0,
+      details: [] as Array<{
+        tenantId: string;
+        name: string;
+        oldEndDate: string;
+        newEndDate: string;
+        status: "updated" | "will_expire";
+      }>,
+    };
+    
+    const now = Date.now();
+    
+    for (const tenant of trialingTenants) {
+      try {
+        const oldTrialEndsAt = tenant.trialEndsAt!;
+        const newTrialEndsAt = oldTrialEndsAt - SEVEN_DAYS_MS;
+        
+        // Update the trial end date
+        await ctx.db.patch(tenant._id, {
+          trialEndsAt: newTrialEndsAt,
+        });
+        
+        const willExpire = newTrialEndsAt <= now;
+        
+        results.details.push({
+          tenantId: tenant._id,
+          name: tenant.name,
+          oldEndDate: new Date(oldTrialEndsAt).toISOString(),
+          newEndDate: new Date(newTrialEndsAt).toISOString(),
+          status: willExpire ? "will_expire" : "updated",
+        });
+        
+        if (willExpire) {
+          results.alreadyExpired++;
+        } else {
+          results.updated++;
+        }
+        
+        console.log(
+          `[Migration] ${tenant.name}: ${new Date(oldTrialEndsAt).toISOString()} -> ${new Date(newTrialEndsAt).toISOString()} (${willExpire ? "will expire" : "updated"})`
+        );
+      } catch (error) {
+        results.errors++;
+        console.error(`[Migration] Error updating tenant ${tenant._id}:`, error);
+      }
+    }
+    
+    // Log the migration
+    await ctx.db.insert("auditLog", {
+      tenantId: undefined,
+      userId: undefined,
+      action: "system.migration",
+      description: `Trial duration migration: 14-day to 7-day. Updated ${results.updated}, will expire ${results.alreadyExpired}, errors ${results.errors}`,
+      details: results,
+      timestamp: now,
+    });
+    
+    console.log(`[Migration] Complete: ${results.updated} updated, ${results.alreadyExpired} will expire on next maintenance run, ${results.errors} errors`);
+    
+    return results;
   },
 });

@@ -7,7 +7,7 @@ import { Id } from "./_generated/dataModel";
 // Constants
 // ===================
 
-const TRIAL_DURATION_DAYS = 14;
+const TRIAL_DURATION_DAYS = 7;
 const TRIAL_DURATION_MS = TRIAL_DURATION_DAYS * 24 * 60 * 60 * 1000;
 const MONTHLY_PRICE_CENTS = 2999; // $29.99
 

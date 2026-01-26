@@ -90,7 +90,7 @@ export function getSubscriptionStatusInfo(status: string | undefined): {
 export const PRICING = {
   monthlyPrice: 29.99,
   monthlyPriceCents: 2999,
-  trialDays: 14,
+  trialDays: 7,
   currency: "USD",
 } as const;
 
