@@ -992,13 +992,15 @@ export const migrateTrialDuration = internalMutation({
     }
     
     // Log the migration
-    await ctx.db.insert("auditLog", {
-      tenantId: undefined,
-      userId: undefined,
-      action: "system.migration",
-      description: `Trial duration migration: 14-day to 7-day. Updated ${results.updated}, will expire ${results.alreadyExpired}, errors ${results.errors}`,
-      details: results,
-      timestamp: now,
+    await ctx.db.insert("auditLogs", {
+      actorId: "system",
+      actorType: "system",
+      action: "system.migration.trial_duration",
+      details: {
+        description: `Trial duration migration: 14-day to 7-day. Updated ${results.updated}, will expire ${results.alreadyExpired}, errors ${results.errors}`,
+        ...results,
+      },
+      result: "success",
     });
     
     console.log(`[Migration] Complete: ${results.updated} updated, ${results.alreadyExpired} will expire on next maintenance run, ${results.errors} errors`);
