@@ -227,61 +227,147 @@ function formatWeatherPost(alert: Doc<"weatherAlerts">, tenantName?: string, tim
   // Parse structured description
   const parsed = alert.description ? parseNWSDescription(alert.description) : {};
 
-  // WHERE first (location context)
-  if (parsed.where) {
-    lines.push(`📍 WHERE: ${parsed.where}`);
-  }
+  // Check if we have structured content (WHAT/WHERE/WHEN format)
+  const hasStructuredContent = parsed.what || parsed.where || parsed.when || parsed.impacts;
 
-  lines.push("");
+  // Check if we have any content at all
+  const hasDescription = !!alert.description;
+  const hasInstruction = !!alert.instruction;
 
-  // WHAT
-  if (parsed.what) {
-    lines.push(`❄️ WHAT: ${parsed.what}`);
-  }
+  // If no description or instruction at all, use headline as fallback
+  if (!hasDescription && !hasInstruction) {
+    console.warn(`[Weather Facebook] Alert ${alert.nwsId} has null description and instruction, using headline as fallback`);
+    lines.push("");
+    lines.push(`⚠️ ${alert.headline}`);
+    lines.push("");
 
-  lines.push("");
+    // Still include timing information if available
+    const formatDate = (timestamp: number): string => {
+      const date = new Date(timestamp);
+      return date.toLocaleString("en-US", {
+        weekday: "long",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        timeZone: tz,
+      });
+    };
 
-  // WHEN with dates
-  const formatDate = (timestamp: number): string => {
-    const date = new Date(timestamp);
-    return date.toLocaleString("en-US", {
-      weekday: "long",
-      month: "short",
-      day: "numeric",
-      timeZone: tz,
-    });
-  };
-
-  if (parsed.when) {
-    // Use 'ends' for actual event end time, fall back to 'expires'
     const endsTimestamp = alert.ends || alert.expires;
     const onsetDate = alert.onset ? formatDate(alert.onset) : null;
     const endsDate = formatDate(endsTimestamp);
 
-    let whenText = `⏰ WHEN: ${parsed.when}`;
     if (onsetDate && endsDate) {
-      whenText += ` (${onsetDate} - ${endsDate})`;
+      lines.push(`⏰ ${onsetDate} - ${endsDate}`);
+    } else if (endsDate) {
+      lines.push(`⏰ Until ${endsDate}`);
     }
-    lines.push(whenText);
+    lines.push("");
+  } else if (hasStructuredContent) {
+    // We have structured WHAT/WHERE/WHEN/IMPACTS format
+    // WHERE first (location context)
+    if (parsed.where) {
+      lines.push(`📍 WHERE: ${parsed.where}`);
+    }
+
+    lines.push("");
+
+    // WHAT
+    if (parsed.what) {
+      lines.push(`❄️ WHAT: ${parsed.what}`);
+    }
+
+    lines.push("");
+
+    // WHEN with dates
+    const formatDate = (timestamp: number): string => {
+      const date = new Date(timestamp);
+      return date.toLocaleString("en-US", {
+        weekday: "long",
+        month: "short",
+        day: "numeric",
+        timeZone: tz,
+      });
+    };
+
+    if (parsed.when) {
+      // Use 'ends' for actual event end time, fall back to 'expires'
+      const endsTimestamp = alert.ends || alert.expires;
+      const onsetDate = alert.onset ? formatDate(alert.onset) : null;
+      const endsDate = formatDate(endsTimestamp);
+
+      let whenText = `⏰ WHEN: ${parsed.when}`;
+      if (onsetDate && endsDate) {
+        whenText += ` (${onsetDate} - ${endsDate})`;
+      }
+      lines.push(whenText);
+    }
+
+    lines.push("");
+
+    // IMPACTS
+    if (parsed.impacts) {
+      lines.push(`⚠️ IMPACTS:`);
+      lines.push(parsed.impacts);
+    }
+
+    lines.push("");
+
+    // INSTRUCTIONS (truncated)
+    if (alert.instruction) {
+      lines.push(`📋 INSTRUCTIONS:`);
+      lines.push(truncateInstructions(alert.instruction, 2));
+    }
+
+    lines.push("");
+  } else {
+    // Unstructured description (e.g., Special Weather Statements)
+    // Show the raw description text since it's not in WHAT/WHERE/WHEN format
+    if (hasDescription) {
+      lines.push("");
+      // Truncate long descriptions to keep posts readable
+      const description = alert.description || "";
+      const maxLength = 500;
+      if (description.length > maxLength) {
+        lines.push(description.substring(0, maxLength) + "...");
+      } else {
+        lines.push(description);
+      }
+      lines.push("");
+    }
+
+    // Add timing information
+    const formatDate = (timestamp: number): string => {
+      const date = new Date(timestamp);
+      return date.toLocaleString("en-US", {
+        weekday: "long",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        timeZone: tz,
+      });
+    };
+
+    const endsTimestamp = alert.ends || alert.expires;
+    const onsetDate = alert.onset ? formatDate(alert.onset) : null;
+    const endsDate = formatDate(endsTimestamp);
+
+    if (onsetDate && endsDate) {
+      lines.push(`⏰ ${onsetDate} - ${endsDate}`);
+    } else if (endsDate) {
+      lines.push(`⏰ Until ${endsDate}`);
+    }
+    lines.push("");
+
+    // INSTRUCTIONS if present
+    if (hasInstruction) {
+      lines.push(`📋 INSTRUCTIONS:`);
+      lines.push(truncateInstructions(alert.instruction!, 2));
+      lines.push("");
+    }
   }
-
-  lines.push("");
-
-  // IMPACTS
-  if (parsed.impacts) {
-    lines.push(`⚠️ IMPACTS:`);
-    lines.push(parsed.impacts);
-  }
-
-  lines.push("");
-
-  // INSTRUCTIONS (truncated)
-  if (alert.instruction) {
-    lines.push(`📋 INSTRUCTIONS:`);
-    lines.push(truncateInstructions(alert.instruction, 2));
-  }
-
-  lines.push("");
 
   // Hashtags from affected zones + event type
   const hashtags: string[] = [];
