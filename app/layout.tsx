@@ -53,6 +53,11 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
+  verification: {
+    other: {
+      "facebook-domain-verification": "5wtmyop74zeh9q6sbw73shjzeoquxu",
+    },
+  },
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
